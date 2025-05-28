@@ -25,6 +25,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := LoadHostDirectories(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading host directories: %v\n", err)
+		os.Exit(1)
+	}
+
 	s := server.NewMCPServer(
 		"Dagger",
 		"1.0.0",

@@ -5,9 +5,109 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"dagger.io/dagger"
+	"github.com/google/uuid"
 )
+
+type HostDirectory struct {
+	ID      string         `json:"id"`
+	Path    string         `json:"path"`
+	History HostDirHistory `json:"history"`
+
+	mu        sync.Mutex
+	Directory *dagger.Directory
+}
+
+func (hd *HostDirectory) Checkpoint(ctx context.Context, reason string, explanation string) error {
+	hd.mu.Lock()
+	defer hd.mu.Unlock()
+
+	name := fmt.Sprintf("%s %s", reason, hd.Path)
+	err := hd.History.Checkpoint(ctx, name, explanation, hd.Directory)
+	if err != nil {
+		return fmt.Errorf("failed syncing host directory: %w", err)
+	}
+	err = saveHostDirState(hd)
+	if err != nil {
+		return fmt.Errorf("failed persisting host directory state: %w", err)
+	}
+	return nil
+}
+
+type HostDirRevision struct {
+	Version     Version   `json:"version"`
+	Name        string    `json:"name"`
+	Explanation string    `json:"explanation"`
+	CreatedAt   time.Time `json:"created_at"`
+
+	state *dagger.Directory
+}
+
+type HostDirHistory []*HostDirRevision
+
+func (h HostDirHistory) Latest() *HostDirRevision {
+	if len(h) == 0 {
+		return nil
+	}
+	return h[len(h)-1]
+}
+
+func (h HostDirHistory) LatestVersion() Version {
+	latest := h.Latest()
+	if latest == nil {
+		return 0
+	}
+	return latest.Version
+}
+
+func (h *HostDirHistory) Checkpoint(ctx context.Context, name string, explanation string, dir *dagger.Directory) error {
+	state, err := dir.Sync(ctx)
+	if err != nil {
+		return err
+	}
+	*h = append(*h, &HostDirRevision{
+		Version:     h.LatestVersion() + 1,
+		Name:        name,
+		Explanation: explanation,
+		CreatedAt:   time.Now(),
+		state:       state,
+	})
+	return nil
+}
+
+var hostDirectories = map[string]*HostDirectory{}
+var hostDirectoriesMtx sync.Mutex
+
+func LoadHostDirectories() error {
+	hds, err := loadHostDirState()
+	if err != nil {
+		return err
+	}
+	hostDirectories = hds
+	return nil
+}
+
+func GetHostDirectory(path string) *HostDirectory {
+	// TODO: normalize path
+
+	hostDirectoriesMtx.Lock()
+	defer hostDirectoriesMtx.Unlock()
+
+	if hd, ok := hostDirectories[path]; ok {
+		return hd
+	}
+
+	hostDirectories[path] = &HostDirectory{
+		ID:        uuid.New().String(),
+		Path:      path,
+		Directory: dag.Host().Directory(path, dagger.HostDirectoryOpts{NoCache: true}),
+	}
+
+	return hostDirectories[path]
+}
 
 func (s *Container) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {
 	file, err := s.state.File(targetFile).Contents(ctx)
@@ -56,24 +156,43 @@ func (s *Container) FileList(ctx context.Context, path string) (string, error) {
 	return out.String(), nil
 }
 
-func urlToDirectory(url string) *dagger.Directory {
+func urlToDirectory(url string) (*HostDirectory, *dagger.Directory) {
 	switch {
-	case strings.HasPrefix(url, "file://"):
-		return dag.Host().Directory(url[len("file://"):])
 	case strings.HasPrefix(url, "git://"):
-		return dag.Git(url[len("git://"):]).Head().Tree()
+		return nil, dag.Git(url[len("git://"):]).Head().Tree()
 	case strings.HasPrefix(url, "https://"):
-		return dag.Git(url[len("https://"):]).Head().Tree()
+		return nil, dag.Git(url[len("https://"):]).Head().Tree()
+	case strings.HasPrefix(url, "file://"):
+		hd := GetHostDirectory(url[len("file://"):])
+		return hd, hd.Directory
 	default:
-		return dag.Host().Directory(url)
+		hd := GetHostDirectory(url)
+		return hd, hd.Directory
 	}
 }
 
-func (s *Container) Upload(ctx context.Context, explanation, source string, target string) error {
-	return s.apply(ctx, "Upload "+source+" to "+target, explanation, s.state.WithDirectory(target, urlToDirectory(source)))
+func (s *Container) Upload(ctx context.Context, explanation string, source string, target string) error {
+	// TODO: subpath disambiguation - /dir/subpath/subpath should give /dir when /dir already exists as a HostDirectory?
+	hd, dir := urlToDirectory(source)
+	if hd != nil {
+		hd.Checkpoint(ctx, "Before Upload", explanation)
+	}
+
+	return s.apply(
+		ctx,
+		"Upload "+source+" to "+target,
+		explanation,
+		s.state.WithDirectory(target, dir),
+	)
 }
 
 func (s *Container) Download(ctx context.Context, source string, target string) error {
+	// TODO: subpath disambiguation - /dir/subpath/subpath should checkpoint /dir
+	hd, _ := urlToDirectory(source)
+	if hd != nil {
+		hd.Checkpoint(ctx, "Before Download", "Downloaded "+source+", overwriting "+target)
+	}
+
 	if _, err := s.state.Directory(source).Export(ctx, target); err != nil {
 		if strings.Contains(err.Error(), "not a directory") {
 			if _, err := s.state.File(source).Export(ctx, target); err != nil {
@@ -88,7 +207,7 @@ func (s *Container) Download(ctx context.Context, source string, target string) 
 }
 
 func (s *Container) Diff(ctx context.Context, source string, target string) (string, error) {
-	sourceDir := urlToDirectory(source)
+	_, sourceDir := urlToDirectory(source)
 	targetDir := s.state.Directory(target)
 
 	diff, err := dag.Container().From("alpine").
