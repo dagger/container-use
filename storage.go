@@ -63,6 +63,9 @@ func loadState() (map[string]*Container, error) {
 		}
 		id := entry.Name()
 		stateFile := filepath.Join(stateDir, id, "container.json")
+		if _, err := os.Stat(stateFile); os.IsNotExist(err) {
+			continue
+		}
 		data, err := os.ReadFile(stateFile)
 		if err != nil {
 			return nil, err
@@ -139,6 +142,9 @@ func loadHostDirState() (map[string]*HostDirectory, error) {
 		}
 		id := entry.Name()
 		stateFile := filepath.Join(stateDir, id, "hostDir.json")
+		if _, err := os.Stat(stateFile); os.IsNotExist(err) {
+			continue
+		}
 		data, err := os.ReadFile(stateFile)
 		if err != nil {
 			return nil, err
