@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -131,22 +132,48 @@ func LoadHostDirectories() error {
 }
 
 func GetHostDirectory(path string) *HostDirectory {
-	// TODO: normalize path
-
 	hostDirectoriesMtx.Lock()
 	defer hostDirectoriesMtx.Unlock()
 
-	if hd, ok := hostDirectories[path]; ok {
+	// Normalize path
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
+	
+	// Check if this exact path already exists
+	if hd, ok := hostDirectories[absPath]; ok {
 		return hd
 	}
-
-	hostDirectories[path] = &HostDirectory{
-		ID:        uuid.New().String(),
-		Path:      path,
-		Directory: dag.Host().Directory(path, dagger.HostDirectoryOpts{NoCache: true}),
+	
+	// Check if any existing host directory is a parent of this path
+	for existingPath, hd := range hostDirectories {
+		if strings.HasPrefix(absPath+"/", existingPath+"/") || absPath == existingPath {
+			return hd
+		}
+	}
+	
+	// Check if this path is a parent of any existing host directories
+	// If so, we need to replace those with this higher-level one
+	var childPaths []string
+	for existingPath := range hostDirectories {
+		if strings.HasPrefix(existingPath+"/", absPath+"/") {
+			childPaths = append(childPaths, existingPath)
+		}
+	}
+	
+	// Remove child directories and use this parent instead
+	for _, childPath := range childPaths {
+		delete(hostDirectories, childPath)
 	}
 
-	return hostDirectories[path]
+	hostDirectories[absPath] = &HostDirectory{
+		ID:        uuid.New().String(),
+		Path:      absPath,
+		Directory: dag.Host().Directory(absPath, dagger.HostDirectoryOpts{NoCache: true}),
+	}
+
+	return hostDirectories[absPath]
 }
 
 func ListHostDirectories() []*HostDirectory {
@@ -207,26 +234,45 @@ func (s *Container) FileList(ctx context.Context, path string) (string, error) {
 	return out.String(), nil
 }
 
-func urlToDirectory(url string) (*HostDirectory, *dagger.Directory) {
+func urlToDirectory(url string) (*HostDirectory, *dagger.Directory, string) {
 	switch {
 	case strings.HasPrefix(url, "git://"):
-		return nil, dag.Git(url[len("git://"):]).Head().Tree()
+		return nil, dag.Git(url[len("git://"):]).Head().Tree(), ""
 	case strings.HasPrefix(url, "https://"):
-		return nil, dag.Git(url[len("https://"):]).Head().Tree()
+		return nil, dag.Git(url[len("https://"):]).Head().Tree(), ""
 	case strings.HasPrefix(url, "file://"):
-		hd := GetHostDirectory(url[len("file://"):])
-		return hd, hd.Directory
+		return getHostDirectoryWithSubpath(url[len("file://"):])
 	default:
-		hd := GetHostDirectory(url)
-		return hd, hd.Directory
+		return getHostDirectoryWithSubpath(url)
 	}
 }
 
+func getHostDirectoryWithSubpath(targetPath string) (*HostDirectory, *dagger.Directory, string) {
+	absPath, err := filepath.Abs(targetPath)
+	if err != nil {
+		absPath = targetPath
+	}
+	
+	hd := GetHostDirectory(absPath)
+	
+	// Calculate the relative path from the host directory to the target
+	relPath, err := filepath.Rel(hd.Path, absPath)
+	if err != nil || relPath == "." {
+		return hd, hd.Directory, ""
+	}
+	
+	// Return the subdirectory
+	return hd, hd.Directory.Directory(relPath), relPath
+}
+
 func (s *Container) Upload(ctx context.Context, explanation string, source string, target string) error {
-	// TODO: subpath disambiguation - /dir/subpath/subpath should give /dir when /dir already exists as a HostDirectory?
-	hd, dir := urlToDirectory(source)
+	hd, dir, subpath := urlToDirectory(source)
 	if hd != nil {
-		hd.Checkpoint(ctx, "Before Upload", explanation)
+		checkpointName := "Before Upload"
+		if subpath != "" {
+			checkpointName = fmt.Sprintf("Before Upload from %s", subpath)
+		}
+		hd.Checkpoint(ctx, checkpointName, explanation)
 	}
 
 	return s.apply(
@@ -238,10 +284,14 @@ func (s *Container) Upload(ctx context.Context, explanation string, source strin
 }
 
 func (s *Container) Download(ctx context.Context, source string, target string) error {
-	// TODO: subpath disambiguation - /dir/subpath/subpath should checkpoint /dir
-	hd, _ := urlToDirectory(target)
+	hd, _, subpath := urlToDirectory(target)
 	if hd != nil {
-		hd.Checkpoint(ctx, "Before Download", "Downloaded "+source+", overwriting "+target)
+		checkpointName := "Before Download"
+		checkpointExplanation := "Downloaded " + source + ", overwriting " + target
+		if subpath != "" {
+			checkpointName = fmt.Sprintf("Before Download to %s", subpath)
+		}
+		hd.Checkpoint(ctx, checkpointName, checkpointExplanation)
 	}
 
 	if _, err := s.state.Directory(source).Export(ctx, target); err != nil {
@@ -258,7 +308,7 @@ func (s *Container) Download(ctx context.Context, source string, target string) 
 }
 
 func (s *Container) Diff(ctx context.Context, source string, target string) (string, error) {
-	_, sourceDir := urlToDirectory(source)
+	_, sourceDir, _ := urlToDirectory(source)
 	targetDir := s.state.Directory(target)
 
 	diff, err := dag.Container().From("alpine").
