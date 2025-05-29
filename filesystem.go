@@ -19,7 +19,7 @@ type HostDirectory struct {
 	History HostDirHistory `json:"history"`
 
 	mu        sync.Mutex
-	Directory *dagger.Directory
+	directory *dagger.Directory
 }
 
 func (hd *HostDirectory) Checkpoint(ctx context.Context, reason string, explanation string) error {
@@ -27,7 +27,7 @@ func (hd *HostDirectory) Checkpoint(ctx context.Context, reason string, explanat
 	defer hd.mu.Unlock()
 
 	name := fmt.Sprintf("%s %s", reason, hd.Path)
-	err := hd.History.Checkpoint(ctx, name, explanation, hd.Directory)
+	err := hd.History.Checkpoint(ctx, name, explanation, hd.directory)
 	if err != nil {
 		return fmt.Errorf("failed syncing host directory: %w", err)
 	}
@@ -52,11 +52,11 @@ func (hd *HostDirectory) Revert(ctx context.Context, explanation string, version
 		return fmt.Errorf("failed exporting reverted state to host directory: %w", err)
 	}
 	
-	hd.Directory = revision.state
+	hd.directory = revision.state
 	
 	// Create a new checkpoint to record the revert
 	name := fmt.Sprintf("Revert %s to %s", hd.Path, revision.Name)
-	err := hd.History.Checkpoint(ctx, name, explanation, hd.Directory)
+	err := hd.History.Checkpoint(ctx, name, explanation, hd.directory)
 	if err != nil {
 		return fmt.Errorf("failed syncing host directory after revert: %w", err)
 	}
@@ -170,7 +170,7 @@ func GetHostDirectory(path string) *HostDirectory {
 	hostDirectories[absPath] = &HostDirectory{
 		ID:        uuid.New().String(),
 		Path:      absPath,
-		Directory: dag.Host().Directory(absPath, dagger.HostDirectoryOpts{NoCache: true}),
+		directory: dag.Host().Directory(absPath, dagger.HostDirectoryOpts{NoCache: true}),
 	}
 
 	return hostDirectories[absPath]
@@ -258,11 +258,11 @@ func getHostDirectoryWithSubpath(targetPath string) (*HostDirectory, *dagger.Dir
 	// Calculate the relative path from the host directory to the target
 	relPath, err := filepath.Rel(hd.Path, absPath)
 	if err != nil || relPath == "." {
-		return hd, hd.Directory, ""
+		return hd, hd.directory, ""
 	}
 	
 	// Return the subdirectory
-	return hd, hd.Directory.Directory(relPath), relPath
+	return hd, hd.directory.Directory(relPath), relPath
 }
 
 func (s *Container) Upload(ctx context.Context, explanation string, source string, target string) error {

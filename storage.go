@@ -31,13 +31,15 @@ func saveState(c *Container) error {
 	}
 
 	latest := c.History.Latest()
-	stateID, err := latest.state.ID(context.Background())
-	if err != nil {
-		return err
-	}
+	if latest != nil {
+		stateID, err := latest.state.ID(context.Background())
+		if err != nil {
+			return err
+		}
 
-	if err := os.WriteFile(filepath.Join(statesDir, fmt.Sprintf("%d", latest.Version)), []byte(stateID), 0644); err != nil {
-		return err
+		if err := os.WriteFile(filepath.Join(statesDir, fmt.Sprintf("%d", latest.Version)), []byte(stateID), 0644); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -82,7 +84,12 @@ func loadState() (map[string]*Container, error) {
 			}
 			revision.state = dag.LoadContainerFromID(dagger.ContainerID(data))
 		}
-		c.state = c.History.Latest().state
+		latest := c.History.Latest()
+		if latest != nil {
+			c.state = latest.state
+		} else {
+			c.state = dag.Container().From(c.Image)
+		}
 
 		containers[id] = &c
 	}
@@ -110,13 +117,15 @@ func saveHostDirState(hd *HostDirectory) error {
 	}
 
 	latest := hd.History.Latest()
-	stateID, err := latest.state.ID(context.Background())
-	if err != nil {
-		return err
-	}
+	if latest != nil {
+		stateID, err := latest.state.ID(context.Background())
+		if err != nil {
+			return err
+		}
 
-	if err := os.WriteFile(filepath.Join(statesDir, fmt.Sprintf("%d", latest.Version)), []byte(stateID), 0644); err != nil {
-		return err
+		if err := os.WriteFile(filepath.Join(statesDir, fmt.Sprintf("%d", latest.Version)), []byte(stateID), 0644); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -161,7 +170,12 @@ func loadHostDirState() (map[string]*HostDirectory, error) {
 			}
 			revision.state = dag.LoadDirectoryFromID(dagger.DirectoryID(data))
 		}
-		hd.Directory = hd.History.Latest().state
+		latest := hd.History.Latest()
+		if latest != nil {
+			hd.directory = latest.state
+		} else {
+			hd.directory = dag.Host().Directory(hd.Path, dagger.HostDirectoryOpts{NoCache: true})
+		}
 
 		containers[id] = &hd
 	}
