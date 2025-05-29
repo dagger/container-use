@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,8 +82,6 @@ func CreateContainer(name, explanation, image, workdir string, includeGitContent
 		return nil, fmt.Errorf("failed to capture git state: %v", err)
 	}
 
-
-
 	container := &Container{
 		ID:       uuid.New().String(),
 		Name:     name,
@@ -96,18 +95,29 @@ func CreateContainer(name, explanation, image, workdir string, includeGitContent
 	if gitState.IsRepository && includeGitContent {
 		hostDir := dag.Host().Directory(".")
 		containerState = containerState.WithDirectory("/git-repo", hostDir)
-		
+
 		// Install git and configure it in the container
 		containerState = containerState.WithExec([]string{"sh", "-c", "command -v git || (apk add --no-cache git 2>/dev/null || apt-get update && apt-get install -y git 2>/dev/null || yum install -y git 2>/dev/null || true)"})
 		containerState = containerState.WithExec([]string{"git", "config", "--global", "user.email", "container@example.com"})
 		containerState = containerState.WithExec([]string{"git", "config", "--global", "user.name", "Container User"})
-		
+
 		// If there were uncommitted changes, commit them inside the container
 		if hasUncommittedChanges() {
 			containerState = containerState.WithWorkdir("/git-repo")
 			containerState = containerState.WithExec([]string{"git", "add", "."})
 			commitMessage := fmt.Sprintf("Container creation commit: %s", explanation)
 			containerState = containerState.WithExec([]string{"git", "commit", "-m", commitMessage})
+			
+			// Extract the new commit hash after committing
+			commitHash, err := containerState.WithExec([]string{"git", "rev-parse", "HEAD"}).Stdout(context.Background())
+			if err != nil {
+				return nil, fmt.Errorf("failed to get commit hash: %v", err)
+			}
+			
+			// Update git state with new commit hash
+			gitState.CurrentCommit = strings.TrimSpace(commitHash)
+			container.GitState = gitState
+			
 			containerState = containerState.WithWorkdir(workdir)
 		}
 	} else {
@@ -172,6 +182,13 @@ func (s *Container) Run(ctx context.Context, explanation, command, shell string)
 		}
 		return "", err
 	}
+
+	// Create git commit for this change if container has git content
+	newState, err = s.withGitCommit(ctx, newState, fmt.Sprintf("Run %s: %s", command, explanation))
+	if err != nil {
+		return "", err
+	}
+	
 	if err := s.apply(ctx, "Run "+command, explanation, newState); err != nil {
 		return "", err
 	}
@@ -246,4 +263,25 @@ func (s *Container) Fork(ctx context.Context, explanation, name string, version 
 	}
 	containers[forkedContainer.ID] = forkedContainer
 	return forkedContainer, nil
+}
+
+// withGitCommit adds git commit operations to the container state if it has git content and updates CurrentCommit
+func (s *Container) withGitCommit(ctx context.Context, state *dagger.Container, commitMessage string) (*dagger.Container, error) {
+	if s.GitState != nil && s.GitState.IsRepository {
+		newState := state.WithWorkdir("/git-repo").
+			WithExec([]string{"git", "add", "."}).
+			WithExec([]string{"sh", "-c", "git diff --staged --quiet || git commit -m '" + commitMessage + "'"})
+
+		// Extract the new commit hash
+		commitHash, err := newState.WithExec([]string{"git", "rev-parse", "HEAD"}).Stdout(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update the GitState with the new commit
+		s.GitState.CurrentCommit = strings.TrimSpace(commitHash)
+
+		return newState.WithWorkdir(s.Workdir), nil
+	}
+	return state, nil
 }
