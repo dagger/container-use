@@ -53,11 +53,12 @@ func (h History) Get(version Version) *Revision {
 }
 
 type Container struct {
-	ID      string  `json:"id"`
-	Name    string  `json:"name"`
-	Image   string  `json:"image"`
-	Workdir string  `json:"workdir"`
-	History History `json:"history"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Image    string    `json:"image"`
+	Workdir  string    `json:"workdir"`
+	History  History   `json:"history"`
+	GitState *GitState `json:"git_state,omitempty"`
 
 	mu    sync.Mutex
 	state *dagger.Container
@@ -74,18 +75,46 @@ func LoadContainers() error {
 	return nil
 }
 
-func CreateContainer(name, explanation, image, workdir string) (*Container, error) {
-	container := &Container{
-		ID:      uuid.New().String(),
-		Name:    name,
-		Image:   image,
-		Workdir: workdir,
+func CreateContainer(name, explanation, image, workdir string, includeGitContent bool) (*Container, error) {
+	gitState, err := GetGitState()
+	if err != nil {
+		return nil, fmt.Errorf("failed to capture git state: %v", err)
 	}
-	err := container.apply(context.Background(), "Create container from "+image, explanation, dag.Container().
-		From(image).
-		WithWorkdir(workdir).
-		WithDirectory(".", dag.Directory())) // Force workdir to exist
 
+
+
+	container := &Container{
+		ID:       uuid.New().String(),
+		Name:     name,
+		Image:    image,
+		Workdir:  workdir,
+		GitState: gitState,
+	}
+
+	containerState := dag.Container().From(image).WithWorkdir(workdir)
+
+	if gitState.IsRepository && includeGitContent {
+		hostDir := dag.Host().Directory(".")
+		containerState = containerState.WithDirectory("/git-repo", hostDir)
+		
+		// Install git and configure it in the container
+		containerState = containerState.WithExec([]string{"sh", "-c", "command -v git || (apk add --no-cache git 2>/dev/null || apt-get update && apt-get install -y git 2>/dev/null || yum install -y git 2>/dev/null || true)"})
+		containerState = containerState.WithExec([]string{"git", "config", "--global", "user.email", "container@example.com"})
+		containerState = containerState.WithExec([]string{"git", "config", "--global", "user.name", "Container User"})
+		
+		// If there were uncommitted changes, commit them inside the container
+		if hasUncommittedChanges() {
+			containerState = containerState.WithWorkdir("/git-repo")
+			containerState = containerState.WithExec([]string{"git", "add", "."})
+			commitMessage := fmt.Sprintf("Container creation commit: %s", explanation)
+			containerState = containerState.WithExec([]string{"git", "commit", "-m", commitMessage})
+			containerState = containerState.WithWorkdir(workdir)
+		}
+	} else {
+		containerState = containerState.WithDirectory(".", dag.Directory())
+	}
+
+	err = container.apply(context.Background(), "Create container from "+image, explanation, containerState)
 	if err != nil {
 		return nil, err
 	}
