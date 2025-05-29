@@ -46,6 +46,11 @@ func (hd *HostDirectory) Revert(ctx context.Context, explanation string, version
 		return errors.New("no revisions found")
 	}
 	
+	// Export the reverted state back to the host filesystem
+	if _, err := revision.state.Export(ctx, hd.Path); err != nil {
+		return fmt.Errorf("failed exporting reverted state to host directory: %w", err)
+	}
+	
 	hd.Directory = revision.state
 	
 	// Create a new checkpoint to record the revert
@@ -234,7 +239,7 @@ func (s *Container) Upload(ctx context.Context, explanation string, source strin
 
 func (s *Container) Download(ctx context.Context, source string, target string) error {
 	// TODO: subpath disambiguation - /dir/subpath/subpath should checkpoint /dir
-	hd, _ := urlToDirectory(source)
+	hd, _ := urlToDirectory(target)
 	if hd != nil {
 		hd.Checkpoint(ctx, "Before Download", "Downloaded "+source+", overwriting "+target)
 	}
