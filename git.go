@@ -14,6 +14,7 @@ type GitState struct {
 	RootPath      string    `json:"root_path"`
 	CurrentBranch string    `json:"current_branch"`
 	CurrentCommit string    `json:"current_commit"`
+	BaseCommit    string    `json:"base_commit"`
 	RemoteURL     string    `json:"remote_url"`
 	CapturedAt    time.Time `json:"captured_at"`
 }
@@ -46,6 +47,7 @@ func GetGitState() (*GitState, error) {
 
 	if commit, err := runGitCommand("rev-parse", "HEAD"); err == nil {
 		state.CurrentCommit = strings.TrimSpace(commit)
+		state.BaseCommit = strings.TrimSpace(commit)
 	}
 
 	if remoteURL, err := runGitCommand("remote", "get-url", "origin"); err == nil {
@@ -132,31 +134,36 @@ func CreateGitBundle(outputPath string) error {
 // WriteBundleToHost writes bundle data to a temporary file on the host
 func WriteBundleToHost(bundleData []byte, containerID string) (string, error) {
 	tempFile := fmt.Sprintf("/tmp/container-bundle-%s.bundle", containerID)
-	
+
 	err := os.WriteFile(tempFile, bundleData, 0644)
 	if err != nil {
 		return "", fmt.Errorf("failed to write bundle to host: %v", err)
 	}
-	
+
 	return tempFile, nil
 }
 
-// UnbundleToHost unbundles container commits to host repository as remote refs
 func UnbundleToHost(bundlePath, branchName string) error {
 	if !IsGitRepository() {
 		return fmt.Errorf("not in a git repository")
 	}
 
-	remoteRef := fmt.Sprintf("refs/remotes/%s/main", branchName)
-	
-	cmd := exec.Command("git", "fetch", bundlePath, fmt.Sprintf("HEAD:%s", remoteRef))
-	output, err := cmd.CombinedOutput()
+	gitRoot, err := runGitCommand("rev-parse", "--show-toplevel")
 	if err != nil {
-		return fmt.Errorf("failed to unbundle: %v\nOutput: %s", err, string(output))
+		return fmt.Errorf("failed to get git root: %v", err)
+	}
+	gitRoot = strings.TrimSpace(gitRoot)
+
+	remoteRef := fmt.Sprintf("refs/remotes/%s/main", branchName)
+
+	fetchCmd := exec.Command("git", "fetch", bundlePath, fmt.Sprintf("%s:%s", branchName, remoteRef))
+	fetchCmd.Dir = gitRoot
+	_, err = fetchCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to fetch from bundle: %v", err)
 	}
 
 	os.Remove(bundlePath)
-	
 	return nil
 }
 
@@ -165,7 +172,6 @@ func SyncBundleToHost(bundleData []byte, containerID, branchName string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return UnbundleToHost(bundlePath, branchName)
 }
-

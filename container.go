@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -135,7 +136,7 @@ func CreateContainer(name, explanation, image, workdir string, includeGitContent
 
 	if container.GitState != nil && container.GitState.IsRepository {
 		if err := container.syncToHost(context.Background(), container.state); err != nil {
-			fmt.Printf("Warning: failed initial sync to host: %v\n", err)
+			fmt.Fprintf(debugWriter, "Warning: failed initial sync to host: %v\n", err)
 		}
 	}
 
@@ -290,7 +291,7 @@ func (s *Container) withGitCommit(ctx context.Context, state *dagger.Container, 
 		finalState := newState.WithWorkdir(s.Workdir)
 
 		if err := s.syncToHost(ctx, finalState); err != nil {
-			fmt.Printf("Warning: failed to sync to host: %v\n", err)
+			fmt.Fprintf(debugWriter, "Warning: failed to sync to host: %v\n", err)
 		}
 
 		return finalState, nil
@@ -304,14 +305,20 @@ func (s *Container) createBundle(ctx context.Context, state *dagger.Container) (
 	}
 
 	bundleState := state.WithWorkdir("/git-repo").
-		WithExec([]string{"git", "bundle", "create", "/tmp/container.bundle", "HEAD"})
+		WithExec([]string{"git", "bundle", "create", "/tmp/container.bundle", "--all"}).
+		WithExec([]string{"sh", "-c", "base64 /tmp/container.bundle > /tmp/container.bundle.b64"})
 
-	bundleData, err := bundleState.File("/tmp/container.bundle").Contents(ctx)
+	bundleDataB64, err := bundleState.File("/tmp/container.bundle.b64").Contents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bundle: %v", err)
 	}
 
-	return []byte(bundleData), nil
+	bundleData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(bundleDataB64))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode bundle: %v", err)
+	}
+
+	return bundleData, nil
 }
 
 func (s *Container) syncToHost(ctx context.Context, state *dagger.Container) error {
