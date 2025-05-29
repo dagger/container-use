@@ -37,6 +37,32 @@ func (hd *HostDirectory) Checkpoint(ctx context.Context, reason string, explanat
 	return nil
 }
 
+func (hd *HostDirectory) Revert(ctx context.Context, explanation string, version Version) error {
+	hd.mu.Lock()
+	defer hd.mu.Unlock()
+
+	revision := hd.History.Get(version)
+	if revision == nil {
+		return errors.New("no revisions found")
+	}
+	
+	hd.Directory = revision.state
+	
+	// Create a new checkpoint to record the revert
+	name := fmt.Sprintf("Revert %s to %s", hd.Path, revision.Name)
+	err := hd.History.Checkpoint(ctx, name, explanation, hd.Directory)
+	if err != nil {
+		return fmt.Errorf("failed syncing host directory after revert: %w", err)
+	}
+	
+	err = saveHostDirState(hd)
+	if err != nil {
+		return fmt.Errorf("failed persisting host directory state after revert: %w", err)
+	}
+	
+	return nil
+}
+
 type HostDirRevision struct {
 	Version     Version   `json:"version"`
 	Name        string    `json:"name"`
@@ -78,6 +104,15 @@ func (h *HostDirHistory) Checkpoint(ctx context.Context, name string, explanatio
 	return nil
 }
 
+func (h HostDirHistory) Get(version Version) *HostDirRevision {
+	for _, revision := range h {
+		if revision.Version == version {
+			return revision
+		}
+	}
+	return nil
+}
+
 var hostDirectories = map[string]*HostDirectory{}
 var hostDirectoriesMtx sync.Mutex
 
@@ -107,6 +142,17 @@ func GetHostDirectory(path string) *HostDirectory {
 	}
 
 	return hostDirectories[path]
+}
+
+func ListHostDirectories() []*HostDirectory {
+	hostDirectoriesMtx.Lock()
+	defer hostDirectoriesMtx.Unlock()
+	
+	hds := make([]*HostDirectory, 0, len(hostDirectories))
+	for _, hd := range hostDirectories {
+		hds = append(hds, hd)
+	}
+	return hds
 }
 
 func (s *Container) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {

@@ -39,6 +39,10 @@ func init() {
 		ContainerFileListTool,
 		ContainerFileWriteTool,
 		ContainerFileDeleteTool,
+
+		HostDirectoryListTool,
+		HostDirectoryHistoryTool,
+		HostDirectoryRevertTool,
 	)
 }
 
@@ -564,5 +568,85 @@ var ContainerFileDeleteTool = &Tool{
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully", targetFile)), nil
+	},
+}
+
+var HostDirectoryListTool = &Tool{
+	Definition: mcp.NewTool("host_directory_list",
+		mcp.WithDescription("List available host directories"),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why host directories are being listed."),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		hostDirectories := ListHostDirectories()
+		out, err := json.Marshal(hostDirectories)
+		if err != nil {
+			return nil, err
+		}
+		return mcp.NewToolResultText(string(out)), nil
+	},
+}
+
+var HostDirectoryHistoryTool = &Tool{
+	Definition: mcp.NewTool("host_directory_history",
+		mcp.WithDescription("List the history of a host directory."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this host directory history is being listed."),
+		),
+		mcp.WithString("path",
+			mcp.Description("The path of the host directory to get history for."),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		path, err := request.RequireString("path")
+		if err != nil {
+			return nil, err
+		}
+
+		hostDirectory := GetHostDirectory(path)
+		history := hostDirectory.History
+		out, err := json.Marshal(history)
+		if err != nil {
+			return nil, err
+		}
+		return mcp.NewToolResultText(string(out)), nil
+	},
+}
+
+var HostDirectoryRevertTool = &Tool{
+	Definition: mcp.NewTool("host_directory_revert",
+		mcp.WithDescription("Revert the host directory to a specific version."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this host directory is being reverted."),
+		),
+		mcp.WithString("path",
+			mcp.Description("The path of the host directory to revert."),
+			mcp.Required(),
+		),
+		mcp.WithNumber("version",
+			mcp.Description("The version to revert to."),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		path, err := request.RequireString("path")
+		if err != nil {
+			return nil, err
+		}
+
+		hostDirectory := GetHostDirectory(path)
+
+		version, err := request.RequireInt("version")
+		if err != nil {
+			return nil, err
+		}
+
+		if err := hostDirectory.Revert(ctx, request.GetString("explanation", ""), Version(version)); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to revert host directory", err), nil
+		}
+
+		return mcp.NewToolResultText("host directory reverted successfully"), nil
 	},
 }
