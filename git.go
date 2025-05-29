@@ -129,3 +129,43 @@ func CreateGitBundle(outputPath string) error {
 	return nil
 }
 
+// WriteBundleToHost writes bundle data to a temporary file on the host
+func WriteBundleToHost(bundleData []byte, containerID string) (string, error) {
+	tempFile := fmt.Sprintf("/tmp/container-bundle-%s.bundle", containerID)
+	
+	err := os.WriteFile(tempFile, bundleData, 0644)
+	if err != nil {
+		return "", fmt.Errorf("failed to write bundle to host: %v", err)
+	}
+	
+	return tempFile, nil
+}
+
+// UnbundleToHost unbundles container commits to host repository as remote refs
+func UnbundleToHost(bundlePath, branchName string) error {
+	if !IsGitRepository() {
+		return fmt.Errorf("not in a git repository")
+	}
+
+	remoteRef := fmt.Sprintf("refs/remotes/%s/main", branchName)
+	
+	cmd := exec.Command("git", "fetch", bundlePath, fmt.Sprintf("HEAD:%s", remoteRef))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to unbundle: %v\nOutput: %s", err, string(output))
+	}
+
+	os.Remove(bundlePath)
+	
+	return nil
+}
+
+func SyncBundleToHost(bundleData []byte, containerID, branchName string) error {
+	bundlePath, err := WriteBundleToHost(bundleData, containerID)
+	if err != nil {
+		return err
+	}
+	
+	return UnbundleToHost(bundlePath, branchName)
+}
+

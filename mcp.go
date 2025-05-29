@@ -38,6 +38,7 @@ func init() {
 		ContainerFileDeleteTool,
 		ContainerRevisionDiffTool,
 		GitInfoTool,
+		ContainerSyncTool,
 	)
 }
 
@@ -660,6 +661,39 @@ var GitInfoTool = &Tool{
 		gitState.CapturedAt.Format("2006-01-02 15:04:05"))
 		
 		return mcp.NewToolResultText(response), nil
+	},
+}
+
+var ContainerSyncTool = &Tool{
+	Definition: mcp.NewTool("container_sync",
+		mcp.WithDescription("Manually sync container commits to host repository as remote refs."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this sync is being performed."),
+		),
+		mcp.WithString("container_id",
+			mcp.Description("The ID of the container to sync. Must call `container_create` first."),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		containerID, err := request.RequireString("container_id")
+		if err != nil {
+			return nil, err
+		}
+		container := GetContainer(containerID)
+		if container == nil {
+			return nil, errors.New("container not found")
+		}
+
+		if container.GitState == nil || !container.GitState.IsRepository {
+			return mcp.NewToolResultText("Container does not have git content - no sync needed"), nil
+		}
+
+		if err := container.syncToHost(ctx, container.state); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to sync container to host", err), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("Container %s synced to host repository as remote branch %s", container.Name, container.BranchName)), nil
 	},
 }
 

@@ -40,7 +40,6 @@ func (s *Container) FileRead(ctx context.Context, targetFile string, shouldReadE
 func (s *Container) FileWrite(ctx context.Context, explanation, targetFile, contents string) error {
 	newState := s.state.WithNewFile(targetFile, contents)
 	
-	// Create git commit for this change if container has git content
 	var err error
 	newState, err = s.withGitCommit(ctx, newState, fmt.Sprintf("Write %s: %s", targetFile, explanation))
 	if err != nil {
@@ -53,7 +52,6 @@ func (s *Container) FileWrite(ctx context.Context, explanation, targetFile, cont
 func (s *Container) FileDelete(ctx context.Context, explanation, targetFile string) error {
 	newState := s.state.WithoutFile(targetFile)
 	
-	// Create git commit for this change if container has git content
 	var err error
 	newState, err = s.withGitCommit(ctx, newState, fmt.Sprintf("Delete %s: %s", targetFile, explanation))
 	if err != nil {
@@ -91,7 +89,6 @@ func urlToDirectory(url string) *dagger.Directory {
 func (s *Container) Upload(ctx context.Context, explanation, source string, target string) error {
 	newState := s.state.WithDirectory(target, urlToDirectory(source))
 	
-	// Create git commit for this change if container has git content
 	var err error
 	newState, err = s.withGitCommit(ctx, newState, fmt.Sprintf("Upload %s to %s: %s", source, target, explanation))
 	if err != nil {
