@@ -55,13 +55,12 @@ func (h History) Get(version Version) *Revision {
 }
 
 type Container struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Image      string    `json:"image"`
-	Workdir    string    `json:"workdir"`
-	History    History   `json:"history"`
-	GitState   *GitState `json:"git_state,omitempty"`
-	BranchName string    `json:"branch_name,omitempty"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Image    string    `json:"image"`
+	Workdir  string    `json:"workdir"`
+	History  History   `json:"history"`
+	GitState *GitState `json:"git_state,omitempty"`
 
 	mu    sync.Mutex
 	state *dagger.Container
@@ -92,13 +91,11 @@ func CreateContainer(name, explanation, image, workdir string, includeGitContent
 		GitState: gitState,
 	}
 
-	if gitState.IsRepository {
-		container.BranchName = "container-" + container.ID[:8]
-	}
+	desiredBranch := "container-" + container.ID[:8]
 
 	containerState := dag.Container().From(image).WithWorkdir(workdir)
 
-	if gitState.IsRepository && includeGitContent {
+	if container.GitState.IsRepository && includeGitContent {
 		hostDir := dag.Host().Directory(".")
 		containerState = containerState.WithDirectory("/git-repo", hostDir)
 
@@ -106,7 +103,8 @@ func CreateContainer(name, explanation, image, workdir string, includeGitContent
 		containerState = containerState.WithExec([]string{"git", "config", "--global", "user.email", "container@example.com"})
 		containerState = containerState.WithExec([]string{"git", "config", "--global", "user.name", "Container User"})
 
-		containerState = containerState.WithExec([]string{"git", "checkout", "-b", container.BranchName})
+		containerState = containerState.WithExec([]string{"git", "checkout", "-b", desiredBranch})
+		container.GitState.CurrentBranch = desiredBranch
 
 		if hasUncommittedChanges() {
 			containerState = containerState.WithWorkdir("/git-repo")
@@ -119,8 +117,7 @@ func CreateContainer(name, explanation, image, workdir string, includeGitContent
 				return nil, fmt.Errorf("failed to get commit hash: %v", err)
 			}
 
-			gitState.CurrentCommit = strings.TrimSpace(commitHash)
-			container.GitState = gitState
+			container.GitState.CurrentCommit = strings.TrimSpace(commitHash)
 
 			containerState = containerState.WithWorkdir(workdir)
 		}
@@ -132,13 +129,14 @@ func CreateContainer(name, explanation, image, workdir string, includeGitContent
 	if err != nil {
 		return nil, err
 	}
-	containers[container.ID] = container
 
 	if container.GitState != nil && container.GitState.IsRepository {
-		if err := container.syncToHost(context.Background(), container.state); err != nil {
-			fmt.Fprintf(debugWriter, "Warning: failed initial sync to host: %v\n", err)
+		if err := container.syncGitToHost(context.Background(), container.state); err != nil {
+			fmt.Fprintf(debugWriter, "Warning: failed initial git sync to host: %v\n", err)
 		}
 	}
+
+	containers[container.ID] = container
 
 	return container, nil
 }
@@ -290,7 +288,7 @@ func (s *Container) withGitCommit(ctx context.Context, state *dagger.Container, 
 
 		finalState := newState.WithWorkdir(s.Workdir)
 
-		if err := s.syncToHost(ctx, finalState); err != nil {
+		if err := s.syncGitToHost(ctx, finalState); err != nil {
 			fmt.Fprintf(debugWriter, "Warning: failed to sync to host: %v\n", err)
 		}
 
@@ -321,7 +319,7 @@ func (s *Container) createBundle(ctx context.Context, state *dagger.Container) (
 	return bundleData, nil
 }
 
-func (s *Container) syncToHost(ctx context.Context, state *dagger.Container) error {
+func (s *Container) syncGitToHost(ctx context.Context, state *dagger.Container) error {
 	if s.GitState == nil || !s.GitState.IsRepository {
 		return nil
 	}
@@ -331,5 +329,5 @@ func (s *Container) syncToHost(ctx context.Context, state *dagger.Container) err
 		return fmt.Errorf("failed to create bundle: %v", err)
 	}
 
-	return SyncBundleToHost(bundleData, s.ID, s.BranchName)
+	return SyncBundleToHost(bundleData, s.ID, s.GitState.CurrentBranch)
 }
