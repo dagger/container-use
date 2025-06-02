@@ -23,62 +23,111 @@ func RegisterTool(tool ...*Tool) {
 
 func init() {
 	RegisterTool(
-		EnvironmentCreateTool,
-		EnvironmentListTool,
-		EnvironmentHistoryTool,
-		EnvironmentRevertTool,
-		EnvironmentForkTool,
+		EnvironmentOpenTool,
+		EnvironmentUpdateTool,
+		// EnvironmentCreateTool,
+		// EnvironmentListTool,
+		// EnvironmentHistoryTool,
+		// EnvironmentRevertTool,
+		// EnvironmentForkTool,
 
 		EnvironmentRunCmdTool,
-		EnvironmentSetEnvTool,
+		// EnvironmentSetEnvTool,
 
-		EnvironmentUploadTool,
-		EnvironmentDownloadTool,
-		EnvironmentDiffTool,
+		// EnvironmentUploadTool,
+		// EnvironmentDownloadTool,
+		// EnvironmentDiffTool,
 
 		EnvironmentFileReadTool,
 		EnvironmentFileListTool,
 		EnvironmentFileWriteTool,
 		EnvironmentFileDeleteTool,
-		EnvironmentRevisionDiffTool,
+		// EnvironmentRevisionDiffTool,
 	)
 }
 
-var EnvironmentCreateTool = &Tool{
-	Definition: mcp.NewTool("environment_create",
-		mcp.WithDescription(`Create a new environment. The sandbox only contains the base image specified, anything else required will need to be installed by hand.
-		You won't be able to access your local filesystem directly. If you need to manipulate the filesystem, first you will have to call "environment_upload"`),
-		mcp.WithString("name",
-			mcp.Description("The name of the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this sandbox is being created."),
-		),
-		mcp.WithString("image",
-			mcp.Description("The base image this workspace will use (e.g. alpine:latest, ubuntu:24.04, etc.)"),
-			mcp.Required(),
-		),
-		mcp.WithString("workdir",
-			mcp.Description(`Working directory for the environment. All commands will be executed in this directory and all file operations will be relative to this. Defaults to "/workdir"`),
+var EnvironmentOpenTool = &Tool{
+	Definition: mcp.NewTool("environment_open",
+		mcp.WithDescription(`Opens (or creates) a development environment. The environment is the result of a build of the Dockerfile specification. Read carefully the instructions to understand the environment. DO NOT manually install toolchains inside the environment, instead explicitly call environment_update"`),
+		mcp.WithString("source",
+			mcp.Description("The source directory of the environment."), //  This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
 			mcp.Required(),
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		name, err := request.RequireString("name")
+		source, err := request.RequireString("source")
 		if err != nil {
 			return nil, err
 		}
-		image, err := request.RequireString("image")
+		env, err := OpenEnvironment(ctx, source)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to open environment", err), nil
+		}
+		out, err := json.Marshal(env)
 		if err != nil {
 			return nil, err
 		}
-		workdir := request.GetString("workdir", "/workdir")
-		sandbox, err := CreateEnvironment(name, request.GetString("explanation", ""), image, workdir)
+		return mcp.NewToolResultText(string(out)), nil
+	},
+}
+
+var EnvironmentUpdateTool = &Tool{
+	Definition: mcp.NewTool("environment_update",
+		mcp.WithDescription(`Updates an environment with new instructions and toolchains. If the environment is missing any tools or instructions, you MUST call this function to update the environment.`),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this environment is being updated."),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment to update."),
+			mcp.Required(),
+		),
+		mcp.WithString("instructions",
+			mcp.Description("The instructions for the environment. This should contain any information that might be useful to operate in the environment, such as what tools are available, what commands to use to build/test/etc"),
+			mcp.Required(),
+		),
+		mcp.WithString("dockerfile",
+			mcp.Description("Dockerfile used to build the environment. Please update this with anything that might be useful to operate in the environment"),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		environmentID, err := request.RequireString("environment_id")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
+			return nil, err
 		}
-		return mcp.NewToolResultText(fmt.Sprintf(`{"id": %q}`, sandbox.ID)), nil
+		environment := GetEnvironment(environmentID)
+		if environment == nil {
+			return nil, errors.New("environment not found")
+		}
+		instructions, err := request.RequireString("instructions")
+		if err != nil {
+			return nil, err
+		}
+		dockerfile, err := request.RequireString("dockerfile")
+		if err != nil {
+			return nil, err
+		}
+		if err := environment.Update(ctx, request.GetString("explanation", ""), dockerfile, instructions); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to update environment", err), nil
+		}
+		out, err := json.Marshal(environment)
+		if err != nil {
+			return nil, err
+		}
+		return mcp.NewToolResultText(string(out)), nil
+		// source, err := request.RequireString("source")
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// return mcp.NewToolResultText(
+		// 	fmt.Sprintf(`Environment for %q not found, created a brand new one (ID: %q) using "ubuntu:latest" as base image. If you need tools or further instructions, please look around the filesystem and update the environment.`, source),
+		// ), nil
+
+		// // env, err := OpenEnvironment(source)
+		// // if err != nil {
+		// // 	return mcp.NewToolResultErrorFromErr("failed to open environment", err), nil
+		// // }
+		// return mcp.NewToolResultText(fmt.Sprintf(`{"id": %q}`, sandbox.ID)), nil
 	},
 }
 
@@ -234,7 +283,7 @@ var EnvironmentRunCmdTool = &Tool{
 			mcp.Description("The shell that will be interpreting this command (default: sh)"),
 		),
 		mcp.WithBoolean("background",
-			mcp.Description("Run the command in the background. Must always be set for long running command (e.g. http server)"),
+			mcp.Description("Run the command in the background. Must ALWAYS be set for long running command (e.g. http server). Failure to do so will result in the tool being stuck, awaiting for the command to finish."),
 		),
 		mcp.WithBoolean("use_entrypoint",
 			mcp.Description("Use the image entrypoint, if present, by prepending it to the args."),

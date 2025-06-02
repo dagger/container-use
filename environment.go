@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +18,8 @@ import (
 
 const (
 	AlpineImage = "alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c"
+
+	environmentFile = "ENVIRONMENT.json"
 )
 
 type Version int
@@ -55,7 +60,11 @@ func (h History) Get(version Version) *Revision {
 }
 
 type Environment struct {
-	ID      string  `json:"id"`
+	ID           string `json:"id"`
+	Source       string `json:"-"`
+	Dockerfile   string `json:"dockerfile"`
+	Instructions string `json:"instructions"`
+
 	Name    string  `json:"name"`
 	Image   string  `json:"image"`
 	Workdir string  `json:"workdir"`
@@ -76,23 +85,92 @@ func LoadEnvironments() error {
 	return nil
 }
 
-func CreateEnvironment(name, explanation, image, workdir string) (*Environment, error) {
-	environment := &Environment{
-		ID:      uuid.New().String(),
-		Name:    name,
-		Image:   image,
-		Workdir: workdir,
+func CreateEnvironment(ctx context.Context, source string) (*Environment, error) {
+	env := &Environment{
+		ID:           uuid.New().String(),
+		Source:       source,
+		Dockerfile:   "FROM ubuntu:latest",
+		Instructions: "No instructions found. Please look around the filesystem and update me",
 	}
-	err := environment.apply(context.Background(), "Create environment from "+image, explanation, dag.Container().
-		From(image).
-		WithWorkdir(workdir).
-		WithDirectory(".", dag.Directory())) // Force workdir to exist
 
+	if err := env.buildAndSave(ctx); err != nil {
+		return nil, err
+	}
+
+	return env, nil
+}
+
+func OpenEnvironment(ctx context.Context, source string) (*Environment, error) {
+	if _, err := os.Stat(path.Join(source, environmentFile)); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return CreateEnvironment(ctx, source)
+		}
+		return nil, err
+	}
+
+	def, err := os.ReadFile(path.Join(source, environmentFile))
 	if err != nil {
 		return nil, err
 	}
-	environments[environment.ID] = environment
-	return environment, nil
+	env := &Environment{
+		Source: source,
+	}
+	if err := json.Unmarshal(def, env); err != nil {
+		return nil, err
+	}
+
+	if err := env.build(ctx); err != nil {
+		return nil, err
+	}
+
+	environments[env.ID] = env
+	return env, nil
+}
+
+func (e *Environment) save() error {
+	out, err := json.MarshalIndent(e, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path.Join(e.Source, environmentFile), out, 0644); err != nil {
+		return err
+	}
+	environments[e.ID] = e
+	return nil
+}
+
+func (s *Environment) build(ctx context.Context) error {
+	container, err := dag.Directory().WithNewFile("Dockerfile", s.Dockerfile).DockerBuild().Sync(ctx)
+	if err != nil {
+		return err
+	}
+	sourceDir := dag.Host().Directory(s.Source)
+	container = container.WithWorkdir("/workdir").WithDirectory(".", sourceDir)
+
+	s.state = container
+
+	return nil
+}
+
+func (s *Environment) buildAndSave(ctx context.Context) error {
+	if err := s.build(ctx); err != nil {
+		return err
+	}
+	if err := s.save(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Environment) Update(ctx context.Context, explanation, dockerfile, instructions string) error {
+	s.Dockerfile = dockerfile
+	s.Instructions = instructions
+
+	if err := s.buildAndSave(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func GetEnvironment(idOrName string) *Environment {
