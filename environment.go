@@ -54,7 +54,7 @@ func (h History) Get(version Version) *Revision {
 	return nil
 }
 
-type Container struct {
+type Environment struct {
 	ID      string  `json:"id"`
 	Name    string  `json:"name"`
 	Image   string  `json:"image"`
@@ -65,25 +65,25 @@ type Container struct {
 	state *dagger.Container
 }
 
-var containers = map[string]*Container{}
+var environments = map[string]*Environment{}
 
-func LoadContainers() error {
-	ctr, err := loadState()
+func LoadEnvironments() error {
+	env, err := loadState()
 	if err != nil {
 		return err
 	}
-	containers = ctr
+	environments = env
 	return nil
 }
 
-func CreateContainer(name, explanation, image, workdir string) (*Container, error) {
-	container := &Container{
+func CreateEnvironment(name, explanation, image, workdir string) (*Environment, error) {
+	environment := &Environment{
 		ID:      uuid.New().String(),
 		Name:    name,
 		Image:   image,
 		Workdir: workdir,
 	}
-	err := container.apply(context.Background(), "Create container from "+image, explanation, dag.Container().
+	err := environment.apply(context.Background(), "Create environment from "+image, explanation, dag.Container().
 		From(image).
 		WithWorkdir(workdir).
 		WithDirectory(".", dag.Directory())) // Force workdir to exist
@@ -91,31 +91,31 @@ func CreateContainer(name, explanation, image, workdir string) (*Container, erro
 	if err != nil {
 		return nil, err
 	}
-	containers[container.ID] = container
-	return container, nil
+	environments[environment.ID] = environment
+	return environment, nil
 }
 
-func GetContainer(idOrName string) *Container {
-	if container, ok := containers[idOrName]; ok {
-		return container
+func GetEnvironment(idOrName string) *Environment {
+	if environment, ok := environments[idOrName]; ok {
+		return environment
 	}
-	for _, container := range containers {
-		if container.Name == idOrName {
-			return container
+	for _, environment := range environments {
+		if environment.Name == idOrName {
+			return environment
 		}
 	}
 	return nil
 }
 
-func ListContainers() []*Container {
-	ctr := make([]*Container, 0, len(containers))
-	for _, container := range containers {
-		ctr = append(ctr, container)
+func ListEnvironments() []*Environment {
+	env := make([]*Environment, 0, len(environments))
+	for _, environment := range environments {
+		env = append(env, environment)
 	}
-	return ctr
+	return env
 }
 
-func (s *Container) apply(ctx context.Context, name, explanation string, newState *dagger.Container) error {
+func (s *Environment) apply(ctx context.Context, name, explanation string, newState *dagger.Container) error {
 	if _, err := newState.Sync(ctx); err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (s *Container) apply(ctx context.Context, name, explanation string, newStat
 	return saveState(s)
 }
 
-func (s *Container) Run(ctx context.Context, explanation, command, shell string, useEntrypoint bool) (string, error) {
+func (s *Environment) Run(ctx context.Context, explanation, command, shell string, useEntrypoint bool) (string, error) {
 	args := []string{}
 	if command != "" {
 		args = []string{shell, "-c", command}
@@ -165,7 +165,7 @@ type EndpointMapping struct {
 
 type EndpointMappings map[int]*EndpointMapping
 
-func (s *Container) RunBackground(ctx context.Context, explanation, command, shell string, ports []int, useEntrypoint bool) (EndpointMappings, error) {
+func (s *Environment) RunBackground(ctx context.Context, explanation, command, shell string, ports []int, useEntrypoint bool) (EndpointMappings, error) {
 	args := []string{}
 	if command != "" {
 		args = []string{shell, "-c", command}
@@ -235,7 +235,7 @@ func (s *Container) RunBackground(ctx context.Context, explanation, command, she
 	return endpoints, nil
 }
 
-func (s *Container) SetEnv(ctx context.Context, explanation string, envs []string) error {
+func (s *Environment) SetEnv(ctx context.Context, explanation string, envs []string) error {
 	state := s.state
 	for _, env := range envs {
 		parts := strings.SplitN(env, "=", 2)
@@ -247,7 +247,7 @@ func (s *Container) SetEnv(ctx context.Context, explanation string, envs []strin
 	return s.apply(ctx, "Set env "+strings.Join(envs, ", "), explanation, state)
 }
 
-func (s *Container) Revert(ctx context.Context, explanation string, version Version) error {
+func (s *Environment) Revert(ctx context.Context, explanation string, version Version) error {
 	revision := s.History.Get(version)
 	if revision == nil {
 		return errors.New("no revisions found")
@@ -258,7 +258,7 @@ func (s *Container) Revert(ctx context.Context, explanation string, version Vers
 	return nil
 }
 
-func (s *Container) Fork(ctx context.Context, explanation, name string, version *Version) (*Container, error) {
+func (s *Environment) Fork(ctx context.Context, explanation, name string, version *Version) (*Environment, error) {
 	revision := s.History.Latest()
 	if version != nil {
 		revision = s.History.Get(*version)
@@ -267,14 +267,14 @@ func (s *Container) Fork(ctx context.Context, explanation, name string, version 
 		return nil, errors.New("version not found")
 	}
 
-	forkedContainer := &Container{
+	forkedEnvironment := &Environment{
 		ID:    uuid.New().String(),
 		Name:  name,
 		Image: s.Image,
 	}
-	if err := forkedContainer.apply(ctx, "Fork from "+s.Name, explanation, revision.state); err != nil {
+	if err := forkedEnvironment.apply(ctx, "Fork from "+s.Name, explanation, revision.state); err != nil {
 		return nil, err
 	}
-	containers[forkedContainer.ID] = forkedContainer
-	return forkedContainer, nil
+	environments[forkedEnvironment.ID] = forkedEnvironment
+	return forkedEnvironment, nil
 }

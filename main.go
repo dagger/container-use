@@ -20,8 +20,8 @@ func main() {
 	}
 	defer dag.Close()
 
-	if err := LoadContainers(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading containers: %v\n", err)
+	if err := LoadEnvironments(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading environments: %v\n", err)
 		os.Exit(1)
 	}
 

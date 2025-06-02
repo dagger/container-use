@@ -11,22 +11,22 @@ import (
 	"github.com/mitchellh/go-homedir"
 )
 
-func saveState(c *Container) error {
+func saveState(c *Environment) error {
 	data, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
 
-	containerDir, err := homedir.Expand(fmt.Sprintf("~/.config/container-use/%s", c.ID))
+	environmentDir, err := homedir.Expand(fmt.Sprintf("~/.config/environment-use/%s", c.ID))
 	if err != nil {
 		return err
 	}
-	statesDir := filepath.Join(containerDir, "states")
+	statesDir := filepath.Join(environmentDir, "states")
 	if err := os.MkdirAll(statesDir, 0755); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(filepath.Join(containerDir, "container.json"), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(environmentDir, "environment.json"), data, 0644); err != nil {
 		return err
 	}
 
@@ -43,8 +43,8 @@ func saveState(c *Container) error {
 	return nil
 }
 
-func loadState() (map[string]*Container, error) {
-	stateDir, err := homedir.Expand("~/.config/container-use")
+func loadState() (map[string]*Environment, error) {
+	stateDir, err := homedir.Expand("~/.config/environment-use")
 	if err != nil {
 		return nil, err
 	}
@@ -56,18 +56,18 @@ func loadState() (map[string]*Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	containers := map[string]*Container{}
+	environments := map[string]*Environment{}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 		id := entry.Name()
-		stateFile := filepath.Join(stateDir, id, "container.json")
+		stateFile := filepath.Join(stateDir, id, "environment.json")
 		data, err := os.ReadFile(stateFile)
 		if err != nil {
 			return nil, err
 		}
-		var c Container
+		var c Environment
 		if err := json.Unmarshal(data, &c); err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func loadState() (map[string]*Container, error) {
 		}
 		c.state = c.History.Latest().state
 
-		containers[id] = &c
+		environments[id] = &c
 	}
-	return containers, nil
+	return environments, nil
 }
