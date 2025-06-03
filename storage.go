@@ -31,7 +31,7 @@ func saveState(c *Environment) error {
 	}
 
 	latest := c.History.Latest()
-	stateID, err := latest.state.ID(context.Background())
+	stateID, err := latest.container.ID(context.Background())
 	if err != nil {
 		return err
 	}
@@ -77,9 +77,9 @@ func loadState() (map[string]*Environment, error) {
 			if err != nil {
 				return nil, err
 			}
-			revision.state = dag.LoadContainerFromID(dagger.ContainerID(data))
+			revision.container = dag.LoadContainerFromID(dagger.ContainerID(data))
 		}
-		c.state = c.History.Latest().state
+		c.container = c.History.Latest().container
 
 		environments[id] = &c
 	}

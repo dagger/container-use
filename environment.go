@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"dagger.io/dagger"
+
 	"github.com/google/uuid"
 )
 
 const (
 	AlpineImage = "alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c"
 
-	environmentFile = "ENVIRONMENT.json"
+	environmentFile = "container-use.json"
 )
 
 type Version int
@@ -28,9 +29,11 @@ type Revision struct {
 	Version     Version   `json:"version"`
 	Name        string    `json:"name"`
 	Explanation string    `json:"explanation"`
+	Output      string    `json:"output,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
+	State       string    `json:"state"`
 
-	state *dagger.Container
+	container *dagger.Container `json:"-"`
 }
 
 type History []*Revision
@@ -70,8 +73,8 @@ type Environment struct {
 	Workdir string  `json:"workdir"`
 	History History `json:"history"`
 
-	mu    sync.Mutex
-	state *dagger.Container
+	mu        sync.Mutex
+	container *dagger.Container
 }
 
 var environments = map[string]*Environment{}
@@ -85,7 +88,7 @@ func LoadEnvironments() error {
 	return nil
 }
 
-func CreateEnvironment(ctx context.Context, source string) (*Environment, error) {
+func CreateEnvironment(ctx context.Context, source, name string) (*Environment, error) {
 	env := &Environment{
 		ID:           uuid.New().String(),
 		Source:       source,
@@ -93,23 +96,24 @@ func CreateEnvironment(ctx context.Context, source string) (*Environment, error)
 		Instructions: "No instructions found. Please look around the filesystem and update me",
 	}
 
-	if err := env.buildAndSave(ctx); err != nil {
+	container, err := env.build(ctx, env.Dockerfile)
+	if err != nil {
 		return nil, err
 	}
 
+	if err := env.apply(ctx, "Create environment", "Create the environment", "", container); err != nil {
+		return nil, err
+	}
+	environments[env.ID] = env
 	return env, nil
 }
 
-func OpenEnvironment(ctx context.Context, source string) (*Environment, error) {
-	if _, err := os.Stat(path.Join(source, environmentFile)); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return CreateEnvironment(ctx, source)
-		}
-		return nil, err
-	}
-
+func OpenEnvironment(ctx context.Context, source, name string) (*Environment, error) {
 	def, err := os.ReadFile(path.Join(source, environmentFile))
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return CreateEnvironment(ctx, source, name)
+		}
 		return nil, err
 	}
 	env := &Environment{
@@ -118,59 +122,36 @@ func OpenEnvironment(ctx context.Context, source string) (*Environment, error) {
 	if err := json.Unmarshal(def, env); err != nil {
 		return nil, err
 	}
-
-	if err := env.build(ctx); err != nil {
-		return nil, err
+	for _, revision := range env.History {
+		revision.container = dag.LoadContainerFromID(dagger.ContainerID(revision.State))
 	}
+	env.container = env.History.Latest().container
 
 	environments[env.ID] = env
 	return env, nil
 }
 
-func (e *Environment) save() error {
-	out, err := json.MarshalIndent(e, "", "  ")
+func (s *Environment) build(ctx context.Context, dockerfile string) (*dagger.Container, error) {
+	container, err := dag.Directory().WithNewFile("Dockerfile", dockerfile).DockerBuild().Sync(ctx)
 	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path.Join(e.Source, environmentFile), out, 0644); err != nil {
-		return err
-	}
-	environments[e.ID] = e
-	return nil
-}
-
-func (s *Environment) build(ctx context.Context) error {
-	container, err := dag.Directory().WithNewFile("Dockerfile", s.Dockerfile).DockerBuild().Sync(ctx)
-	if err != nil {
-		return err
+		return nil, err
 	}
 	sourceDir := dag.Host().Directory(s.Source)
 	container = container.WithWorkdir("/workdir").WithDirectory(".", sourceDir)
 
-	s.state = container
-
-	return nil
-}
-
-func (s *Environment) buildAndSave(ctx context.Context) error {
-	if err := s.build(ctx); err != nil {
-		return err
-	}
-	if err := s.save(); err != nil {
-		return err
-	}
-	return nil
+	return container, nil
 }
 
 func (s *Environment) Update(ctx context.Context, explanation, dockerfile, instructions string) error {
 	s.Dockerfile = dockerfile
 	s.Instructions = instructions
 
-	if err := s.buildAndSave(ctx); err != nil {
+	container, err := s.build(ctx, s.Dockerfile)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return s.apply(ctx, "Update environment", explanation, "", container)
 }
 
 func GetEnvironment(idOrName string) *Environment {
@@ -193,24 +174,38 @@ func ListEnvironments() []*Environment {
 	return env
 }
 
-func (s *Environment) apply(ctx context.Context, name, explanation string, newState *dagger.Container) error {
+func (e *Environment) apply(ctx context.Context, name, explanation, output string, newState *dagger.Container) error {
 	if _, err := newState.Sync(ctx); err != nil {
 		return err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	version := s.History.LatestVersion() + 1
-	s.state = newState
-	s.History = append(s.History, &Revision{
-		Version:     version,
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	revision := &Revision{
+		Version:     e.History.LatestVersion() + 1,
 		Name:        name,
 		Explanation: explanation,
+		Output:      output,
 		CreatedAt:   time.Now(),
-		state:       newState,
-	})
+		container:   newState,
+	}
+	containerID, err := revision.container.ID(ctx)
+	if err != nil {
+		return err
+	}
+	revision.State = string(containerID)
+	e.container = revision.container
+	e.History = append(e.History, revision)
 
-	return saveState(s)
+	out, err := json.MarshalIndent(e, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path.Join(e.Source, environmentFile), out, 0644); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Environment) Run(ctx context.Context, explanation, command, shell string, useEntrypoint bool) (string, error) {
@@ -218,7 +213,7 @@ func (s *Environment) Run(ctx context.Context, explanation, command, shell strin
 	if command != "" {
 		args = []string{shell, "-c", command}
 	}
-	newState := s.state.WithExec(args, dagger.ContainerWithExecOpts{
+	newState := s.container.WithExec(args, dagger.ContainerWithExecOpts{
 		UseEntrypoint: useEntrypoint,
 	})
 	stdout, err := newState.Stdout(ctx)
@@ -229,7 +224,7 @@ func (s *Environment) Run(ctx context.Context, explanation, command, shell strin
 		}
 		return "", err
 	}
-	if err := s.apply(ctx, "Run "+command, explanation, newState); err != nil {
+	if err := s.apply(ctx, "Run "+command, explanation, stdout, newState); err != nil {
 		return "", err
 	}
 
@@ -248,7 +243,7 @@ func (s *Environment) RunBackground(ctx context.Context, explanation, command, s
 	if command != "" {
 		args = []string{shell, "-c", command}
 	}
-	serviceState := s.state
+	serviceState := s.container
 
 	// Expose ports
 	for _, port := range ports {
@@ -314,7 +309,7 @@ func (s *Environment) RunBackground(ctx context.Context, explanation, command, s
 }
 
 func (s *Environment) SetEnv(ctx context.Context, explanation string, envs []string) error {
-	state := s.state
+	state := s.container
 	for _, env := range envs {
 		parts := strings.SplitN(env, "=", 2)
 		if len(parts) != 2 {
@@ -322,7 +317,7 @@ func (s *Environment) SetEnv(ctx context.Context, explanation string, envs []str
 		}
 		state = state.WithEnvVariable(parts[0], parts[1])
 	}
-	return s.apply(ctx, "Set env "+strings.Join(envs, ", "), explanation, state)
+	return s.apply(ctx, "Set env "+strings.Join(envs, ", "), explanation, "", state)
 }
 
 func (s *Environment) Revert(ctx context.Context, explanation string, version Version) error {
@@ -330,7 +325,7 @@ func (s *Environment) Revert(ctx context.Context, explanation string, version Ve
 	if revision == nil {
 		return errors.New("no revisions found")
 	}
-	if err := s.apply(ctx, "Revert to "+revision.Name, explanation, revision.state); err != nil {
+	if err := s.apply(ctx, "Revert to "+revision.Name, explanation, "", revision.container); err != nil {
 		return err
 	}
 	return nil
@@ -350,7 +345,7 @@ func (s *Environment) Fork(ctx context.Context, explanation, name string, versio
 		Name:  name,
 		Image: s.Image,
 	}
-	if err := forkedEnvironment.apply(ctx, "Fork from "+s.Name, explanation, revision.state); err != nil {
+	if err := forkedEnvironment.apply(ctx, "Fork from "+s.Name, explanation, "", revision.container); err != nil {
 		return nil, err
 	}
 	environments[forkedEnvironment.ID] = forkedEnvironment

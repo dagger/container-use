@@ -25,6 +25,7 @@ func init() {
 	RegisterTool(
 		EnvironmentOpenTool,
 		EnvironmentUpdateTool,
+
 		// EnvironmentCreateTool,
 		// EnvironmentListTool,
 		// EnvironmentHistoryTool,
@@ -46,11 +47,34 @@ func init() {
 	)
 }
 
+type EnvironmentResponse struct {
+	ID           string `json:"id"`
+	Dockerfile   string `json:"dockerfile"`
+	Instructions string `json:"instructions"`
+}
+
+func EnvironmentResponseFromEnvironment(env *Environment) (*mcp.CallToolResult, error) {
+	resp := &EnvironmentResponse{
+		ID:           env.ID,
+		Dockerfile:   env.Dockerfile,
+		Instructions: env.Instructions,
+	}
+	out, err := json.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+	return mcp.NewToolResultText(string(out)), nil
+}
+
 var EnvironmentOpenTool = &Tool{
 	Definition: mcp.NewTool("environment_open",
 		mcp.WithDescription(`Opens (or creates) a development environment. The environment is the result of a build of the Dockerfile specification. Read carefully the instructions to understand the environment. DO NOT manually install toolchains inside the environment, instead explicitly call environment_update"`),
 		mcp.WithString("source",
 			mcp.Description("The source directory of the environment."), //  This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
+			mcp.Required(),
+		),
+		mcp.WithString("name",
+			mcp.Description("Name of the environment."), //  This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
 			mcp.Required(),
 		),
 	),
@@ -59,15 +83,15 @@ var EnvironmentOpenTool = &Tool{
 		if err != nil {
 			return nil, err
 		}
-		env, err := OpenEnvironment(ctx, source)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to open environment", err), nil
-		}
-		out, err := json.Marshal(env)
+		name, err := request.RequireString("name")
 		if err != nil {
 			return nil, err
 		}
-		return mcp.NewToolResultText(string(out)), nil
+		env, err := OpenEnvironment(ctx, source, name)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to open environment", err), nil
+		}
+		return EnvironmentResponseFromEnvironment(env)
 	},
 }
 
@@ -110,24 +134,7 @@ var EnvironmentUpdateTool = &Tool{
 		if err := environment.Update(ctx, request.GetString("explanation", ""), dockerfile, instructions); err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update environment", err), nil
 		}
-		out, err := json.Marshal(environment)
-		if err != nil {
-			return nil, err
-		}
-		return mcp.NewToolResultText(string(out)), nil
-		// source, err := request.RequireString("source")
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// return mcp.NewToolResultText(
-		// 	fmt.Sprintf(`Environment for %q not found, created a brand new one (ID: %q) using "ubuntu:latest" as base image. If you need tools or further instructions, please look around the filesystem and update the environment.`, source),
-		// ), nil
-
-		// // env, err := OpenEnvironment(source)
-		// // if err != nil {
-		// // 	return mcp.NewToolResultErrorFromErr("failed to open environment", err), nil
-		// // }
-		// return mcp.NewToolResultText(fmt.Sprintf(`{"id": %q}`, sandbox.ID)), nil
+		return EnvironmentResponseFromEnvironment(environment)
 	},
 }
 
