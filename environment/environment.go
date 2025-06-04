@@ -250,6 +250,24 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 		From(env.BaseImage).
 		WithWorkdir(env.Workdir)
 
+	cvOpts := dagger.CacheVolumeOpts{Namespace: "container-use"}
+	for _, cv := range []struct {
+		Name string
+		Path string
+	}{
+		{"npm", "/root/.npm/_cacache"},
+		{"pip", "/root/.cache/pip"},
+		{"uv", "/root/.cache/uv"},
+		{"go-build", "/root/.cache/go-build"},
+		{"go-mod", "/root/go/pkg/mod"},
+		{"cargo-registry", "/root/.cargo/registry"},
+		{"cargo-git", "/root/.cargo/git"},
+		{"apt", "var/cache/apt/archives"},
+		{"apk", "/var/cache/apk"},
+	} {
+		container = container.WithMountedCache(cv.Path, dag.CacheVolume(cv.Name, cvOpts))
+	}
+
 	container = container.WithDirectory(".", sourceDir)
 
 	for _, secret := range env.Secrets {
