@@ -51,8 +51,16 @@ func (env *Environment) InitializeWorktree(ctx context.Context, localRepoPath st
 		return "", err
 	}
 
-	if _, err := os.Stat(worktreePath); err == nil {
-		return worktreePath, nil
+	if _, err := os.Stat(worktreePath); err != nil {
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+
+		slog.Info("Initializing local remote", "local-repo-path", localRepoPath, "container-use-repo-path", cuRepoPath)
+		_, err = runGitCommand(ctx, localRepoPath, "clone", "--bare", localRepoPath, cuRepoPath)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	slog.Info("Initializing worktree", "container-id", env.ID, "container-name", env.Name, "id", env.ID)
