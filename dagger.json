@@ -9,6 +9,11 @@
       "name": "go",
       "source": "github.com/dagger/dagger/modules/go",
       "pin": "c14140b30dd986d9ebff78a605841606486d2554"
+    },
+    {
+      "name": "goreleaser",
+      "source": "github.com/act3-ai/dagger/goreleaser",
+      "pin": "f432d3878b83c6abea3d4587521bd34da3c0c936"
     }
   ],
   "source": ".dagger"

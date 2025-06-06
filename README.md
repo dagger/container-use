@@ -37,16 +37,10 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 ## Installing
 
 ```sh
-make
+curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | sh
 ```
 
-This will build the `cu` binary but _NOT_ install it to your `$PATH`. If you want to build and install the binary into your `$PATH`, run:
-
-```sh
-make install && hash -r
-```
-
-The `make install` command will put `cu` in your `$PATH`. In order to use it, you will need to restart your terminal or run `hash -r` to refresh your `$PATH` (or equivalent for your shell).
+This will check for Docker (required), detect your platform, and install the latest `cu` binary to your `$PATH`.
 
 ## Agent Integration
 
