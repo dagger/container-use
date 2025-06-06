@@ -78,7 +78,7 @@ extensions:
     cmd: cu
     args:
     - stdio
-    envs: []
+    envs: {}
 ```
 
 ### [Cursor](https://docs.cursor.com/context/model-context-protocol)
