@@ -2,9 +2,16 @@ all: build
 
 TARGETPLATFORM ?= local
 
+.PHONY: check-deps
+check-deps:
+	@echo "Checking dependencies..."
+	@which docker >/dev/null || ( echo "❌ Docker is required but not installed. Install it with: brew install docker"; exit 1 )
+	@docker buildx version >/dev/null 2>&1 || ( echo "❌ Docker Buildx is required but not installed. Install it with: brew install docker-buildx"; exit 1 )
+	@docker buildx ls >/dev/null 2>&1 || ( echo "❌ Docker Buildx is not properly configured"; exit 1 )
+	@echo "✅ All dependencies are installed and configured"
+
 .PHONY: build
-build:
-	@which docker >/dev/null || ( echo "Please follow instructions to install Docker at https://docs.docker.com/get-started/get-docker/"; exit 1 )
+build: check-deps
 	@docker build --platform $(TARGETPLATFORM) -o . .
 	@ls cu
 
