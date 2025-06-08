@@ -35,17 +35,28 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ## Install
 
+First install [Docker](https://docs.docker.com/get-started/get-docker/), then clone this repository:
+
 ```sh
-make
+git clone https://github.com/dagger/container-use.git
+cd container-use
 ```
 
-This will build the `cu` binary but _NOT_ install it to your `$PATH`. If you want to build and install the binary into your `$PATH`, run:
+Install the `cu` binary:
 
 ```sh
 make install && hash -r
 ```
 
 The `make install` command will put `cu` in your `$PATH`. In order to use it, you will need to restart your terminal or run `hash -r` to refresh your `$PATH` (or equivalent for your shell).
+
+## Building
+
+To build the `cu` binary without installing it to your `$PATH`:
+
+```sh
+make
+```
 
 The build uses the platform you are on by default. If you need to cross-compile you can use the `TARGETPLATFORM` environment variables. For example `TARGETPLATFORM=linux/arm64 make` to build for Raspberry Pi
 or `TARGETPLATFORM=darwin/arm64 make` to build for macOS Apple Silicon.
