@@ -104,27 +104,18 @@ check_existing_cu() {
 
 # Find the best installation directory
 find_install_dir() {
-    # Prefer ~/.local/bin if it's in PATH
-    if echo "$PATH" | grep -q "$HOME/.local/bin"; then
-        echo "$HOME/.local/bin"
-        return
+    local install_dir="${BIN_DIR:-$HOME/.local/bin}"
+    
+    # Create the directory if it doesn't exist
+    mkdir -p "$install_dir"
+    
+    # Check if it's writable
+    if [ ! -w "$install_dir" ]; then
+        log_error "$install_dir is not a writable directory"
+        exit 1
     fi
-
-    # Look for writable directories in PATH
-    OLD_IFS="$IFS"
-    IFS=':'
-    for dir in $PATH; do
-        if [ -w "$dir" ] 2>/dev/null; then
-            IFS="$OLD_IFS"
-            echo "$dir"
-            return
-        fi
-    done
-    IFS="$OLD_IFS"
-
-    # Default to ~/.local/bin and add it to PATH recommendation
-    mkdir -p "$HOME/.local/bin"
-    echo "$HOME/.local/bin"
+    
+    echo "$install_dir"
 }
 
 # Get the latest release version
