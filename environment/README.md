@@ -42,25 +42,25 @@ Each environment is just a Git branch that your source repo tracks on the contai
 ## Architecture
 
 ```
-Source Repo                    container-use/ Remote
-├── main                  ←──→ ├── main
-├── feature-branch        ←──→ ├── feature-branch
-└── env-name/abc-def      ←──→ └── env-name/adverb-animal
-                                      │
-                                      │ (host filesystem implementation)
-                                      ▼
-                               ~/.config/container-use/
-                               ├── repos/project/ (bare)
-                               └── worktrees/env-name/ (only env branches become worktrees)
-                                   ├── .git -> ../../repos/project/worktrees/env-name
-                                   └── (your code)
+projectName/ Source Repo            container-use/ Remote
+├── main                   ←──→ ├── main
+├── feature-branch         ←──→ ├── feature-branch
+└── env-name/adverb-animal ←──→ └── env-name/adverb-animal
                                        │
+                                       │ (host filesystem implementation)
                                        ▼
-                                   Container
-                                   └── /workdir
+                    ~/.config/container-use/
+                    ├── repos/projectName/ (bare)
+                    └── worktrees/env-name/adverb-animal (only env branches become worktrees)
+                        ├── .git -> ../../repos/projectName/worktrees/env-name/adverb-animal
+                        └── (your code)
+                            │
+                            ▼
+                        Container
+                        └── /workdir
 ```
 
-The diagram shows how branches sync between your source repo and the container-use remote. Each environment branch (like `env-name/abc-def`) exists in both places and stays synchronized.
+The diagram shows how branches sync between your source repo and the container-use remote. Each environment branch (like `env-name/adverb-animal`) exists in both places and stays synchronized.
 
 Below the branch level, the system creates a bare Git repository and worktree in `~/.config/container-use/` - this is plumbing to make the Git operations work with minimal modifications to your source repository. The worktree contains a copy of your code that gets mounted into the Docker container at `/workdir`.
 
