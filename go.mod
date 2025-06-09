@@ -1,6 +1,8 @@
 module github.com/dagger/container-use
 
-go 1.24.2
+go 1.24.3
+
+toolchain go1.24.4
 
 require (
 	dagger.io/dagger v0.18.9
@@ -8,7 +10,7 @@ require (
 	github.com/mark3labs/mcp-go v0.29.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.9.1
-	golang.org/x/term v0.32.0
+	github.com/tiborvass/go-watch v0.0.0-20250607214558-08999a83bf8b
 )
 
 require (
@@ -27,7 +29,6 @@ require (
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	github.com/tiborvass/go-watch v0.0.0-20250607214558-08999a83bf8b // indirect
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
@@ -49,6 +50,7 @@ require (
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
