@@ -28,10 +28,8 @@ builds:
 
 archives:
   - id: cu-archive
-    builds:
+    ids:
       - cu
-    format: tar.gz
-
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
