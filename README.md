@@ -35,13 +35,11 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ## Install
 
-First install [Docker](https://docs.docker.com/get-started/get-docker/), then clone this repository:
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | sh
 ```
 
-This will check for Docker (required), detect your platform, and install the latest `cu` binary to your `$PATH`.
+This will check for Docker & Git (required), detect your platform, and install the latest `cu` binary to your `$PATH`.
 
 ## Building
 
