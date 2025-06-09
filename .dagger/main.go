@@ -34,14 +34,10 @@ func (m *ContainerUse) Release(ctx context.Context,
 	// Version tag for the release
 	version string,
 	// GitHub token for authentication
-	// +optional
 	githubToken *dagger.Secret,
 ) (string, error) {
-	goreleaser := dag.Goreleaser(m.Source)
-
-	if githubToken != nil {
-		goreleaser.WithSecretVariable("GITHUB_TOKEN", githubToken)
-	}
-
-	return goreleaser.Release().Run(ctx)
+	return dag.Goreleaser(m.Source).
+		WithSecretVariable("GITHUB_TOKEN", githubToken).
+		Release().
+		Run(ctx)
 }
