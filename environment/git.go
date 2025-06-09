@@ -35,6 +35,45 @@ func (env *Environment) GetWorktreePath() (string, error) {
 	return homedir.Expand(fmt.Sprintf("~/.config/container-use/worktrees/%s", env.ID))
 }
 
+func (env *Environment) DeleteWorktree() error {
+	worktreePath, err := env.GetWorktreePath()
+	if err != nil {
+		return err
+	}
+	parentDir := filepath.Dir(worktreePath)
+	fmt.Printf("Deleting parent directory of worktree at %s\n", parentDir)
+	return os.RemoveAll(parentDir)
+}
+
+func (env *Environment) DeleteLocalRemoteBranch() error {
+	localRepoPath, err := filepath.Abs(env.Source)
+	if err != nil {
+		slog.Error("Failed to get absolute path for local repo", "source", env.Source, "err", err)
+		return err
+	}
+	repoName := filepath.Base(localRepoPath)
+	cuRepoPath, err := getRepoPath(repoName)
+
+	slog.Info("Pruning git worktrees", "repo", cuRepoPath)
+	if _, err = runGitCommand(context.Background(), cuRepoPath, "worktree", "prune"); err != nil {
+		slog.Error("Failed to prune git worktrees", "repo", cuRepoPath, "err", err)
+		return err
+	}
+
+	slog.Info("Deleting local branch", "repo", cuRepoPath, "branch", env.ID)
+	if _, err = runGitCommand(context.Background(), cuRepoPath, "branch", "-D", env.ID); err != nil {
+		slog.Error("Failed to delete local branch", "repo", cuRepoPath, "branch", env.ID, "err", err)
+		return err
+	}
+
+	if _, err = runGitCommand(context.Background(), localRepoPath, "remote", "prune", "container-use"); err != nil {
+		slog.Error("Failed to fetch and prune container-use remote", "local-repo", localRepoPath, "err", err)
+		return err
+	}
+
+	return nil
+}
+
 func (env *Environment) InitializeWorktree(ctx context.Context, localRepoPath string) (string, error) {
 	localRepoPath, err := filepath.Abs(localRepoPath)
 	if err != nil {

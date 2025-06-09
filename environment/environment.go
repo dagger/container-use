@@ -514,3 +514,21 @@ func (env *Environment) Terminal(ctx context.Context) error {
 func (env *Environment) Checkpoint(ctx context.Context, target string) (string, error) {
 	return env.container.Publish(ctx, target)
 }
+
+func (env *Environment) Delete(ctx context.Context) error {
+	env.mu.Lock()
+	defer env.mu.Unlock()
+
+	if err := env.DeleteWorktree(); err != nil {
+		return err
+	}
+
+	if err := env.DeleteLocalRemoteBranch(); err != nil {
+		return err
+	}
+
+	// Remove from global environments map
+	delete(environments, env.ID)
+
+	return nil
+}

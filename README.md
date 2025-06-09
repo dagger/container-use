@@ -1,8 +1,7 @@
 <div align="center">
-  <img src="./_assets/logo.png" align="center" alt="container-use" />
-  <h2 align="center">container-use</h2>
+  <img src="./_assets/container-use.png" align="center" alt="Container use: Development environments for coding agents." />
+  <h1 align="center">container-use</h2>
   <p align="center">Containerized environments for coding agents. (📦🤖) (📦🤖) (📦🤖)</p>
-
   <p align="center">
     <img src="https://img.shields.io/badge/stability-experimental-orange.svg" alt="Experimental" />
     <a href="https://opensource.org/licenses/Apache-2.0">
@@ -30,11 +29,13 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ---
 
-🦺 This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation - but also expect rapid iteration and responsiveness to feedback.
+🦺 This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation. But also expect rapid iteration and responsiveness to feedback.
 
 ---
 
-## Installing
+## Install
+
+First install [Docker](https://docs.docker.com/get-started/get-docker/), then clone this repository:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | sh
@@ -42,7 +43,18 @@ curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.s
 
 This will check for Docker (required), detect your platform, and install the latest `cu` binary to your `$PATH`.
 
-## Agent Integration
+## Building
+
+To build the `cu` binary without installing it to your `$PATH`:
+
+```sh
+make
+```
+
+The build uses the platform you are on by default. If you need to cross-compile you can use the `TARGETPLATFORM` environment variables. For example `TARGETPLATFORM=linux/arm64 make` to build for Raspberry Pi
+or `TARGETPLATFORM=darwin/arm64 make` to build for macOS Apple Silicon.
+
+## Integrate Agents
 
 Enabling `container-use` requires 2 steps:
 
@@ -51,11 +63,15 @@ Enabling `container-use` requires 2 steps:
 
 ### [Claude Code](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
 
-```sh
-# Add the container-use MCP
-npx @anthropic-ai/claude-code mcp add container-use -- <path to cu> stdio
+Add the container-use MCP:
 
-# Save the CLAUDE.md file at the root of the repository. Alternatively, merge the instructions into your own CLAUDE.md.
+```sh
+npx @anthropic-ai/claude-code mcp add container-use -- <path to cu> stdio
+```
+
+Save the CLAUDE.md file at the root of the repository. Alternatively, merge the instructions into your own CLAUDE.md.
+
+```sh
 curl -o CLAUDE.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
 ```
 
@@ -83,16 +99,31 @@ curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercont
 
 ### [VSCode](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) / [GitHub Copilot](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-chat-with-mcp)
 
+The result of the instructions above will be to update your VSCode settings with something that looks like this:
+
+```json
+    "mcp": {
+        "servers": {
+            "container-use": {
+                "type": "stdio",
+                "command": "cu",
+                "args": [
+                    "stdio"
+                ]
+            }
+        }
+    }
+```
+
+Once the MCP server is running, you can optionally) update the instructions for copilot using the following:
+
 ```sh
 curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
 ```
+
 ### [Kilo Code](https://kilocode.ai/docs/features/mcp/using-mcp-in-kilo-code)
 
-`Kilo Code` allows setting MCP servers at global or project level - chose any as appropriate for your case. The video shows MCP server setting at global level.
-
-<p align='center'>
-    <img src='./_assets/kilo-code-set-mcp-server.gif' width='300' alt='container-use kilo code mcp setting'>
-</p>
+`Kilo Code` allows setting MCP servers at the global or project level.
 
 ```json
 {
@@ -121,7 +152,7 @@ curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercont
 ### Run with [Claude Code](https://www.anthropic.com/claude-code)
 
 ```console
-cat ./examples/hello_world.md | claude
+cat ./examples/hello_world.md | claude --dangerously-skip-permissions
 ```
 
 ### Run with [goose](https://block.github.io/goose/)
@@ -138,7 +169,7 @@ Prompt as in `parallel.md` but added a sentence 'use container-use mcp'
     <img src='./_assets/run-with-kilo-code.gif' width='300' alt='container-use kilo code'>
 </p>
 
-## Watching your agents work
+## Watch your agents work
 
 Your agents will automatically commit to a container-use remote on your local filesystem. You can watch the progress of your agents in real time by running:
 

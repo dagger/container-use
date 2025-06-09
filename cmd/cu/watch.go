@@ -1,23 +1,20 @@
 package main
 
 import (
-	"os"
-	"os/exec"
+	"time"
 
 	"github.com/spf13/cobra"
+	watch "github.com/tiborvass/go-watch"
 )
 
 var watchCmd = &cobra.Command{
 	Use:   "watch",
 	Short: "Watch git log output",
-	Long:  `Watch git log output using the watch command: 'watch --color -n1 git log --color=always --remotes=container-use --oneline --graph --decorate'.`,
+	Long:  `Watch the following git log command every second: 'git log --color=always --remotes=container-use --oneline --graph --decorate'.`,
 	RunE: func(app *cobra.Command, _ []string) error {
-		cmd := exec.CommandContext(app.Context(), "watch", "--color", "-n1", "git", "log", "--color=always", "--remotes=container-use", "--oneline", "--graph", "--decorate")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		return cmd.Run()
+		w := watch.Watcher{Interval: time.Second}
+		w.Watch(app.Context(), "git", "log", "--color=always", "--remotes=container-use", "--oneline", "--graph", "--decorate")
+		return nil
 	},
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"io"
@@ -61,24 +62,29 @@ func init() {
 	)
 }
 
-func main() {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGUSR1)
-
-	go func() {
-		for sig := range sigs {
-			if sig == syscall.SIGUSR1 {
-				dumpStacks()
-			}
+func handleSIGUSR(sigusrCh <-chan os.Signal) {
+	for sig := range sigusrCh {
+		if sig == syscall.SIGUSR1 {
+			dumpStacks()
 		}
-	}()
+	}
+}
+
+func main() {
+	sigusrCh := make(chan os.Signal, 1)
+	signal.Notify(sigusrCh, syscall.SIGUSR1)
+
+	go handleSIGUSR(sigusrCh)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	if err := setupLogger(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to setup logger: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := rootCmd.Execute(); err != nil {
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
