@@ -20,8 +20,13 @@ func New(
 }
 
 // Build creates a binary for the current platform
-func (m *ContainerUse) Build(ctx context.Context) *dagger.File {
-	return dag.Go(m.Source).Binary("./cmd/cu")
+func (m *ContainerUse) Build(ctx context.Context,
+	//+optional
+	platform dagger.Platform,
+) *dagger.File {
+	return dag.Go(m.Source).Binary("./cmd/cu", dagger.GoBinaryOpts{
+		Platform: platform,
+	})
 }
 
 // BuildMultiPlatform builds binaries for multiple platforms using GoReleaser

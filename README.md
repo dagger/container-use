@@ -45,14 +45,19 @@ This will check for Docker (required), detect your platform, and install the lat
 
 ## Building
 
-To build the `cu` binary without installing it to your `$PATH`:
+To build the `cu` binary without installing it to your `$PATH`, you can use either Dagger or Go directly:
+
+### Using Go
 
 ```sh
-make
+go build -o cu ./cmd/cu
 ```
 
-The build uses the platform you are on by default. If you need to cross-compile you can use the `TARGETPLATFORM` environment variables. For example `TARGETPLATFORM=linux/arm64 make` to build for Raspberry Pi
-or `TARGETPLATFORM=darwin/arm64 make` to build for macOS Apple Silicon.
+### Using Dagger
+
+```sh
+dagger call build --platform=current export --path ./cu
+```
 
 ## Integrate Agents
 
