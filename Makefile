@@ -10,7 +10,7 @@ clean:
 	rm -f cu
 
 .PHONY: install
-install:
+install: cu
 	@./hack/install.sh
 
 .PHONY: uninstall
