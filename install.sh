@@ -3,7 +3,7 @@
 # container-use installer script
 # Downloads and installs the appropriate binary for your system
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
