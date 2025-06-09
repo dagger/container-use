@@ -49,7 +49,11 @@ check_dependencies() {
         exit 1
     fi
 
-    log_success "Docker found"
+    if ! command_exists git; then
+        log_error "Git is required but not installed."
+        log_info "Please install Git from: https://git-scm.com/downloads"
+        exit 1
+    fi
 }
 
 # Detect operating system
@@ -105,16 +109,16 @@ check_existing_cu() {
 # Find the best installation directory
 find_install_dir() {
     local install_dir="${BIN_DIR:-$HOME/.local/bin}"
-    
+
     # Create the directory if it doesn't exist
     mkdir -p "$install_dir"
-    
+
     # Check if it's writable
     if [ ! -w "$install_dir" ]; then
         log_error "$install_dir is not a writable directory"
         exit 1
     fi
-    
+
     echo "$install_dir"
 }
 
