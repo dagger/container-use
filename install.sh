@@ -233,6 +233,25 @@ download_and_install() {
 
 # Main installation process
 main() {
+    # Handle command line arguments
+    case "${1:-}" in
+        -h|--help)
+            echo "container-use installer"
+            echo ""
+            echo "Usage: $0 [options]"
+            echo ""
+            echo "Options:"
+            echo "  -h, --help    Show this help message"
+            echo ""
+            echo "This script will:"
+            echo "  1. Check for Docker installation"
+            echo "  2. Detect your OS and architecture"
+            echo "  3. Download the latest container-use binary"
+            echo "  4. Install it to your PATH"
+            exit 0
+            ;;
+    esac
+
     log_info "Starting container-use installation..."
 
     check_dependencies
@@ -299,24 +318,4 @@ main() {
     fi
 }
 
-# Handle command line arguments
-case "${1:-}" in
-    -h|--help)
-        echo "container-use installer"
-        echo ""
-        echo "Usage: $0 [options]"
-        echo ""
-        echo "Options:"
-        echo "  -h, --help    Show this help message"
-        echo ""
-        echo "This script will:"
-        echo "  1. Check for Docker installation"
-        echo "  2. Detect your OS and architecture"
-        echo "  3. Download the latest container-use binary"
-        echo "  4. Install it to your PATH"
-        exit 0
-        ;;
-    *)
-        main "$@"
-        ;;
-esac
+main "$@"
