@@ -1,56 +1,30 @@
 package main
 
 import (
-	"fmt"
-	"io"
-	"log/slog"
 	"os"
-	"time"
+	"os/exec"
+	"strings"
+
+	"github.com/spf13/cobra"
 )
 
-var (
-	logWriter = io.Discard
-)
+var logCmd = &cobra.Command{
+	Use:   "log <env>",
+	Short: "Show the log for an environment",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(app *cobra.Command, args []string) error {
+		env := args[0]
+		// prevent accidental single quotes to mess up command
+		env = strings.Trim(env, "'")
+		cmd := exec.CommandContext(app.Context(), "git", "log", "--patch", "container-use/"+env)
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
 
-func parseLogLevel(levelStr string) slog.Level {
-	switch levelStr {
-	case "debug", "DEBUG":
-		return slog.LevelDebug
-	case "info", "INFO":
-		return slog.LevelInfo
-	case "warn", "WARN", "warning", "WARNING":
-		return slog.LevelWarn
-	case "error", "ERROR":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
+		return cmd.Run()
+	},
 }
 
-func setupLogger() error {
-	var writers []io.Writer
-
-	logFile := "/tmp/cu.debug.stderr.log"
-	if v, ok := os.LookupEnv("CU_STDERR_FILE"); ok {
-		logFile = v
-	}
-
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open log file %s: %w", logFile, err)
-	}
-	writers = append(writers, file)
-
-	if len(writers) == 0 {
-		fmt.Fprintf(os.Stderr, "%s Logging disabled. Set CU_STDERR_FILE and CU_LOG_LEVEL environment variables\n", time.Now().Format(time.DateTime))
-	}
-
-	logLevel := parseLogLevel(os.Getenv("CU_LOG_LEVEL"))
-	logWriter = io.MultiWriter(writers...)
-	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
-		Level: logLevel,
-	})
-	slog.SetDefault(slog.New(handler))
-
-	return nil
+func init() {
+	rootCmd.AddCommand(logCmd)
 }
