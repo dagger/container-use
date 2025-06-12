@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/dagger/container-use/environment"
+	"github.com/dagger/container-use/repository"
 	"github.com/dagger/container-use/rules"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -49,6 +50,34 @@ func validateName(name string) error {
 	}
 
 	return nil
+}
+
+func openRepository(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, error) {
+	source, err := request.RequireString("environment_source")
+	if err != nil {
+		return nil, err
+	}
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	return repo, nil
+}
+
+func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, *environment.Environment, error) {
+	repo, err := openRepository(ctx, request)
+	if err != nil {
+		return nil, nil, err
+	}
+	envID, err := request.RequireString("environment_id")
+	if err != nil {
+		return nil, nil, err
+	}
+	env, err := repo.Get(ctx, envID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return repo, env, nil
 }
 
 type Tool struct {
@@ -94,13 +123,12 @@ func wrapTool(t *Tool) *Tool {
 
 func init() {
 	registerTool(
-		EnvironmentOpenTool,
+		EnvironmentCreateTool,
 		EnvironmentUpdateTool,
 
 		// EnvironmentListTool,
 		// EnvironmentHistoryTool,
 		// EnvironmentRevertTool,
-		// EnvironmentForkTool,
 
 		EnvironmentRunCmdTool,
 		// EnvironmentSetEnvTool,
@@ -162,9 +190,9 @@ func EnvironmentToCallResult(env *environment.Environment) (*mcp.CallToolResult,
 	return mcp.NewToolResultText(out), nil
 }
 
-var EnvironmentOpenTool = &Tool{
-	Definition: mcp.NewTool("environment_open",
-		mcp.WithDescription(`Opens (or creates) a development environment.
+var EnvironmentCreateTool = &Tool{
+	Definition: mcp.NewTool("environment_create",
+		mcp.WithDescription(`Creates a new development environment.
 The environment is the result of a the setups commands on top of the base image.
 Read carefully the instructions to understand the environment.
 DO NOT manually install toolchains inside the environment, instead explicitly call environment_update`,
@@ -172,7 +200,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this environment is being opened or created."),
 		),
-		mcp.WithString("source",
+		mcp.WithString("environment_source",
 			mcp.Description("Absolute path to the source git repository for the environment."),
 			mcp.Required(),
 		),
@@ -182,9 +210,9 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		source, err := request.RequireString("source")
+		repo, err := openRepository(ctx, request)
 		if err != nil {
-			return nil, err
+			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
 		}
 		name, err := request.RequireString("name")
 		if err != nil {
@@ -193,11 +221,12 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 		if err := validateName(name); err != nil {
 			return mcp.NewToolResultErrorFromErr("invalid name", err), nil
 		}
-		// FIXME(aluzzardi): This should call `environment.Open` instead of `environment.Create` but it's currently broken
-		env, err := environment.Create(ctx, request.GetString("explanation", ""), source, name)
+
+		env, err := repo.Create(ctx, name, request.GetString("explanation", ""))
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to open environment", err), nil
+			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
+
 		return EnvironmentToCallResult(env)
 	},
 }
@@ -209,6 +238,10 @@ var EnvironmentUpdateTool = &Tool{
 			"You MUST update the environment with any useful information or tools. You will be resumed with no other context than the information provided here"),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this environment is being updated."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment to update."),
@@ -248,14 +281,11 @@ Supported schemas are:
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
+
 		config := env.Config.Copy()
 
 		instructions, err := request.RequireString("instructions")
@@ -289,8 +319,13 @@ Supported schemas are:
 		config.Secrets = secrets
 
 		if err := env.UpdateConfig(ctx, request.GetString("explanation", ""), config); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to update environment", err), nil
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
+
+		if err := repo.Update(ctx, env, "Update env "+env.ID, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+		}
+
 		out, err := marshalEnvironment(env)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
@@ -305,17 +340,17 @@ var EnvironmentListTool = &Tool{
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this environment is being listed."),
 		),
-		mcp.WithString("source",
+		mcp.WithString("environment_source",
 			mcp.Description("The source directory of the environment."), //  This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
 			mcp.Required(),
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		source, err := request.RequireString("source")
+		repo, err := openRepository(ctx, request)
 		if err != nil {
-			return nil, err
+			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
 		}
-		envs, err := environment.List(ctx, source)
+		envs, err := repo.List(ctx)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("invalid source", err), nil
 		}
@@ -327,132 +362,85 @@ var EnvironmentListTool = &Tool{
 	},
 }
 
-var EnvironmentForkTool = &Tool{
-	Definition: mcp.NewTool("environment_fork",
-		mcp.WithDescription("Create a new environment from an existing environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being forked."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment to fork."),
-			mcp.Required(),
-		),
-		mcp.WithNumber("version",
-			mcp.Description("Version of the environment to fork. Defaults to latest version."),
-		),
-		mcp.WithString("name",
-			mcp.Description("Name of the new environment. Use hyphens (-) to separate words, no spaces or underscores allowed (e.g., 'my-forked-app' not 'my forked app' or 'my_forked_app')"),
-			mcp.Required(),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
+// var EnvironmentHistoryTool = &Tool{
+// 	Definition: mcp.NewTool("environment_history",
+// 		mcp.WithDescription("List the history of an environment."),
+// 		mcp.WithString("explanation",
+// 			mcp.Description("One sentence explanation for why this environment is being listed."),
+// 		),
+// 		mcp.WithString("environment_id",
+// 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+// 			mcp.Required(),
+// 		),
+// 	),
+// 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// 		envID, err := request.RequireString("environment_id")
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
+// 		env := environment.Get(envID)
+// 		if env == nil {
+// 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+// 		}
 
-		name, err := request.RequireString("name")
-		if err != nil {
-			return nil, err
-		}
-		if err := validateName(name); err != nil {
-			return mcp.NewToolResultErrorFromErr("invalid name", err), nil
-		}
+// 		history := env.History
+// 		out, err := json.Marshal(history)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		return mcp.NewToolResultText(string(out)), nil
+// 	},
+// }
 
-		var version *environment.Version
-		if v, ok := request.GetArguments()["version"].(environment.Version); ok {
-			version = &v
-		}
+// var EnvironmentRevertTool = &Tool{
+// 	Definition: mcp.NewTool("environment_revert",
+// 		mcp.WithDescription("Revert the environment to a specific version."),
+// 		mcp.WithString("explanation",
+// 			mcp.Description("One sentence explanation for why this environment is being listed."),
+// 		),
+// 		mcp.WithString("environment_id",
+// 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithNumber("version",
+// 			mcp.Description("The version to revert to."),
+// 			mcp.Required(),
+// 		),
+// 	),
+// 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// 		envID, err := request.RequireString("environment_id")
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		fork, err := env.Fork(ctx, request.GetString("explanation", ""), name, version)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to fork environment", err), nil
-		}
+// 		env := environment.Get(envID)
+// 		if env == nil {
+// 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+// 		}
 
-		return mcp.NewToolResultText("environment forked successfully into ID " + fork.ID), nil
-	},
-}
+// 		version, err := request.RequireInt("version")
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-var EnvironmentHistoryTool = &Tool{
-	Definition: mcp.NewTool("environment_history",
-		mcp.WithDescription("List the history of an environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being listed."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
+// 		if err := env.Revert(ctx, request.GetString("explanation", ""), environment.Version(version)); err != nil {
+// 			return mcp.NewToolResultErrorFromErr("failed to revert environment", err), nil
+// 		}
 
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
-
-		history := env.History
-		out, err := json.Marshal(history)
-		if err != nil {
-			return nil, err
-		}
-		return mcp.NewToolResultText(string(out)), nil
-	},
-}
-
-var EnvironmentRevertTool = &Tool{
-	Definition: mcp.NewTool("environment_revert",
-		mcp.WithDescription("Revert the environment to a specific version."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being listed."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
-		mcp.WithNumber("version",
-			mcp.Description("The version to revert to."),
-			mcp.Required(),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
-
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
-
-		version, err := request.RequireInt("version")
-		if err != nil {
-			return nil, err
-		}
-
-		if err := env.Revert(ctx, request.GetString("explanation", ""), environment.Version(version)); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to revert environment", err), nil
-		}
-
-		return mcp.NewToolResultText("environment reverted successfully"), nil
-	},
-}
+// 		return mcp.NewToolResultText("environment reverted successfully"), nil
+// 	},
+// }
 
 var EnvironmentRunCmdTool = &Tool{
 	Definition: mcp.NewTool("environment_run_cmd",
 		mcp.WithDescription("Run a command on behalf of the user in the terminal."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this command is being run."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
@@ -479,19 +467,21 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
+
 		command := request.GetString("command", "")
 		shell := request.GetString("shell", "sh")
 
 		background := request.GetBool("background", false)
 		if background {
+			// We want to update the repository whether the command fails or not
+			defer func() {
+				_ = repo.Update(ctx, env, "Run "+command, request.GetString("explanation", ""))
+			}()
+
 			ports := []int{}
 			if portList, ok := request.GetArguments()["ports"].([]any); ok {
 				for _, port := range portList {
@@ -516,193 +506,203 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 				string(out), env.Config.Workdir, env.ID)), nil
 		}
 
+		// We want to update the repository whether the command fails or not
+		defer func() {
+			_ = repo.Update(ctx, env, "Run "+command, request.GetString("explanation", ""))
+		}()
+
 		stdout, err := env.Run(ctx, request.GetString("explanation", ""), command, shell, request.GetBool("use_entrypoint", false))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
 		}
+
 		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/%s", stdout, env.Config.Workdir, env.ID)), nil
 	},
 }
 
-var EnvironmentSetEnvTool = &Tool{
-	Definition: mcp.NewTool("environment_set_env",
-		mcp.WithDescription("Set environment variables for an environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why these environment variables are being set."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
-		mcp.WithArray("envs",
-			mcp.Description("The environment variables to set."),
-			mcp.Items(map[string]any{"type": "string"}),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
-		envs, err := request.RequireStringSlice("envs")
-		if err != nil {
-			return nil, err
-		}
-		if err := env.SetEnv(ctx, request.GetString("explanation", ""), envs); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to set environment variables", err), nil
-		}
-		return mcp.NewToolResultText("environment variables set successfully"), nil
-	},
-}
+// var EnvironmentSetEnvTool = &Tool{
+// 	Definition: mcp.NewTool("environment_set_env",
+// 		mcp.WithDescription("Set environment variables for an environment."),
+// 		mcp.WithString("explanation",
+// 			mcp.Description("One sentence explanation for why these environment variables are being set."),
+// 		),
+// 		mcp.WithString("environment_id",
+// 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithArray("envs",
+// 			mcp.Description("The environment variables to set."),
+// 			mcp.Items(map[string]any{"type": "string"}),
+// 		),
+// 	),
+// 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// 		envID, err := request.RequireString("environment_id")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		env := environment.Get(envID)
+// 		if env == nil {
+// 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+// 		}
+// 		envs, err := request.RequireStringSlice("envs")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		if err := env.SetEnv(ctx, request.GetString("explanation", ""), envs); err != nil {
+// 			return mcp.NewToolResultErrorFromErr("failed to set environment variables", err), nil
+// 		}
+// 		return mcp.NewToolResultText("environment variables set successfully"), nil
+// 	},
+// }
 
-var EnvironmentUploadTool = &Tool{
-	Definition: mcp.NewTool("environment_upload",
-		mcp.WithDescription("Upload files to an environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this file is being uploaded."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
-		mcp.WithString("source",
-			mcp.Description("The source directory to be uploaded to the environment. This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
-			mcp.Required(),
-		),
-		mcp.WithString("target",
-			mcp.Description("The target destination in the environment where to upload files."),
-			mcp.Required(),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
+// var EnvironmentUploadTool = &Tool{
+// 	Definition: mcp.NewTool("environment_upload",
+// 		mcp.WithDescription("Upload files to an environment."),
+// 		mcp.WithString("explanation",
+// 			mcp.Description("One sentence explanation for why this file is being uploaded."),
+// 		),
+// 		mcp.WithString("environment_id",
+// 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithString("source",
+// 			mcp.Description("The source directory to be uploaded to the environment. This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithString("target",
+// 			mcp.Description("The target destination in the environment where to upload files."),
+// 			mcp.Required(),
+// 		),
+// 	),
+// 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// 		envID, err := request.RequireString("environment_id")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		env := environment.Get(envID)
+// 		if env == nil {
+// 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+// 		}
 
-		source, err := request.RequireString("source")
-		if err != nil {
-			return nil, err
-		}
-		target, err := request.RequireString("target")
-		if err != nil {
-			return nil, err
-		}
+// 		source, err := request.RequireString("source")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		target, err := request.RequireString("target")
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		if err := env.Upload(ctx, request.GetString("explanation", ""), source, target); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to upload files", err), nil
-		}
+// 		if err := env.Upload(ctx, request.GetString("explanation", ""), source, target); err != nil {
+// 			return mcp.NewToolResultErrorFromErr("failed to upload files", err), nil
+// 		}
 
-		return mcp.NewToolResultText("files uploaded successfully"), nil
-	},
-}
+// 		return mcp.NewToolResultText("files uploaded successfully"), nil
+// 	},
+// }
 
-var EnvironmentDownloadTool = &Tool{
-	Definition: mcp.NewTool("environment_download",
-		mcp.WithDescription("Download files from an environment to the local filesystem."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this file is being downloaded."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
-		mcp.WithString("source",
-			mcp.Description("The source directory to be downloaded from the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("target",
-			mcp.Description("The target destination on the local filesystem where to download files."),
-			mcp.Required(),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
+// var EnvironmentDownloadTool = &Tool{
+// 	Definition: mcp.NewTool("environment_download",
+// 		mcp.WithDescription("Download files from an environment to the local filesystem."),
+// 		mcp.WithString("explanation",
+// 			mcp.Description("One sentence explanation for why this file is being downloaded."),
+// 		),
+// 		mcp.WithString("environment_id",
+// 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithString("source",
+// 			mcp.Description("The source directory to be downloaded from the environment."),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithString("target",
+// 			mcp.Description("The target destination on the local filesystem where to download files."),
+// 			mcp.Required(),
+// 		),
+// 	),
+// 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// 		envID, err := request.RequireString("environment_id")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		env := environment.Get(envID)
+// 		if env == nil {
+// 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+// 		}
 
-		source, err := request.RequireString("source")
-		if err != nil {
-			return nil, err
-		}
-		target, err := request.RequireString("target")
-		if err != nil {
-			return nil, errors.New("target must be a string")
-		}
+// 		source, err := request.RequireString("source")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		target, err := request.RequireString("target")
+// 		if err != nil {
+// 			return nil, errors.New("target must be a string")
+// 		}
 
-		if err := env.Download(ctx, source, target); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to download files", err), nil
-		}
+// 		if err := env.Download(ctx, source, target); err != nil {
+// 			return mcp.NewToolResultErrorFromErr("failed to download files", err), nil
+// 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("files downloaded successfully to %s", target)), nil
-	},
-}
+// 		return mcp.NewToolResultText(fmt.Sprintf("files downloaded successfully to %s", target)), nil
+// 	},
+// }
 
-var EnvironmentDiffTool = &Tool{
-	Definition: mcp.NewTool("environment_remote_diff",
-		mcp.WithDescription("Diff files between an environment and the local filesystem or git repository."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this diff is being run."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
-		mcp.WithString("source",
-			mcp.Description("The source directory to be compared. This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
-			mcp.Required(),
-		),
-		mcp.WithString("target",
-			mcp.Description("The target destination on the environment filesystem where to compare against."),
-			mcp.Required(),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
+// var EnvironmentDiffTool = &Tool{
+// 	Definition: mcp.NewTool("environment_remote_diff",
+// 		mcp.WithDescription("Diff files between an environment and the local filesystem or git repository."),
+// 		mcp.WithString("explanation",
+// 			mcp.Description("One sentence explanation for why this diff is being run."),
+// 		),
+// 		mcp.WithString("environment_id",
+// 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithString("source",
+// 			mcp.Description("The source directory to be compared. This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithString("target",
+// 			mcp.Description("The target destination on the environment filesystem where to compare against."),
+// 			mcp.Required(),
+// 		),
+// 	),
+// 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// 		envID, err := request.RequireString("environment_id")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		env := environment.Get(envID)
+// 		if env == nil {
+// 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+// 		}
 
-		source, err := request.RequireString("source")
-		if err != nil {
-			return nil, err
-		}
-		target, err := request.RequireString("target")
-		if err != nil {
-			return nil, errors.New("target must be a string")
-		}
+// 		source, err := request.RequireString("source")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		target, err := request.RequireString("target")
+// 		if err != nil {
+// 			return nil, errors.New("target must be a string")
+// 		}
 
-		diff, err := env.RemoteDiff(ctx, source, target)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to diff", err), nil
-		}
+// 		diff, err := env.RemoteDiff(ctx, source, target)
+// 		if err != nil {
+// 			return mcp.NewToolResultErrorFromErr("failed to diff", err), nil
+// 		}
 
-		return mcp.NewToolResultText(diff), nil
-	},
-}
+// 		return mcp.NewToolResultText(diff), nil
+// 	},
+// }
 
 var EnvironmentFileReadTool = &Tool{
 	Definition: mcp.NewTool("environment_file_read",
 		mcp.WithDescription("Read the contents of a file, specifying a line range or the entire file."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this file is being read."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
@@ -723,13 +723,9 @@ var EnvironmentFileReadTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		_, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 
 		targetFile, err := request.RequireString("target_file")
@@ -755,6 +751,10 @@ var EnvironmentFileListTool = &Tool{
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this directory is being listed."),
 		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
 			mcp.Required(),
@@ -765,13 +765,9 @@ var EnvironmentFileListTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		_, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 
 		path, err := request.RequireString("path")
@@ -794,6 +790,10 @@ var EnvironmentFileWriteTool = &Tool{
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this file is being written."),
 		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
 			mcp.Required(),
@@ -808,13 +808,9 @@ var EnvironmentFileWriteTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 
 		targetFile, err := request.RequireString("target_file")
@@ -830,6 +826,10 @@ var EnvironmentFileWriteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
 		}
 
+		if err := repo.Update(ctx, env, "Write "+targetFile, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+		}
+
 		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully, changes pushed to container-use/%s", targetFile, env.ID)), nil
 	},
 }
@@ -839,6 +839,10 @@ var EnvironmentFileDeleteTool = &Tool{
 		mcp.WithDescription("Deletes a file at the specified path."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this file is being deleted."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
@@ -850,13 +854,9 @@ var EnvironmentFileDeleteTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 
 		targetFile, err := request.RequireString("target_file")
@@ -868,56 +868,60 @@ var EnvironmentFileDeleteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to delete file", err), nil
 		}
 
+		if err := repo.Update(ctx, env, "Delete "+targetFile, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
+		}
+
 		return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully, changes pushed to container-use/%s", targetFile, env.ID)), nil
 	},
 }
 
-var EnvironmentRevisionDiffTool = &Tool{
-	Definition: mcp.NewTool("environment_revision_diff",
-		mcp.WithDescription("Diff files between multiple revisions of an environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this diff is being run."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
-		mcp.WithString("path",
-			mcp.Description("The path within the environment to be diffed. Defaults to workdir."),
-		),
-		mcp.WithNumber("from_version",
-			mcp.Description("Compute the diff starting from this version"),
-			mcp.Required(),
-		),
-		mcp.WithNumber("to_version",
-			mcp.Description("Compute the diff ending at this version. Defaults to latest version."),
-		),
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
-		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
-		}
+// var EnvironmentRevisionDiffTool = &Tool{
+// 	Definition: mcp.NewTool("environment_revision_diff",
+// 		mcp.WithDescription("Diff files between multiple revisions of an environment."),
+// 		mcp.WithString("explanation",
+// 			mcp.Description("One sentence explanation for why this diff is being run."),
+// 		),
+// 		mcp.WithString("environment_id",
+// 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithString("path",
+// 			mcp.Description("The path within the environment to be diffed. Defaults to workdir."),
+// 		),
+// 		mcp.WithNumber("from_version",
+// 			mcp.Description("Compute the diff starting from this version"),
+// 			mcp.Required(),
+// 		),
+// 		mcp.WithNumber("to_version",
+// 			mcp.Description("Compute the diff ending at this version. Defaults to latest version."),
+// 		),
+// 	),
+// 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// 		envID, err := request.RequireString("environment_id")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		env := environment.Get(envID)
+// 		if env == nil {
+// 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+// 		}
 
-		path := request.GetString("path", "")
-		fromVersion, err := request.RequireInt("from_version")
-		if err != nil {
-			return nil, err
-		}
-		toVersion := request.GetInt("to_version", int(env.History.LatestVersion()))
+// 		path := request.GetString("path", "")
+// 		fromVersion, err := request.RequireInt("from_version")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		toVersion := request.GetInt("to_version", int(env.History.LatestVersion()))
 
-		diff, err := env.RevisionDiff(ctx, path, environment.Version(fromVersion), environment.Version(toVersion))
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to diff", err), nil
-		}
+// 		diff, err := env.RevisionDiff(ctx, path, environment.Version(fromVersion), environment.Version(toVersion))
+// 		if err != nil {
+// 			return mcp.NewToolResultErrorFromErr("failed to diff", err), nil
+// 		}
 
-		return mcp.NewToolResultText(diff), nil
-	},
-}
+// 		return mcp.NewToolResultText(diff), nil
+// 	},
+// }
 
 var EnvironmentCheckpointTool = &Tool{
 	Definition: mcp.NewTool("environment_checkpoint",
@@ -935,13 +939,9 @@ var EnvironmentCheckpointTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		_, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 		destination, err := request.RequireString("destination")
 		if err != nil {
@@ -961,6 +961,10 @@ var EnvironmentAddServiceTool = &Tool{
 		mcp.WithDescription("Add a service to the environment (e.g. database, cache, etc.)"),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this service is being added."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
@@ -999,13 +1003,9 @@ Supported schemas are:
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		envID, err := request.RequireString("environment_id")
+		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return nil, err
-		}
-		env := environment.Get(envID)
-		if env == nil {
-			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 		serviceName, err := request.RequireString("name")
 		if err != nil {
@@ -1035,14 +1035,18 @@ Supported schemas are:
 			Secrets:      secrets,
 		})
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to start service", err), nil
+			return mcp.NewToolResultErrorFromErr("failed to add service", err), nil
 		}
 
-		json, err := json.Marshal(service)
+		if err := repo.Update(ctx, env, "Add service "+serviceName, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
+		}
+
+		output, err := json.Marshal(service)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to marshal service", err), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("Service %s added and started successfully: %s", serviceName, json)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
 	},
 }

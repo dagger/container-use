@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"io"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
+	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -16,31 +17,24 @@ var deleteCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
-		envName := args[0]
+		envID := args[0]
 
-		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
+		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(io.Discard))
 		if err != nil {
 			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
 		environment.Initialize(dag)
 
-		env := environment.Get(envName)
-		if env == nil {
-			// Try to open if not in memory
-			var openErr error
-			env, openErr = environment.Open(ctx, "delete environment", ".", envName)
-			if openErr != nil {
-				return fmt.Errorf("environment '%s' not found: %w", envName, openErr)
-			}
+		repo, err := repository.Open(ctx, ".")
+		if err != nil {
+			return fmt.Errorf("failed to open repository: %w", err)
 		}
-
-		if err := env.Delete(ctx); err != nil {
+		if err := repo.Delete(ctx, envID); err != nil {
 			return fmt.Errorf("failed to delete environment: %w", err)
 		}
 
-		fmt.Printf("Environment '%s' deleted successfully.\n", envName)
-		fmt.Println("To view this change, use: git checkout <branch_name>")
+		fmt.Printf("Environment '%s' deleted successfully.\n", envID)
 		return nil
 	},
 }

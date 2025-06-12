@@ -3,13 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"syscall"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
+	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +20,11 @@ var terminalCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
+
+		repo, err := repository.Open(ctx, ".")
+		if err != nil {
+			return err
+		}
 
 		// FIXME(aluzzardi): This is a hack to make sure we're wrapped in `dagger run` since `Terminal()` only works with the CLI.
 		// If not, it will auto-wrap this command in a `dagger run`.
@@ -36,13 +41,12 @@ var terminalCmd = &cobra.Command{
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
 		if err != nil {
-			slog.Error("Error starting dagger", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
 		environment.Initialize(dag)
 
-		env, err := environment.Open(ctx, "opening terminal", ".", args[0])
+		env, err := repo.Get(ctx, args[0])
 		if err != nil {
 			return err
 		}

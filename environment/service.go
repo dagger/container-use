@@ -122,9 +122,5 @@ func (env *Environment) AddService(ctx context.Context, explanation string, cfg 
 		return nil, err
 	}
 
-	if err := env.propagateToWorktree(ctx, "Add service "+cfg.Name, explanation); err != nil {
-		return nil, fmt.Errorf("failed to propagate to worktree: %w", err)
-	}
-
 	return svc, nil
 }
