@@ -115,26 +115,29 @@ func init() {
 		EnvironmentFileDeleteTool,
 		// EnvironmentRevisionDiffTool,
 
+		EnvironmentAddServiceTool,
+
 		EnvironmentCheckpointTool,
 	)
 }
 
 type EnvironmentResponse struct {
-	ID               string   `json:"id"`
-	BaseImage        string   `json:"base_image"`
-	SetupCommands    []string `json:"setup_commands"`
-	Instructions     string   `json:"instructions"`
-	Workdir          string   `json:"workdir"`
-	Branch           string   `json:"branch"`
-	TrackingBranch   string   `json:"tracking_branch"`
-	CheckoutCommand  string   `json:"checkout_command_for_human"`
-	HostWorktreePath string   `json:"host_worktree_path"`
+	ID               string                 `json:"id"`
+	BaseImage        string                 `json:"base_image"`
+	SetupCommands    []string               `json:"setup_commands"`
+	Instructions     string                 `json:"instructions"`
+	Workdir          string                 `json:"workdir"`
+	Branch           string                 `json:"branch"`
+	TrackingBranch   string                 `json:"tracking_branch"`
+	CheckoutCommand  string                 `json:"checkout_command_for_human"`
+	HostWorktreePath string                 `json:"host_worktree_path"`
+	Services         []*environment.Service `json:"services,omitempty"`
 }
 
-func EnvironmentToCallResult(env *environment.Environment) (*mcp.CallToolResult, error) {
+func marshalEnvironment(env *environment.Environment) (string, error) {
 	worktreePath, err := env.GetWorktreePath()
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to get worktree", err), nil
+		return "", fmt.Errorf("failed to get worktree: %w", err)
 	}
 	resp := &EnvironmentResponse{
 		ID:               env.ID,
@@ -146,12 +149,21 @@ func EnvironmentToCallResult(env *environment.Environment) (*mcp.CallToolResult,
 		TrackingBranch:   fmt.Sprintf("container-use/%s", env.ID),
 		CheckoutCommand:  fmt.Sprintf("git checkout %s", env.ID),
 		HostWorktreePath: worktreePath,
+		Services:         env.ServiceInstances,
 	}
 	out, err := json.Marshal(resp)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to marshal response", err), nil
+		return "", fmt.Errorf("failed to marshal response: %w", err)
 	}
-	return mcp.NewToolResultText(string(out)), nil
+	return string(out), nil
+}
+
+func EnvironmentToCallResult(env *environment.Environment) (*mcp.CallToolResult, error) {
+	out, err := marshalEnvironment(env)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
+	}
+	return mcp.NewToolResultText(out), nil
 }
 
 var EnvironmentOpenTool = &Tool{
@@ -220,6 +232,11 @@ var EnvironmentUpdateTool = &Tool{
 			mcp.Required(),
 			mcp.Items(map[string]any{"type": "string"}),
 		),
+		mcp.WithArray("envs",
+			mcp.Description("The environment variables to set (e.g. `[\"FOO=bar\", \"BAZ=qux\"]`)."),
+			mcp.Required(),
+			mcp.Items(map[string]any{"type": "string"}),
+		),
 		mcp.WithArray("secrets",
 			mcp.Description(`Secret references in the format of "SECRET_NAME=schema://value
 
@@ -255,15 +272,23 @@ Supported schemas are:
 		if err != nil {
 			return nil, err
 		}
+		envs, err := request.RequireStringSlice("envs")
+		if err != nil {
+			return nil, err
+		}
 		secrets, err := request.RequireStringSlice("secrets")
 		if err != nil {
 			return nil, err
 		}
 
-		if err := env.Update(ctx, request.GetString("explanation", ""), instructions, baseImage, setupCommands, secrets); err != nil {
+		if err := env.Update(ctx, request.GetString("explanation", ""), instructions, baseImage, setupCommands, envs, secrets); err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update environment", err), nil
 		}
-		return EnvironmentToCallResult(env)
+		out, err := marshalEnvironment(env)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Environment %s updated successfully. Environment has been restarted, all previous commands have been lost.\n%s", env.ID, out)), nil
 	},
 }
 
@@ -921,5 +946,96 @@ var EnvironmentCheckpointTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to checkpoint", err), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Checkpoint pushed to %q. You MUST use the full content addressed (@sha256:...) reference in `docker` commands. The entrypoint is set to `sh`, keep that in mind when giving commands to the container.", endpoint)), nil
+	},
+}
+
+var EnvironmentAddServiceTool = &Tool{
+	Definition: mcp.NewTool("environment_add_service",
+		mcp.WithDescription("Add a service to the environment (e.g. database, cache, etc.)"),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this service is being added."),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Required(),
+		),
+		mcp.WithString("name",
+			mcp.Description("The name of the service to start."),
+			mcp.Required(),
+		),
+		mcp.WithString("image",
+			mcp.Description("The image of the service to start."),
+			mcp.Required(),
+		),
+		mcp.WithString("command",
+			mcp.Description("The command to start the service. If not provided the image default command will be used."),
+		),
+		mcp.WithArray("ports",
+			mcp.Description("Ports to expose. For each port, returns the internal (for use by other environments) and external (for use by the user) address."),
+			mcp.Items(map[string]any{"type": "number"}),
+		),
+		mcp.WithArray("envs",
+			mcp.Description("The environment variables to set (e.g. `[\"FOO=bar\", \"BAZ=qux\"]`)."),
+			mcp.Items(map[string]any{"type": "string"}),
+		),
+		mcp.WithArray("secrets",
+			mcp.Description(`Secret references in the format of "SECRET_NAME=schema://value
+
+Secrets will be available in the environment as environment variables ($SECRET_NAME).
+
+Supported schemas are:
+- file://PATH: local file path
+- env://NAME: environment variable
+- op://<vault-name>/<item-name>/[section-name/]<field-name>: 1Password secret
+`),
+			mcp.Items(map[string]any{"type": "string"}),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
+		env := environment.Get(envID)
+		if env == nil {
+			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
+		}
+		serviceName, err := request.RequireString("name")
+		if err != nil {
+			return nil, err
+		}
+		image, err := request.RequireString("image")
+		if err != nil {
+			return nil, err
+		}
+		command := request.GetString("command", "")
+		ports := []int{}
+		if portList, ok := request.GetArguments()["ports"].([]any); ok {
+			for _, port := range portList {
+				ports = append(ports, int(port.(float64)))
+			}
+		}
+
+		envs := request.GetStringSlice("envs", []string{})
+		secrets := request.GetStringSlice("secrets", []string{})
+
+		service, err := env.AddService(ctx, request.GetString("explanation", ""), &environment.ServiceConfig{
+			Name:         serviceName,
+			Image:        image,
+			Command:      command,
+			ExposedPorts: ports,
+			Env:          envs,
+			Secrets:      secrets,
+		})
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to start service", err), nil
+		}
+
+		json, err := json.Marshal(service)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to marshal service", err), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("Service %s added and started successfully: %s", serviceName, json)), nil
 	},
 }

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"os"
 	"path"
 	"strings"
@@ -79,11 +78,14 @@ type Environment struct {
 	Source   string `json:"-"`
 	Worktree string `json:"-"`
 
-	Instructions  string   `json:"-"`
-	Workdir       string   `json:"workdir"`
-	BaseImage     string   `json:"base_image"`
-	SetupCommands []string `json:"setup_commands,omitempty"`
-	Secrets       []string `json:"secrets,omitempty"`
+	Instructions     string         `json:"-"`
+	Workdir          string         `json:"workdir"`
+	BaseImage        string         `json:"base_image"`
+	SetupCommands    []string       `json:"setup_commands,omitempty"`
+	Env              []string       `json:"env,omitempty"`
+	Secrets          []string       `json:"secrets,omitempty"`
+	Services         ServiceConfigs `json:"services,omitempty"`
+	ServiceInstances []*Service     `json:"-"`
 
 	History History `json:"-"`
 
@@ -255,20 +257,42 @@ func Open(ctx context.Context, explanation, source, id string) (*Environment, er
 	// }
 }
 
+func containerWithEnvAndSecrets(container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
+	for _, env := range envs {
+		k, v, found := strings.Cut(env, "=")
+		if !found {
+			return nil, fmt.Errorf("invalid env variable: %s", env)
+		}
+		if !found {
+			return nil, fmt.Errorf("invalid environment variable: %s", env)
+		}
+		container = container.WithEnvVariable(k, v)
+	}
+
+	for _, secret := range secrets {
+		k, v, found := strings.Cut(secret, "=")
+		if !found {
+			return nil, fmt.Errorf("invalid secret: %s", secret)
+		}
+		container = container.WithSecretVariable(k, dag.Secret(v))
+	}
+
+	return container, nil
+}
+
 func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error) {
-	sourceDir := dag.Host().Directory(env.Worktree)
+	sourceDir := dag.Host().Directory(env.Worktree, dagger.HostDirectoryOpts{
+		NoCache: true,
+	})
 
 	container := dag.
 		Container().
 		From(env.BaseImage).
 		WithWorkdir(env.Workdir)
 
-	for _, secret := range env.Secrets {
-		k, v, found := strings.Cut(secret, "=")
-		if !found {
-			return nil, fmt.Errorf("invalid secret: %s", secret)
-		}
-		container = container.WithSecretVariable(k, dag.Secret(v))
+	container, err := containerWithEnvAndSecrets(container, env.Env, env.Secrets)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, command := range env.SetupCommands {
@@ -295,12 +319,21 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 		_ = env.addGitNote(ctx, fmt.Sprintf("$ %s\n%s\n\n", command, stdout))
 	}
 
+	services, err := env.startServices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start services: %w", err)
+	}
+	env.ServiceInstances = services
+	for _, service := range services {
+		container = container.WithServiceBinding(service.Config.Name, service.svc)
+	}
+
 	container = container.WithDirectory(".", sourceDir)
 
 	return container, nil
 }
 
-func (env *Environment) Update(ctx context.Context, explanation, instructions, baseImage string, setupCommands, secrets []string) error {
+func (env *Environment) Update(ctx context.Context, explanation, instructions, baseImage string, setupCommands, envs, secrets []string) error {
 	if env.isLocked(env.Source) {
 		return fmt.Errorf("Environment is locked, no updates allowed. Try to make do with the current environment or ask a human to remove the lock file (%s)", path.Join(env.Source, configDir, lockFile))
 	}
@@ -308,6 +341,7 @@ func (env *Environment) Update(ctx context.Context, explanation, instructions, b
 	env.Instructions = instructions
 	env.BaseImage = baseImage
 	env.SetupCommands = setupCommands
+	env.Env = envs
 	env.Secrets = secrets
 
 	// Re-build the base image from the worktree
@@ -391,13 +425,6 @@ func (env *Environment) Run(ctx context.Context, explanation, command, shell str
 	return stdout, nil
 }
 
-type EndpointMapping struct {
-	Internal string `json:"internal"`
-	External string `json:"external"`
-}
-
-type EndpointMappings map[int]*EndpointMapping
-
 func (env *Environment) RunBackground(ctx context.Context, explanation, command, shell string, ports []int, useEntrypoint bool) (EndpointMappings, error) {
 	args := []string{}
 	if command != "" {
@@ -431,35 +458,29 @@ func (env *Environment) RunBackground(ctx context.Context, explanation, command,
 	)
 
 	endpoints := EndpointMappings{}
-	hostForwards := []dagger.PortForward{}
-
 	for _, port := range ports {
-		endpoints[port] = &EndpointMapping{}
-		hostForwards = append(hostForwards, dagger.PortForward{
-			Backend:  port,
-			Frontend: rand.Intn(1000) + 5000,
-			Protocol: dagger.NetworkProtocolTcp,
-		})
-	}
+		endpoint := &EndpointMapping{}
+		endpoints[port] = endpoint
 
-	// Expose ports on the host
-	tunnel, err := dag.Host().Tunnel(svc, dagger.HostTunnelOpts{Ports: hostForwards}).Start(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Retrieve endpoints
-	for _, forward := range hostForwards {
-		externalEndpoint, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{
-			Port: forward.Frontend,
-		})
+		// Expose port on the host
+		tunnel, err := dag.Host().Tunnel(svc, dagger.HostTunnelOpts{
+			Ports: []dagger.PortForward{
+				{
+					Backend:  port,
+					Protocol: dagger.NetworkProtocolTcp,
+				},
+			},
+		}).Start(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		endpoints[forward.Backend].External = externalEndpoint
-	}
-	for port, endpoint := range endpoints {
+		externalEndpoint, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{})
+		if err != nil {
+			return nil, err
+		}
+		endpoint.External = externalEndpoint
+
 		internalEndpoint, err := svc.Endpoint(ctx, dagger.ServiceEndpointOpts{
 			Port: port,
 		})

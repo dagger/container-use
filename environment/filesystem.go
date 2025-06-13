@@ -121,6 +121,7 @@ func (s *Environment) RemoteDiff(ctx context.Context, source string, target stri
 	}
 	return diff, nil
 }
+
 func (s *Environment) RevisionDiff(ctx context.Context, path string, fromVersion, toVersion Version) (string, error) {
 	revisionDiff, err := s.revisionDiff(ctx, path, fromVersion, toVersion, true)
 	if err != nil {
