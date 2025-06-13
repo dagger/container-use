@@ -28,4 +28,8 @@
    - Edit the draft release if needed
    - Click "Publish release"
 
+6. **Merge the homebrew tap PR**
+   - After publishing the release, a PR will be automatically created in [dagger/homebrew-tap](https://github.com/dagger/homebrew-tap)
+   - Review and merge the PR to make the release available via Homebrew
+
 The Dagger CI automatically handles building binaries and creating the draft release when tags are pushed.
