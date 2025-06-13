@@ -71,3 +71,66 @@ So the flow is: **Branch** (the logical environment) → **Worktree** (filesyste
 - `environment.go` - Core environment management
 - `git.go` - Worktree and Git integration
 - `filesystem.go` - File operations within containers
+
+## Testing
+
+The environment package includes comprehensive unit and integration tests that verify critical user behaviors:
+
+### Running Tests
+
+#### Using Go directly:
+```bash
+# Run only unit tests
+go test ./environment -short
+
+# Run all tests including integration tests (requires Dagger)
+go test ./environment
+
+# Run specific test suites
+go test ./environment -run TestWorkPersistsAcrossSessions
+
+# Run with verbose output
+go test ./environment -v
+```
+
+#### Using Dagger (recommended for CI):
+```bash
+# Run unit tests only
+dagger call test-environment
+
+# Run all tests including integration tests
+dagger call test-environment --integration
+
+# Run with verbose output
+dagger call test-environment --verbose --integration
+
+# Run all tests in the project
+dagger call test --pkg ./...
+```
+
+### Test Coverage
+
+**Unit Tests** (`-short` mode):
+- Git command error handling
+- Worktree path generation
+- Empty directory handling
+- Selective file staging (Python cache, binaries)
+
+**Integration Tests** (full mode):
+- Work persistence across sessions
+- Automatic change tracking
+- Environment isolation
+- Edge case handling (Python cache, binary files, large files)
+- Performance with 100+ file projects
+- Configuration persistence
+
+### Known Issues
+
+The test suite documents several known bugs with skipped tests:
+- Python `__pycache__` directories cause git operations to fail
+- Directories with only binary files aren't handled correctly
+- Environment variables don't persist across `Update()` calls
+- **Worktree caching bug**: After `Update()`, the container uses the cached initial worktree state instead of the latest changes (dag.Host().Directory() caching issue)
+- **Upload caching**: The `Upload()` function may upload stale versions of files due to the same caching issue
+
+These failing tests are intentionally included to document expected behavior once the bugs are fixed.
