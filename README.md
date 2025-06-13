@@ -69,14 +69,21 @@ Enabling `container-use` requires 2 steps:
 Add the container-use MCP:
 
 ```sh
+npm install -g @anthropic-ai/claude-code
 cd /path/to/repository
-npx @anthropic-ai/claude-code mcp add container-use -- <full path to cu command> stdio
+claude mcp add container-use -- <full path to cu command> stdio
 ```
 
 Save the CLAUDE.md file at the root of the repository. Alternatively, merge the instructions into your own CLAUDE.md.
 
 ```sh
 curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
+```
+
+To trust only the Container Use environment tools, invoke Claude Code like this:
+
+```sh
+claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update
 ```
 
 ### [Amazon Q Developer CLI chat](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-chat.html)
