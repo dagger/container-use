@@ -35,6 +35,26 @@ archives:
       - README.md
       - LICENSE
 
+homebrew_casks:
+  - repository:
+      owner: "{{ .Env.GH_ORG_NAME }}"
+      name: homebrew-tap
+    name: container-use
+    binary: cu
+    commit_author:
+      name: dagger-bot
+      email: noreply@dagger.io
+    url:
+      template: "https://github.com/cwlbraa/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/cwlbraa/container-use"
+    description: "Containerized environments for coding agents"
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cu"]
+          end
+
 checksum:
   name_template: "checksums.txt"
 
@@ -51,12 +71,15 @@ changelog:
       - "Merge branch"
 
 release:
+  github:
+    owner: cwlbraa
+    name: container-use
   draft: true
   prerelease: auto
   mode: replace
   header: |
     ## container-use {{ .Tag }}
-    
+
     Download the pre-compiled binaries from the assets below.
   footer: |
-    **Full Changelog**: https://github.com/dagger/container-use/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/cwlbraa/container-use/compare/{{ .PreviousTag }}...{{ .Tag }}
