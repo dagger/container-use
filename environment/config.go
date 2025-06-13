@@ -53,6 +53,16 @@ func (sc ServiceConfigs) Get(name string) *ServiceConfig {
 	return nil
 }
 
+func (config *EnvironmentConfig) Copy() *EnvironmentConfig {
+	copy := *config
+	copy.Services = make(ServiceConfigs, len(config.Services))
+	for i, svc := range config.Services {
+		svcCopy := *svc
+		copy.Services[i] = &svcCopy
+	}
+	return &copy
+}
+
 func (config *EnvironmentConfig) Save(baseDir string) error {
 	configPath := path.Join(baseDir, configDir)
 	if err := os.MkdirAll(configPath, 0755); err != nil {

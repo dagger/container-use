@@ -135,10 +135,6 @@ type EnvironmentResponse struct {
 }
 
 func marshalEnvironment(env *environment.Environment) (string, error) {
-	worktreePath, err := env.GetWorktreePath()
-	if err != nil {
-		return "", fmt.Errorf("failed to get worktree: %w", err)
-	}
 	resp := &EnvironmentResponse{
 		ID:               env.ID,
 		Instructions:     env.Config.Instructions,
@@ -148,7 +144,7 @@ func marshalEnvironment(env *environment.Environment) (string, error) {
 		Branch:           env.ID,
 		TrackingBranch:   fmt.Sprintf("container-use/%s", env.ID),
 		CheckoutCommand:  fmt.Sprintf("git checkout %s", env.ID),
-		HostWorktreePath: worktreePath,
+		HostWorktreePath: env.Worktree,
 		Services:         env.Services,
 	}
 	out, err := json.Marshal(resp)
@@ -260,7 +256,7 @@ Supported schemas are:
 		if env == nil {
 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
 		}
-		config := env.Config
+		config := env.Config.Copy()
 
 		instructions, err := request.RequireString("instructions")
 		if err != nil {
