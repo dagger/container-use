@@ -29,7 +29,7 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ---
 
-🦺 This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation. But also expect rapid iteration and responsiveness to feedback. Please submit issues and/or reach out to us on [Discord](https://discord.gg/Nf42dydvrX) in the #container-use channel. 
+🦺 This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation. But also expect rapid iteration and responsiveness to feedback. Please submit issues and/or reach out to us on [Discord](https://discord.gg/Nf42dydvrX) in the #container-use channel.
 
 ---
 
@@ -152,10 +152,38 @@ The result of the instructions above will be to update your VSCode settings with
     }
 ```
 
-Once the MCP server is running, you can optionally) update the instructions for copilot using the following:
+Once the MCP server is running, you can optionally update the instructions for copilot using the following:
 
 ```sh
 curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+```
+
+### [Cline](https://cline.bot/)
+
+Add the following to your Cline MCP server configuration JSON:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "disabled": false,
+      "timeout": 60000,
+      "type": "stdio",
+      "command": "cu",
+      "args": [
+        "stdio"
+      ],
+      "env": {},
+      "autoApprove": []
+    }
+  }
+}
+```
+
+Include the container-use prompt in your Cline rules:
+
+```sh
+curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
 ```
 
 ### [Kilo Code](https://kilocode.ai/docs/features/mcp/using-mcp-in-kilo-code)
