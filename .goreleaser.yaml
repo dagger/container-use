@@ -37,7 +37,7 @@ archives:
 
 homebrew_casks:
   - repository:
-      owner: dagger # reconfigure if test releasing on your own fork
+      owner: "{{ .Env.GH_ORG_NAME }}" # reconfigure if test releasing on your own fork
       name: homebrew-tap
       pull_request:
         enabled: true # enabled so we can publish draft releases, publish them, then merge the tap PR. to be removed later.
@@ -48,8 +48,8 @@ homebrew_casks:
       name: container-use-bot
       email: noreply@dagger.io
     url:
-      template: "https://github.com/dagger/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    homepage: "https://github.com/dagger/container-use"
+      template: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use"
     description: "Containerized environments for coding agents"
     hooks:
       post:
@@ -75,7 +75,7 @@ changelog:
 
 release:
   github:
-    owner: dagger # reconfigure if test releasing on your own fork
+    owner: "{{ .Env.GH_ORG_NAME }}" # reconfigure if test releasing on your own fork
     name: container-use
   draft: true
   prerelease: auto
@@ -85,4 +85,4 @@ release:
 
     Download the pre-compiled binaries from the assets below.
   footer: |
-    **Full Changelog**: https://github.com/dagger/container-use/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/{{ .Env.GH_ORG_NAME }}/container-use/compare/{{ .PreviousTag }}...{{ .Tag }}
