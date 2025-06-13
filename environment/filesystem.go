@@ -135,7 +135,7 @@ func (s *Environment) RevisionDiff(ctx context.Context, path string, fromVersion
 
 func (s *Environment) revisionDiff(ctx context.Context, path string, fromVersion, toVersion Version, directory bool) (string, error) {
 	if path == "" {
-		path = s.Workdir
+		path = s.Config.Workdir
 	}
 	diffCtr := dag.Container().
 		From(alpineImage).

@@ -218,13 +218,13 @@ func (env *Environment) propagateToWorktree(ctx context.Context, name, explanati
 	slog.Info("Propagating to worktree...",
 		"environment.id", env.ID,
 		"environment.name", env.Name,
-		"workdir", env.Workdir,
+		"workdir", env.Config.Workdir,
 		"id", env.ID)
 	defer func() {
 		slog.Info("Propagating to worktree... (DONE)",
 			"environment.id", env.ID,
 			"environment.name", env.Name,
-			"workdir", env.Workdir,
+			"workdir", env.Config.Workdir,
 			"id", env.ID,
 			"err", rerr)
 	}()
@@ -234,7 +234,7 @@ func (env *Environment) propagateToWorktree(ctx context.Context, name, explanati
 		return err
 	}
 
-	_, err = env.container.Directory(env.Workdir).Export(
+	_, err = env.container.Directory(env.Config.Workdir).Export(
 		ctx,
 		worktreePath,
 		dagger.DirectoryExportOpts{Wipe: true},
@@ -244,7 +244,7 @@ func (env *Environment) propagateToWorktree(ctx context.Context, name, explanati
 	}
 
 	slog.Info("Saving environment")
-	if err := env.save(worktreePath); err != nil {
+	if err := env.Config.Save(worktreePath); err != nil {
 		return err
 	}
 

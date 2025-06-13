@@ -2,7 +2,6 @@ package environment
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,15 +17,6 @@ import (
 )
 
 var dag *dagger.Client
-
-const (
-	defaultImage     = "ubuntu:24.04"
-	alpineImage      = "alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c"
-	configDir        = ".container-use"
-	instructionsFile = "AGENT.md"
-	environmentFile  = "environment.json"
-	lockFile         = "lock"
-)
 
 type Version int
 
@@ -73,73 +63,19 @@ func Initialize(client *dagger.Client) error {
 }
 
 type Environment struct {
-	ID       string `json:"-"`
-	Name     string `json:"-"`
-	Source   string `json:"-"`
-	Worktree string `json:"-"`
+	Config *EnvironmentConfig
 
-	Instructions     string         `json:"-"`
-	Workdir          string         `json:"workdir"`
-	BaseImage        string         `json:"base_image"`
-	SetupCommands    []string       `json:"setup_commands,omitempty"`
-	Env              []string       `json:"env,omitempty"`
-	Secrets          []string       `json:"secrets,omitempty"`
-	Services         ServiceConfigs `json:"services,omitempty"`
-	ServiceInstances []*Service     `json:"-"`
+	ID       string
+	Name     string
+	Source   string
+	Worktree string
 
-	History History `json:"-"`
+	Services []*Service
+
+	History History
 
 	mu        sync.Mutex
 	container *dagger.Container
-}
-
-func (env *Environment) save(baseDir string) error {
-	cfg := path.Join(baseDir, configDir)
-	if err := os.MkdirAll(cfg, 0755); err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(path.Join(cfg, instructionsFile), []byte(env.Instructions), 0644); err != nil {
-		return err
-	}
-
-	envState, err := json.MarshalIndent(env, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(path.Join(cfg, environmentFile), envState, 0644); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (env *Environment) load(baseDir string) error {
-	cfg := path.Join(baseDir, configDir)
-
-	instructions, err := os.ReadFile(path.Join(cfg, instructionsFile))
-	if err != nil {
-		return err
-	}
-	env.Instructions = string(instructions)
-
-	envState, err := os.ReadFile(path.Join(cfg, environmentFile))
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(envState, env); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (env *Environment) isLocked(baseDir string) bool {
-	if _, err := os.Stat(path.Join(baseDir, configDir, lockFile)); err == nil {
-		return true
-	}
-	return false
 }
 
 func (env *Environment) apply(ctx context.Context, name, explanation, output string, newState *dagger.Container) error {
@@ -172,14 +108,12 @@ var environments = map[string]*Environment{}
 
 func Create(ctx context.Context, explanation, source, name string) (*Environment, error) {
 	env := &Environment{
-		ID:           fmt.Sprintf("%s/%s", name, petname.Generate(2, "-")),
-		Name:         name,
-		Source:       source,
-		BaseImage:    defaultImage,
-		Instructions: "No instructions found. Please look around the filesystem and update me",
-		Workdir:      "/workdir",
+		ID:     fmt.Sprintf("%s/%s", name, petname.Generate(2, "-")),
+		Name:   name,
+		Source: source,
+		Config: DefaultConfig(),
 	}
-	if err := env.load(source); err != nil {
+	if err := env.Config.Load(source); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
@@ -196,7 +130,7 @@ func Create(ctx context.Context, explanation, source, name string) (*Environment
 		return nil, err
 	}
 
-	slog.Info("Creating environment", "id", env.ID, "name", env.Name, "workdir", env.Workdir)
+	slog.Info("Creating environment", "id", env.ID, "name", env.Name, "workdir", env.Config.Workdir)
 
 	if err := env.apply(ctx, "Create environment", "Create the environment", "", container); err != nil {
 		return nil, err
@@ -218,6 +152,7 @@ func Open(ctx context.Context, explanation, source, id string) (*Environment, er
 		Name:   name,
 		ID:     id,
 		Source: source,
+		Config: DefaultConfig(),
 	}
 	worktreePath, err := env.InitializeWorktree(ctx, source)
 	if err != nil {
@@ -225,7 +160,7 @@ func Open(ctx context.Context, explanation, source, id string) (*Environment, er
 	}
 	env.Worktree = worktreePath
 
-	if err := env.load(worktreePath); err != nil {
+	if err := env.Config.Load(worktreePath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return Create(ctx, explanation, source, name)
 		}
@@ -287,15 +222,15 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 
 	container := dag.
 		Container().
-		From(env.BaseImage).
-		WithWorkdir(env.Workdir)
+		From(env.Config.BaseImage).
+		WithWorkdir(env.Config.Workdir)
 
-	container, err := containerWithEnvAndSecrets(container, env.Env, env.Secrets)
+	container, err := containerWithEnvAndSecrets(container, env.Config.Env, env.Config.Secrets)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, command := range env.SetupCommands {
+	for _, command := range env.Config.SetupCommands {
 		var err error
 
 		container = container.WithExec([]string{"sh", "-c", command})
@@ -319,12 +254,11 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 		_ = env.addGitNote(ctx, fmt.Sprintf("$ %s\n%s\n\n", command, stdout))
 	}
 
-	services, err := env.startServices(ctx)
+	env.Services, err = env.startServices(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start services: %w", err)
 	}
-	env.ServiceInstances = services
-	for _, service := range services {
+	for _, service := range env.Services {
 		container = container.WithServiceBinding(service.Config.Name, service.svc)
 	}
 
@@ -333,16 +267,12 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 	return container, nil
 }
 
-func (env *Environment) Update(ctx context.Context, explanation, instructions, baseImage string, setupCommands, envs, secrets []string) error {
-	if env.isLocked(env.Source) {
+func (env *Environment) UpdateConfig(ctx context.Context, explanation string, newConfig *EnvironmentConfig) error {
+	if env.Config.Locked(env.Source) {
 		return fmt.Errorf("Environment is locked, no updates allowed. Try to make do with the current environment or ask a human to remove the lock file (%s)", path.Join(env.Source, configDir, lockFile))
 	}
 
-	env.Instructions = instructions
-	env.BaseImage = baseImage
-	env.SetupCommands = setupCommands
-	env.Env = envs
-	env.Secrets = secrets
+	env.Config = newConfig
 
 	// Re-build the base image from the worktree
 	container, err := env.buildBase(ctx)

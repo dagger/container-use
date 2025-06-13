@@ -141,15 +141,15 @@ func marshalEnvironment(env *environment.Environment) (string, error) {
 	}
 	resp := &EnvironmentResponse{
 		ID:               env.ID,
-		Instructions:     env.Instructions,
-		BaseImage:        env.BaseImage,
-		SetupCommands:    env.SetupCommands,
-		Workdir:          env.Workdir,
+		Instructions:     env.Config.Instructions,
+		BaseImage:        env.Config.BaseImage,
+		SetupCommands:    env.Config.SetupCommands,
+		Workdir:          env.Config.Workdir,
 		Branch:           env.ID,
 		TrackingBranch:   fmt.Sprintf("container-use/%s", env.ID),
 		CheckoutCommand:  fmt.Sprintf("git checkout %s", env.ID),
 		HostWorktreePath: worktreePath,
-		Services:         env.ServiceInstances,
+		Services:         env.Services,
 	}
 	out, err := json.Marshal(resp)
 	if err != nil {
@@ -260,28 +260,39 @@ Supported schemas are:
 		if env == nil {
 			return mcp.NewToolResultError(fmt.Sprintf("environment %s not found", envID)), nil
 		}
+		config := env.Config
+
 		instructions, err := request.RequireString("instructions")
 		if err != nil {
 			return nil, err
 		}
+		config.Instructions = instructions
+
 		baseImage, err := request.RequireString("base_image")
 		if err != nil {
 			return nil, err
 		}
+		config.BaseImage = baseImage
+
 		setupCommands, err := request.RequireStringSlice("setup_commands")
 		if err != nil {
 			return nil, err
 		}
+		config.SetupCommands = setupCommands
+
 		envs, err := request.RequireStringSlice("envs")
 		if err != nil {
 			return nil, err
 		}
+		config.Env = envs
+
 		secrets, err := request.RequireStringSlice("secrets")
 		if err != nil {
 			return nil, err
 		}
+		config.Secrets = secrets
 
-		if err := env.Update(ctx, request.GetString("explanation", ""), instructions, baseImage, setupCommands, envs, secrets); err != nil {
+		if err := env.UpdateConfig(ctx, request.GetString("explanation", ""), config); err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update environment", err), nil
 		}
 		out, err := marshalEnvironment(env)
@@ -506,14 +517,14 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 Any changes to the container workdir (%s) WILL NOT be committed to container-use/%s
 
 Background commands are unaffected by filesystem and any other kind of changes. You need to start a new command for changes to take effect.`,
-				string(out), env.Workdir, env.ID)), nil
+				string(out), env.Config.Workdir, env.ID)), nil
 		}
 
 		stdout, err := env.Run(ctx, request.GetString("explanation", ""), command, shell, request.GetBool("use_entrypoint", false))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
 		}
-		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/%s", stdout, env.Workdir, env.ID)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/%s", stdout, env.Config.Workdir, env.ID)), nil
 	},
 }
 

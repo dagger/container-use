@@ -8,24 +8,11 @@ import (
 	"dagger.io/dagger"
 )
 
-type ServiceConfig struct {
-	Name         string   `json:"name,omitempty"`
-	Image        string   `json:"image,omitempty"`
-	Command      string   `json:"command,omitempty"`
-	ExposedPorts []int    `json:"exposed_ports,omitempty"`
-	Env          []string `json:"env,omitempty"`
-	Secrets      []string `json:"secrets,omitempty"`
-}
+type Service struct {
+	Config    *ServiceConfig   `json:"config"`
+	Endpoints EndpointMappings `json:"endpoints"`
 
-type ServiceConfigs []*ServiceConfig
-
-func (sc ServiceConfigs) Get(name string) *ServiceConfig {
-	for _, cfg := range sc {
-		if cfg.Name == name {
-			return cfg
-		}
-	}
-	return nil
+	svc *dagger.Service
 }
 
 type EndpointMapping struct {
@@ -35,16 +22,9 @@ type EndpointMapping struct {
 
 type EndpointMappings map[int]*EndpointMapping
 
-type Service struct {
-	Config    *ServiceConfig   `json:"config"`
-	Endpoints EndpointMappings `json:"endpoints"`
-
-	svc *dagger.Service
-}
-
 func (env *Environment) startServices(ctx context.Context) ([]*Service, error) {
 	services := []*Service{}
-	for _, cfg := range env.Services {
+	for _, cfg := range env.Config.Services {
 		service, err := env.startService(ctx, cfg)
 		if err != nil {
 			return nil, err
@@ -127,15 +107,15 @@ func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*
 }
 
 func (env *Environment) AddService(ctx context.Context, explanation string, cfg *ServiceConfig) (*Service, error) {
-	if env.Services.Get(cfg.Name) != nil {
+	if env.Config.Services.Get(cfg.Name) != nil {
 		return nil, fmt.Errorf("service %s already exists", cfg.Name)
 	}
 	svc, err := env.startService(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
-	env.Services = append(env.Services, cfg)
-	env.ServiceInstances = append(env.ServiceInstances, svc)
+	env.Config.Services = append(env.Config.Services, cfg)
+	env.Services = append(env.Services, svc)
 
 	state := env.container.WithServiceBinding(cfg.Name, svc.svc)
 	if err := env.apply(ctx, "Add service "+cfg.Name, explanation, "", state); err != nil {
