@@ -37,16 +37,19 @@ archives:
 
 homebrew_casks:
   - repository:
-      owner: "{{ .Env.GH_ORG_NAME }}"
+      owner: dagger # reconfigure if test releasing on your own fork
       name: homebrew-tap
+      pull_request:
+        enabled: true # enabled so we can publish draft releases, publish them, then merge the tap PR. to be removed later.
     name: container-use
     binary: cu
+    skip_upload: auto # if the version is like v0.0.0-rc1, don't make the tap PR.
     commit_author:
-      name: dagger-bot
+      name: container-use-bot
       email: noreply@dagger.io
     url:
-      template: "https://github.com/cwlbraa/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    homepage: "https://github.com/cwlbraa/container-use"
+      template: "https://github.com/dagger/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/dagger/container-use"
     description: "Containerized environments for coding agents"
     hooks:
       post:
@@ -72,7 +75,7 @@ changelog:
 
 release:
   github:
-    owner: cwlbraa
+    owner: dagger # reconfigure if test releasing on your own fork
     name: container-use
   draft: true
   prerelease: auto
@@ -82,4 +85,4 @@ release:
 
     Download the pre-compiled binaries from the assets below.
   footer: |
-    **Full Changelog**: https://github.com/cwlbraa/container-use/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/dagger/container-use/compare/{{ .PreviousTag }}...{{ .Tag }}
