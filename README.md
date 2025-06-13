@@ -130,6 +130,12 @@ extensions:
 
 ### [Cursor](https://docs.cursor.com/context/model-context-protocol)
 
+First, install the MCP server by using the deeplink below (this assumes you have Cursor and Container-use already installed):
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY3Ugc3RkaW8ifQ%3D%3D)
+
+Then, add the following rule, either at the root of your project or in your home directory (global).
+
 ```sh
 curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc
 ```
