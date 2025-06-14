@@ -35,6 +35,14 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ## Install
 
+### macOS (Homebrew - Recommended)
+
+```sh
+brew install dagger/tap/container-use
+```
+
+### All Platforms (Shell Script)
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
 ```

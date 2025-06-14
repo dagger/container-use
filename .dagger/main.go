@@ -40,9 +40,13 @@ func (m *ContainerUse) Release(ctx context.Context,
 	version string,
 	// GitHub token for authentication
 	githubToken *dagger.Secret,
+	// GitHub org name for package publishing, set only if testing release process on a personal fork
+	//+default="dagger"
+	githubOrgName string,
 ) (string, error) {
 	return dag.Goreleaser(m.Source).
 		WithSecretVariable("GITHUB_TOKEN", githubToken).
+		WithEnvVariable("GH_ORG_NAME", githubOrgName).
 		Release().
 		Run(ctx)
 }
