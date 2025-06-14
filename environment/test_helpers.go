@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"dagger.io/dagger"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,25 +38,23 @@ type EnvironmentSetup func(te *TestEnv)
 // WithEnvironment runs a test function with a container-use environment
 // It handles all initialization, cleanup, and provides a clean test environment
 func WithEnvironment(t *testing.T, name string, setup EnvironmentSetup, fn func(t *testing.T, env *Environment)) {
-	t.Run(name, func(t *testing.T) {
-		initializeDaggerOnce(t)
+	initializeDaggerOnce(t)
 
-		// Create test environment
-		te := NewTestEnv(t, name)
+	// Create test environment
+	te := NewTestEnv(t, name)
 
-		// Run custom setup if provided
-		if setup != nil {
-			setup(te)
-		}
+	// Run custom setup if provided
+	if setup != nil {
+		setup(te)
+	}
 
-		// Create environment directly
-		env, err := Create(te.ctx, "Test environment", te.repoDir, name)
-		require.NoError(t, err, "Failed to create environment")
-		te.env = env
+	// Create environment directly
+	env, err := Create(te.ctx, "Test environment", te.repoDir, name)
+	require.NoError(t, err, "Failed to create environment")
+	te.env = env
 
-		// Run the test
-		fn(t, env)
-	})
+	// Run the test
+	fn(t, env)
 }
 
 // Common setups
@@ -287,3 +286,36 @@ func (te *TestEnv) SetupNodeProject() {
 	te.GitCommit("Initial Node project")
 }
 
+// Common verification helpers
+type verifier struct {
+	t   *testing.T
+	ctx context.Context
+	env *Environment
+}
+
+func newVerifier(t *testing.T, env *Environment) *verifier {
+	return &verifier{t: t, ctx: context.Background(), env: env}
+}
+
+func (v *verifier) fileExists(path, expectedContent string) {
+	content, err := v.env.FileRead(v.ctx, path, true, 0, 0)
+	require.NoError(v.t, err, "File %s should exist", path)
+	assert.Contains(v.t, content, expectedContent, "File %s should contain expected content", path)
+}
+
+func (v *verifier) fileNotExists(path string) {
+	_, err := v.env.FileRead(v.ctx, path, true, 0, 0)
+	assert.Error(v.t, err, "File %s should not exist", path)
+}
+
+func (v *verifier) commandOutputContains(cmd, expected string) {
+	output, err := v.env.Run(v.ctx, "Test command", cmd, "/bin/sh", false)
+	require.NoError(v.t, err)
+	assert.Contains(v.t, output, expected)
+}
+
+func (v *verifier) gitLogContains(pattern string) {
+	output, err := runGitCommand(v.ctx, v.env.Worktree, "log", "--oneline")
+	require.NoError(v.t, err)
+	assert.Contains(v.t, output, pattern)
+}
