@@ -2,6 +2,7 @@ package environment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -67,7 +68,6 @@ type Environment struct {
 
 	ID       string
 	Name     string
-	Source   string
 	Worktree string
 
 	Services []*Service
@@ -76,6 +76,52 @@ type Environment struct {
 
 	mu        sync.Mutex
 	container *dagger.Container
+}
+
+func (env *Environment) Export(ctx context.Context) (rerr error) {
+	_, err := env.container.Directory(env.Config.Workdir).Export(
+		ctx,
+		env.Worktree,
+		dagger.DirectoryExportOpts{Wipe: true},
+	)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Saving environment")
+	if err := env.Config.Save(env.Worktree); err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func New(ctx context.Context, id, name, worktree string) (*Environment, error) {
+	env := &Environment{
+		ID:       id,
+		Name:     name,
+		Worktree: worktree,
+		Config:   DefaultConfig(),
+	}
+
+	if err := env.Config.Load(worktree); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+
+	container, err := env.buildBase(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Info("Creating environment", "id", env.ID, "name", env.Name, "workdir", env.Config.Workdir)
+
+	if err := env.apply(ctx, "Create environment", "Create the environment", "", container); err != nil {
+		return nil, err
+	}
+
+	return env, nil
 }
 
 func (env *Environment) apply(ctx context.Context, name, explanation, output string, newState *dagger.Container) error {
@@ -104,26 +150,26 @@ func (env *Environment) apply(ctx context.Context, name, explanation, output str
 	return nil
 }
 
-var environments = map[string]*Environment{}
-
-func Create(ctx context.Context, explanation, source, name string) (*Environment, error) {
-	env := &Environment{
-		ID:     fmt.Sprintf("%s/%s", name, petname.Generate(2, "-")),
-		Name:   name,
-		Source: source,
-		Config: DefaultConfig(),
+func (env *Environment) State(ctx context.Context) ([]byte, error) {
+	buff, err := json.MarshalIndent(env.History, "", "  ")
+	if err != nil {
+		return nil, err
 	}
-	if err := env.Config.Load(source); err != nil {
+	return buff, nil
+}
+
+func Create2(ctx context.Context, worktree, id, name string) (*Environment, error) {
+	env := &Environment{
+		ID:       id,
+		Name:     name,
+		Worktree: worktree,
+		Config:   DefaultConfig(),
+	}
+	if err := env.Config.Load(worktree); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
 	}
-
-	worktreePath, err := env.InitializeWorktree(ctx, source)
-	if err != nil {
-		return nil, fmt.Errorf("failed intializing worktree: %w", err)
-	}
-	env.Worktree = worktreePath
 
 	container, err := env.buildBase(ctx)
 	if err != nil {
@@ -135,61 +181,35 @@ func Create(ctx context.Context, explanation, source, name string) (*Environment
 	if err := env.apply(ctx, "Create environment", "Create the environment", "", container); err != nil {
 		return nil, err
 	}
-	environments[env.ID] = env
-
-	if err := env.propagateToWorktree(ctx, "Init env "+name, explanation); err != nil {
-		return nil, fmt.Errorf("failed to propagate to worktree: %w", err)
-	}
 
 	return env, nil
 }
 
-func Open(ctx context.Context, explanation, source, id string) (*Environment, error) {
-	// FIXME(aluzzardi): DO NOT USE THIS FUNCTION. It's broken.
-
-	name, _, _ := strings.Cut(id, "/")
+func Load(ctx context.Context, id, name string, state []byte, workdir string) (*Environment, error) {
 	env := &Environment{
-		Name:   name,
-		ID:     id,
-		Source: source,
-		Config: DefaultConfig(),
+		ID:       id,
+		Name:     id,
+		Worktree: workdir,
+		Config:   DefaultConfig(),
 	}
-	worktreePath, err := env.InitializeWorktree(ctx, source)
-	if err != nil {
-		return nil, fmt.Errorf("failed intializing worktree: %w", err)
-	}
-	env.Worktree = worktreePath
-
-	if err := env.Config.Load(worktreePath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Create(ctx, explanation, source, name)
+	if err := env.Config.Load(workdir); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
 		}
-		return nil, err
 	}
 
-	container, err := env.buildBase(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if err := env.apply(ctx, "Open environment", "Open the environment", "", container); err != nil {
-		return nil, err
+	if err := json.Unmarshal(state, &env.History); err != nil {
+		return nil, fmt.Errorf("failed to load state: %w", err)
 	}
 
-	environments[env.ID] = env
+	for _, revision := range env.History {
+		revision.container = dag.LoadContainerFromID(dagger.ContainerID(revision.State))
+	}
+	if latest := env.History.Latest(); latest != nil {
+		env.container = latest.container
+	}
 
 	return env, nil
-
-	// FIXME(aluzzardi): BROKEN
-	// if err := env.loadStateFromNotes(ctx, worktreePath); err != nil {
-	// 	return nil, fmt.Errorf("failed to load state from notes: %w", err)
-	// }
-
-	// for _, revision := range env.History {
-	// 	revision.container = dag.LoadContainerFromID(dagger.ContainerID(revision.State))
-	// }
-	// if latest := env.History.Latest(); latest != nil {
-	// 	env.container = latest.container
-	// }
 }
 
 func containerWithEnvAndSecrets(container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
@@ -235,23 +255,23 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 
 		container = container.WithExec([]string{"sh", "-c", command})
 
-		stdout, err := container.Stdout(ctx)
+		_, err = container.Stdout(ctx)
 		if err != nil {
 			var exitErr *dagger.ExecError
 			if errors.As(err, &exitErr) {
-				_ = env.addGitNote(ctx,
-					fmt.Sprintf("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n",
-						command,
-						exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr,
-					),
-				)
+				// _ = env.addGitNote(ctx,
+				// 	fmt.Sprintf("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n",
+				// 		command,
+				// 		exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr,
+				// 	),
+				// )
 				return nil, fmt.Errorf("setup command failed with exit code %d.\nstdout: %s\nstderr: %s\n%w\n", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr, err)
 			}
 
 			return nil, fmt.Errorf("failed to execute setup command: %w", err)
 		}
 
-		_ = env.addGitNote(ctx, fmt.Sprintf("$ %s\n%s\n\n", command, stdout))
+		// _ = env.addGitNote(ctx, fmt.Sprintf("$ %s\n%s\n\n", command, stdout))
 	}
 
 	env.Services, err = env.startServices(ctx)
@@ -268,8 +288,8 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 }
 
 func (env *Environment) UpdateConfig(ctx context.Context, explanation string, newConfig *EnvironmentConfig) error {
-	if env.Config.Locked(env.Source) {
-		return fmt.Errorf("Environment is locked, no updates allowed. Try to make do with the current environment or ask a human to remove the lock file (%s)", path.Join(env.Source, configDir, lockFile))
+	if env.Config.Locked(env.Worktree) {
+		return fmt.Errorf("Environment is locked, no updates allowed. Try to make do with the current environment or ask a human to remove the lock file (%s)", path.Join(env.Worktree, configDir, lockFile))
 	}
 
 	env.Config = newConfig
@@ -284,41 +304,8 @@ func (env *Environment) UpdateConfig(ctx context.Context, explanation string, ne
 		return err
 	}
 
-	return env.propagateToWorktree(ctx, "Update environment "+env.Name, explanation)
-}
-
-func Get(idOrName string) *Environment {
-	if environment, ok := environments[idOrName]; ok {
-		return environment
-	}
-	for _, environment := range environments {
-		if environment.Name == idOrName {
-			return environment
-		}
-	}
+	// return env.propagateToWorktree(ctx, "Update environment "+env.Name, explanation)
 	return nil
-}
-
-func List(ctx context.Context, source string) ([]string, error) {
-	if _, err := runGitCommand(ctx, source, "rev-parse", "--is-inside-work-tree"); err != nil {
-		return nil, fmt.Errorf("cu list only works within git repository, no repo found (or any of the parent directories): .git")
-	}
-
-	branches, err := runGitCommand(ctx, source, "for-each-ref", "refs/remotes/"+containerUseRemote, "--format", "%(refname:short)")
-	if err != nil {
-		return nil, err
-	}
-
-	envs := []string{}
-	for _, branch := range strings.Split(branches, "\n") {
-		env := strings.TrimPrefix(branch, containerUseRemote+"/")
-		if !strings.Contains(env, "/") {
-			continue
-		}
-		envs = append(envs, env)
-	}
-
-	return envs, nil
 }
 
 func (env *Environment) Run(ctx context.Context, explanation, command, shell string, useEntrypoint bool) (string, error) {
@@ -333,24 +320,24 @@ func (env *Environment) Run(ctx context.Context, explanation, command, shell str
 	if err != nil {
 		var exitErr *dagger.ExecError
 		if errors.As(err, &exitErr) {
-			_ = env.addGitNote(ctx,
-				fmt.Sprintf("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n",
-					command,
-					exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr,
-				),
-			)
+			// _ = env.addGitNote(ctx,
+			// 	fmt.Sprintf("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n",
+			// 		command,
+			// 		exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr,
+			// 	),
+			// )
 			return fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr), nil
 		}
 		return "", err
 	}
-	_ = env.addGitNote(ctx, fmt.Sprintf("$ %s\n%s\n\n", command, stdout))
-	if err := env.apply(ctx, "Run "+command, explanation, stdout, newState); err != nil {
-		return "", err
-	}
+	// _ = env.addGitNote(ctx, fmt.Sprintf("$ %s\n%s\n\n", command, stdout))
+	// if err := env.apply(ctx, "Run "+command, explanation, stdout, newState); err != nil {
+	// 	return "", err
+	// }
 
-	if err := env.propagateToWorktree(ctx, "Run "+command, explanation); err != nil {
-		return "", fmt.Errorf("failed to propagate to worktree: %w", err)
-	}
+	// if err := env.propagateToWorktree(ctx, "Run "+command, explanation); err != nil {
+	// 	return "", fmt.Errorf("failed to propagate to worktree: %w", err)
+	// }
 
 	return stdout, nil
 }
@@ -383,9 +370,9 @@ func (env *Environment) RunBackground(ctx context.Context, explanation, command,
 		return nil, err
 	}
 
-	_ = env.addGitNote(ctx,
-		fmt.Sprintf("$ %s &\n\n", command),
-	)
+	// _ = env.addGitNote(ctx,
+	// 	fmt.Sprintf("$ %s &\n\n", command),
+	// )
 
 	endpoints := EndpointMappings{}
 	for _, port := range ports {
@@ -443,7 +430,8 @@ func (env *Environment) Revert(ctx context.Context, explanation string, version 
 	if err := env.apply(ctx, "Revert to "+revision.Name, explanation, "", revision.container); err != nil {
 		return err
 	}
-	return env.propagateToWorktree(ctx, "Revert to "+revision.Name, explanation)
+	// return env.propagateToWorktree(ctx, "Revert to "+revision.Name, explanation)
+	return nil
 }
 
 func (env *Environment) Fork(ctx context.Context, explanation, name string, version *Version) (*Environment, error) {
@@ -462,7 +450,6 @@ func (env *Environment) Fork(ctx context.Context, explanation, name string, vers
 	if err := forkedEnvironment.apply(ctx, "Fork from "+env.Name, explanation, "", revision.container); err != nil {
 		return nil, err
 	}
-	environments[forkedEnvironment.ID] = forkedEnvironment
 	return forkedEnvironment, nil
 }
 
@@ -487,20 +474,20 @@ func (env *Environment) Checkpoint(ctx context.Context, target string) (string, 
 	return env.container.Publish(ctx, target)
 }
 
-func (env *Environment) Delete(ctx context.Context) error {
-	env.mu.Lock()
-	defer env.mu.Unlock()
+// func (env *Environment) Delete(ctx context.Context) error {
+// 	env.mu.Lock()
+// 	defer env.mu.Unlock()
 
-	if err := env.DeleteWorktree(); err != nil {
-		return err
-	}
+// 	if err := env.DeleteWorktree(); err != nil {
+// 		return err
+// 	}
 
-	if err := env.DeleteLocalRemoteBranch(); err != nil {
-		return err
-	}
+// 	if err := env.DeleteLocalRemoteBranch(); err != nil {
+// 		return err
+// 	}
 
-	// Remove from global environments map
-	delete(environments, env.ID)
+// 	// Remove from global environments map
+// 	delete(environments, env.ID)
 
-	return nil
-}
+// 	return nil
+// }

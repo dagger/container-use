@@ -16,7 +16,7 @@ var deleteCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
-		envName := args[0]
+		// envName := args[0]
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
 		if err != nil {
@@ -25,22 +25,22 @@ var deleteCmd = &cobra.Command{
 		defer dag.Close()
 		environment.Initialize(dag)
 
-		env := environment.Get(envName)
-		if env == nil {
-			// Try to open if not in memory
-			var openErr error
-			env, openErr = environment.Open(ctx, "delete environment", ".", envName)
-			if openErr != nil {
-				return fmt.Errorf("environment '%s' not found: %w", envName, openErr)
-			}
-		}
+		// env := environment.Get(envName)
+		// if env == nil {
+		// 	// Try to open if not in memory
+		// 	var openErr error
+		// 	env, openErr = environment.Open(ctx, "delete environment", ".", envName)
+		// 	if openErr != nil {
+		// 		return fmt.Errorf("environment '%s' not found: %w", envName, openErr)
+		// 	}
+		// }
 
-		if err := env.Delete(ctx); err != nil {
-			return fmt.Errorf("failed to delete environment: %w", err)
-		}
+		// // if err := env.Delete(ctx); err != nil {
+		// // 	return fmt.Errorf("failed to delete environment: %w", err)
+		// // }
 
-		fmt.Printf("Environment '%s' deleted successfully.\n", envName)
-		fmt.Println("To view this change, use: git checkout <branch_name>")
+		// fmt.Printf("Environment '%s' deleted successfully.\n", envName)
+		// fmt.Println("To view this change, use: git checkout <branch_name>")
 		return nil
 	},
 }
