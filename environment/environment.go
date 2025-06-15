@@ -468,15 +468,30 @@ func (env *Environment) Fork(ctx context.Context, explanation, name string, vers
 
 func (env *Environment) Terminal(ctx context.Context) error {
 	container := env.container
-	// In case there's bash in the container, show the same pretty PS1 as for the default /bin/sh terminal in dagger
-	container = container.WithNewFile("/root/.bash_aliases", `export PS1="\033[33mdagger\033[0m \033[02m\$(pwd | sed \"s|^\$HOME|~|\")\033[0m \$ "`+"\n")
-	defaultShell := []string{}
-	// Check if bash is available
-	if _, err := container.WithExec([]string{"grep", "/bash", "/etc/shells"}).Sync(ctx); err == nil {
-		defaultShell = []string{"bash"}
+	var cmd []string
+	var sourceRC string
+	if shells, err := container.File("/etc/shells").Contents(ctx); err == nil {
+		for shell := range strings.Lines(shells) {
+			if shell[0] == '#' {
+				continue
+			}
+			shell = strings.TrimRight(shell, "\n")
+			if strings.HasSuffix(shell, "/bash") {
+				sourceRC = fmt.Sprintf("[ -f ~/.bashrc ] && . ~/.bashrc; %q --version | head -4; ", shell)
+				cmd = []string{shell, "--rcfile", "/cu/rc.sh", "-i"}
+				break
+			}
+		}
+	}
+	// Try to show the same pretty PS1 as for the default /bin/sh terminal in dagger
+	container = container.WithNewFile("/cu/rc.sh", sourceRC+`export PS1="\033[33mcu\033[0m \033[02m\$(pwd | sed \"s|^\$HOME|~|\")\033[0m \$ "`+"\n")
+	if cmd == nil {
+		// If bash not available, assume POSIX shell
+		container = container.WithEnvVariable("ENV", "/cu/rc.sh")
+		cmd = []string{"sh"}
 	}
 	if _, err := container.Terminal(dagger.ContainerTerminalOpts{
-		Cmd: defaultShell,
+		Cmd: cmd,
 	}).Sync(ctx); err != nil {
 		return err
 	}
