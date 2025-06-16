@@ -37,10 +37,15 @@ archives:
 
 homebrew_casks:
   - repository:
-      owner: "{{ .Env.GH_ORG_NAME }}" # reconfigure if test releasing on your own fork
+      owner: "{{ .Env.GH_ORG_NAME }}"
       name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN }}"
       pull_request:
-        enabled: true # enabled so we can publish draft releases, publish them, then merge the tap PR. to be removed later.
+        enabled: true
+        base:
+          owner: "{{ .Env.GH_ORG_NAME }}"
+          name: homebrew-tap
+          branch: main
     name: container-use
     binary: cu
     skip_upload: auto # if the version is like v0.0.0-rc1, don't make the tap PR.
