@@ -123,6 +123,7 @@ func wrapTool(t *Tool) *Tool {
 
 func init() {
 	registerTool(
+		EnvironmentOpenTool,
 		EnvironmentCreateTool,
 		EnvironmentUpdateTool,
 
@@ -190,6 +191,30 @@ func EnvironmentToCallResult(env *environment.Environment) (*mcp.CallToolResult,
 	return mcp.NewToolResultText(out), nil
 }
 
+var EnvironmentOpenTool = &Tool{
+	Definition: mcp.NewTool("environment_open",
+		mcp.WithDescription("Opens an existing environment. Return format is same as environment_create."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this environment is being opened."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment to open."),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		_, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+		return EnvironmentToCallResult(env)
+	},
+}
+
 var EnvironmentCreateTool = &Tool{
 	Definition: mcp.NewTool("environment_create",
 		mcp.WithDescription(`Creates a new development environment.
@@ -198,7 +223,7 @@ Read carefully the instructions to understand the environment.
 DO NOT manually install toolchains inside the environment, instead explicitly call environment_update`,
 		),
 		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being opened or created."),
+			mcp.Description("One sentence explanation for why this environment is being created."),
 		),
 		mcp.WithString("environment_source",
 			mcp.Description("Absolute path to the source git repository for the environment."),
