@@ -1,6 +1,6 @@
 ---
 description: "Container-use rules for safe containerized development"
-globs: ["**/*"]
+globs:
 alwaysApply: true
 ---
 
