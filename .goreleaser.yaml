@@ -39,13 +39,10 @@ homebrew_casks:
   - repository:
       owner: "{{ .Env.GH_ORG_NAME }}"
       name: homebrew-tap
+      branch: "{{ .ProjectName }}-{{ .Version }}"
       token: "{{ .Env.GITHUB_TOKEN }}"
       pull_request:
         enabled: true
-        base:
-          owner: "{{ .Env.GH_ORG_NAME }}"
-          name: homebrew-tap
-          branch: main
     name: container-use
     binary: cu
     skip_upload: auto # if the version is like v0.0.0-rc1, don't make the tap PR.
