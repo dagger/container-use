@@ -10,7 +10,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"time"
 
 	"dagger.io/dagger"
 )
@@ -30,10 +29,7 @@ type Environment struct {
 	Worktree string
 
 	Services []*Service
-
-	History History
-
-	Notes Notes
+	Notes    Notes
 
 	mu        sync.Mutex
 	container *dagger.Container
@@ -86,7 +82,15 @@ func (env *Environment) Export(ctx context.Context) (rerr error) {
 }
 
 func (env *Environment) State(ctx context.Context) ([]byte, error) {
-	buff, err := json.MarshalIndent(env.History, "", "  ")
+	containerID, err := env.container.ID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	state := &State{
+		Container: string(containerID),
+	}
+	buff, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -106,16 +110,16 @@ func Load(ctx context.Context, id, name string, state []byte, worktree string) (
 		}
 	}
 
-	if err := json.Unmarshal(state, &env.History); err != nil {
-		return nil, fmt.Errorf("failed to load state: %w", err)
+	var st *State
+	if err := json.Unmarshal(state, &st); err != nil {
+		// Try to migrate the legacy state
+		st, err = migrateLegacyState(state)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load state: %w", err)
+		}
 	}
 
-	for _, revision := range env.History {
-		revision.container = dag.LoadContainerFromID(dagger.ContainerID(revision.State))
-	}
-	if latest := env.History.Latest(); latest != nil {
-		env.container = latest.container
-	}
+	env.container = dag.LoadContainerFromID(dagger.ContainerID(st.Container))
 
 	return env, nil
 }
@@ -127,21 +131,7 @@ func (env *Environment) apply(ctx context.Context, name, explanation, output str
 
 	env.mu.Lock()
 	defer env.mu.Unlock()
-	revision := &Revision{
-		Version:     env.History.LatestVersion() + 1,
-		Name:        name,
-		Explanation: explanation,
-		Output:      output,
-		CreatedAt:   time.Now(),
-		container:   newState,
-	}
-	containerID, err := revision.container.ID(ctx)
-	if err != nil {
-		return err
-	}
-	revision.State = string(containerID)
-	env.container = revision.container
-	env.History = append(env.History, revision)
+	env.container = newState
 
 	return nil
 }
