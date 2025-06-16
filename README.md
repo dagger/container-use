@@ -128,13 +128,18 @@ extensions:
     - stdio
     envs: {}
 ```
-
 or use `goose configure` and add a command line extension with `cu stdio` as the command.
 
 For the Goose desktop, paste this into your browser: 
 <code>
 goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments"
 </code>
+
+Then append to your .goosehints file: 
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> .goosehints
+```
 
 
 
