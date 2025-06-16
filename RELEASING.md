@@ -4,9 +4,10 @@
 
 1. **Fetch the latest main branch**
    ```sh
-   git checkout main
-   git pull origin main
+   git fetch origin main
+   git checkout origin/main
    ```
+   NOTE: this puts you on a detached head, which is fine for tagging and pushing the tag.
 
 2. **Tag the release**
    ```sh
