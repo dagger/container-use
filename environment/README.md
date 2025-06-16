@@ -71,3 +71,5 @@ So the flow is: **Branch** (the logical environment) → **Worktree** (filesyste
 - `environment.go` - Core environment management
 - `git.go` - Worktree and Git integration
 - `filesystem.go` - File operations within containers
+
+
