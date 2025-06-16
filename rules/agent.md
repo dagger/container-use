@@ -3,3 +3,5 @@ ALWAYS use ONLY Environments for ANY and ALL file, code, or shell operations—N
 DO NOT install or use the git cli with the environment_run_cmd tool. All environment tools will handle git operations for you. Changing ".git" yourself will compromise the integrity of your environment.
 
 You MUST inform the user how to view your work using `git checkout <branch_name>`. Failure to do this will make your work inaccessible to others.
+
+When starting a new session, look for git branches and run environment_list to orient yourself if not clear

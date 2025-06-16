@@ -97,7 +97,7 @@ func init() {
 		EnvironmentOpenTool,
 		EnvironmentUpdateTool,
 
-		// EnvironmentListTool,
+		EnvironmentListTool,
 		// EnvironmentHistoryTool,
 		// EnvironmentRevertTool,
 		// EnvironmentForkTool,
@@ -306,7 +306,7 @@ var EnvironmentListTool = &Tool{
 			mcp.Description("One sentence explanation for why this environment is being listed."),
 		),
 		mcp.WithString("source",
-			mcp.Description("The source directory of the environment."), //  This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
+			mcp.Description("The source directory of the environment. This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
 			mcp.Required(),
 		),
 	),
