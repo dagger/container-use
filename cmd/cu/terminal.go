@@ -16,7 +16,7 @@ import (
 var terminalCmd = &cobra.Command{
 	Use:   "terminal <env>",
 	Short: "Drop a terminal into an environment",
-	Long:  `Create a container with the same state as the agent for a given branch or commmit.`,
+	Long:  `Create a container with the same state as the agent for a given branch or commit.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
@@ -49,4 +49,12 @@ var terminalCmd = &cobra.Command{
 
 		return env.Terminal(ctx)
 	},
+	ValidArgsFunction: suggestEnvironments,
+}
+
+func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// Placeholder logic for dynamic environment suggestion
+	environmentNames := []string{"dev", "staging", "prod"} // These should be fetched dynamically
+
+	return environmentNames, cobra.ShellCompDirectiveNoFileComp
 }
