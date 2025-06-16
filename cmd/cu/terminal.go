@@ -53,8 +53,12 @@ var terminalCmd = &cobra.Command{
 }
 
 func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	// Placeholder logic for dynamic environment suggestion
-	environmentNames := []string{"dev", "staging", "prod"} // These should be fetched dynamically
+	ctx := cmd.Context()
+	
+	envs, err := environment.List(ctx, ".")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
 
-	return environmentNames, cobra.ShellCompDirectiveNoFileComp
+	return envs, cobra.ShellCompDirectiveNoFileComp
 }
