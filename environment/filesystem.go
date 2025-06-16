@@ -2,12 +2,8 @@ package environment
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
-
-	"dagger.io/dagger"
 )
 
 func (s *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {
@@ -63,116 +59,4 @@ func (s *Environment) FileList(ctx context.Context, path string) (string, error)
 		fmt.Fprintf(out, "%s\n", entry)
 	}
 	return out.String(), nil
-}
-
-func urlToDirectory(url string) *dagger.Directory {
-	switch {
-	case strings.HasPrefix(url, "file://"):
-		return dag.Host().Directory(url[len("file://"):])
-	case strings.HasPrefix(url, "git://"):
-		return dag.Git(url[len("git://"):]).Head().Tree()
-	case strings.HasPrefix(url, "https://"):
-		return dag.Git(url[len("https://"):]).Head().Tree()
-	default:
-		return dag.Host().Directory(url)
-	}
-}
-
-func (s *Environment) Upload(ctx context.Context, explanation, source string, target string) error {
-	err := s.apply(ctx, "Upload "+source+" to "+target, explanation, "", s.container.WithDirectory(target, urlToDirectory(source)))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Environment) Download(ctx context.Context, source string, target string) error {
-	if _, err := s.container.Directory(source).Export(ctx, target); err != nil {
-		if strings.Contains(err.Error(), "not a directory") {
-			if _, err := s.container.File(source).Export(ctx, target); err != nil {
-				return err
-			}
-			return nil
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (s *Environment) RemoteDiff(ctx context.Context, source string, target string) (string, error) {
-	sourceDir := urlToDirectory(source)
-	targetDir := s.container.Directory(target)
-
-	diff, err := dag.Container().From(alpineImage).
-		WithMountedDirectory("/source", sourceDir).
-		WithMountedDirectory("/target", targetDir).
-		WithExec([]string{"diff", "-burN", "/source", "/target"}, dagger.ContainerWithExecOpts{
-			Expect: dagger.ReturnTypeAny,
-		}).
-		Stdout(ctx)
-	if err != nil {
-		var exitErr *dagger.ExecError
-		if errors.As(err, &exitErr) {
-			return fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr), nil
-		}
-		return "", err
-	}
-	return diff, nil
-}
-
-func (s *Environment) RevisionDiff(ctx context.Context, path string, fromVersion, toVersion Version) (string, error) {
-	revisionDiff, err := s.revisionDiff(ctx, path, fromVersion, toVersion, true)
-	if err != nil {
-		if strings.Contains(err.Error(), "not a directory") {
-			return s.revisionDiff(ctx, path, fromVersion, toVersion, false)
-		}
-		return "", err
-	}
-	return revisionDiff, nil
-}
-
-func (s *Environment) revisionDiff(ctx context.Context, path string, fromVersion, toVersion Version, directory bool) (string, error) {
-	if path == "" {
-		path = s.Config.Workdir
-	}
-	diffCtr := dag.Container().
-		From(alpineImage).
-		WithWorkdir("/diffs")
-	if directory {
-		diffCtr = diffCtr.
-			WithMountedDirectory(
-				filepath.Join("versions", fmt.Sprintf("%d", fromVersion)),
-				s.History.Get(fromVersion).container.Directory(path)).
-			WithMountedDirectory(
-				filepath.Join("versions", fmt.Sprintf("%d", toVersion)),
-				s.History.Get(toVersion).container.Directory(path))
-	} else {
-		diffCtr = diffCtr.
-			WithMountedFile(
-				filepath.Join("versions", fmt.Sprintf("%d", fromVersion)),
-				s.History.Get(fromVersion).container.File(path)).
-			WithMountedFile(
-				filepath.Join("versions", fmt.Sprintf("%d", toVersion)),
-				s.History.Get(toVersion).container.File(path))
-	}
-
-	diffCmd := []string{"diff", "-burN",
-		filepath.Join("versions", fmt.Sprintf("%d", fromVersion)),
-		filepath.Join("versions", fmt.Sprintf("%d", toVersion)),
-	}
-	diff, err := diffCtr.
-		WithExec(diffCmd, dagger.ContainerWithExecOpts{
-			Expect: dagger.ReturnTypeAny,
-		}).
-		Stdout(ctx)
-	if err != nil {
-		var exitErr *dagger.ExecError
-		if errors.As(err, &exitErr) {
-			return fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr), nil
-		}
-		return "", err
-	}
-	return diff, nil
 }

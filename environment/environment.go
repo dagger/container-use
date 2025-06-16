@@ -324,29 +324,6 @@ func (env *Environment) RunBackground(ctx context.Context, explanation, command,
 	return endpoints, nil
 }
 
-func (env *Environment) SetEnv(ctx context.Context, explanation string, envs []string) error {
-	state := env.container
-	for _, env := range envs {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid environment variable: %s", env)
-		}
-		state = state.WithEnvVariable(parts[0], parts[1])
-	}
-	return env.apply(ctx, "Set env "+strings.Join(envs, ", "), explanation, "", state)
-}
-
-func (env *Environment) Revert(ctx context.Context, explanation string, version Version) error {
-	revision := env.History.Get(version)
-	if revision == nil {
-		return errors.New("no revisions found")
-	}
-	if err := env.apply(ctx, "Revert to "+revision.Name, explanation, "", revision.container); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (env *Environment) Terminal(ctx context.Context) error {
 	container := env.container
 	// In case there's bash in the container, show the same pretty PS1 as for the default /bin/sh terminal in dagger
