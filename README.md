@@ -112,7 +112,8 @@ q chat --trust-tools=container_use___environment_checkpoint,container_use___envi
 
 [Watch video walkthrough.](https://youtu.be/C2g3vdbffOI)
 
-### [goose](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
+### [Goose](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
+
 
 Add this to `~/.config/goose/config.yaml`:
 
@@ -127,6 +128,12 @@ extensions:
     - stdio
     envs: {}
 ```
+
+or use `goose configure` and add a command line extension with `cu stdio` as the command.
+
+For the Goose desktop, use this deeplink you can add it to the app: <a hregf="goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments">add to goose</a> 
+
+
 
 ### [Cursor](https://docs.cursor.com/context/model-context-protocol)
 
@@ -226,7 +233,7 @@ curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent
 cat ./examples/hello_world.md | claude --dangerously-skip-permissions
 ```
 
-### Run with [goose](https://block.github.io/goose/)
+### Run with [Goose](https://block.github.io/goose/)
 
 ```console
 goose run -i ./examples/hello_world.md -s
