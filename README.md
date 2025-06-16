@@ -219,6 +219,19 @@ curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent
 }
 ```
 
+### [OpenAI Codex](https://github.com/openai/codex)
+
+`Codex` allows setting MCP servers with the new experimental Rust version available [here](https://github.com/openai/codex/tree/main/codex-rs).
+
+In your `~/.codex/config.toml`, add the following:
+
+```toml
+[mcp_servers.container-use]
+command = "cu"
+args = ["stdio"]
+env = {}
+```
+
 ## Examples
 
 | Example | Description |
