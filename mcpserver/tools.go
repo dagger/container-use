@@ -420,21 +420,27 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 		command := request.GetString("command", "")
 		shell := request.GetString("shell", "sh")
 
+		updateRepo := func() (*mcp.CallToolResult, error) {
+			if err := repo.Update(ctx, env, "Run "+command, request.GetString("explanation", "")); err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
+			}
+			return nil, nil
+		}
+
 		background := request.GetBool("background", false)
 		if background {
-			// We want to update the repository whether the command fails or not
-			defer func() {
-				_ = repo.Update(ctx, env, "Run "+command, request.GetString("explanation", ""))
-			}()
-
 			ports := []int{}
 			if portList, ok := request.GetArguments()["ports"].([]any); ok {
 				for _, port := range portList {
 					ports = append(ports, int(port.(float64)))
 				}
 			}
-			endpoints, err := env.RunBackground(ctx, request.GetString("explanation", ""), command, shell, ports, request.GetBool("use_entrypoint", false))
-			if err != nil {
+			endpoints, runErr := env.RunBackground(ctx, request.GetString("explanation", ""), command, shell, ports, request.GetBool("use_entrypoint", false))
+			// We want to update the repository even if the command failed.
+			if resp, err := updateRepo(); err != nil {
+				return resp, nil
+			}
+			if runErr != nil {
 				return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
 			}
 
@@ -451,13 +457,12 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 				string(out), env.Config.Workdir, env.ID)), nil
 		}
 
-		// We want to update the repository whether the command fails or not
-		defer func() {
-			_ = repo.Update(ctx, env, "Run "+command, request.GetString("explanation", ""))
-		}()
-
-		stdout, err := env.Run(ctx, request.GetString("explanation", ""), command, shell, request.GetBool("use_entrypoint", false))
-		if err != nil {
+		stdout, runErr := env.Run(ctx, request.GetString("explanation", ""), command, shell, request.GetBool("use_entrypoint", false))
+		// We want to update the repository even if the command failed.
+		if resp, err := updateRepo(); err != nil {
+			return resp, nil
+		}
+		if runErr != nil {
 			return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
 		}
 
