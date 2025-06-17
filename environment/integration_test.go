@@ -112,7 +112,7 @@ func TestGitTracking(t *testing.T) {
 			})
 
 			t.Run("CommandAuditLog", func(t *testing.T) {
-				t.Skip("Skipping - exposes bug where commands creating empty directories fail git commits")
+				t.Skip("Skipping - exposes bug where commands creating empty directories fail git commits - see issue #82")
 
 				// --- Setup: Execute various shell commands ---
 				commands := []struct {
@@ -120,9 +120,9 @@ func TestGitTracking(t *testing.T) {
 					cmd         string
 				}{
 					{"System info", "uname -a"},
-					{"Create structure", "mkdir -p build/dist && touch build/.gitkeep"},
-					{"Install deps", "echo 'Installing dependencies...' && sleep 0.1"},
-					{"Run tests", "echo 'Running tests: ✓ All tests passed'"},
+					{"Create build directory", "mkdir -p build/dist"},
+					{"Run build", "echo 'Building project...' > build/output.log"},
+					{"Check test results", "echo 'All tests passed' && mkdir -p .coverage"},
 				}
 
 				for _, c := range commands {
@@ -382,7 +382,6 @@ func TestLargeProjectPerformance(t *testing.T) {
 // TestWorktreeUpdatesAreVisibleAfterRebuild verifies that file changes persist through environment rebuilds
 // Behavior: "When I update a file and rebuild, the new version should be used"
 func TestWorktreeUpdatesAreVisibleAfterRebuild(t *testing.T) {
-
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -429,8 +428,6 @@ func TestWorktreeUpdatesAreVisibleAfterRebuild(t *testing.T) {
 // Behavior: "When I modify files locally and upload, the updated versions should be uploaded"
 // Error: "no such file or directory" when trying to upload files created in worktree subdirectory
 func TestUploadAfterModification(t *testing.T) {
-	// t.Skip("Skipping - test fails with 'no such file or directory' error, needs investigation")
-
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
