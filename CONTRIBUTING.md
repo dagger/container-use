@@ -19,6 +19,22 @@ Follow these steps to set up your development environment:
    ```
 4. **Container Runtime**: Ensure you have a compatible container runtime installed (e.g., Docker).
 
+## Building
+
+To build the `cu` binary without installing it to your `$PATH`, you can use either Dagger or Go directly:
+
+### Using Go
+
+```bash
+go build -o cu ./cmd/cu
+```
+
+### Using Dagger
+
+```bash
+dagger call build --platform=current export --path ./cu
+```
+
 ## Testing
 
 Container Use includes both unit and integration tests to maintain high code quality and functionality.

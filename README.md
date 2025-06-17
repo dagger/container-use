@@ -61,21 +61,7 @@ This will check for Docker & Git (required), detect your platform, and install t
 cu completion bash > /etc/bash_completion.d/container-use
 ```
 
-## Building
-
-To build the `cu` binary without installing it to your `$PATH`, you can use either Dagger or Go directly:
-
-### Using Go
-
-```sh
-go build -o cu ./cmd/cu
-```
-
-### Using Dagger
-
-```sh
-dagger call build --platform=current export --path ./cu
-```
+For building from source, see [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 ## Integrate Agents
 
