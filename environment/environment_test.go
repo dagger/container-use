@@ -57,58 +57,6 @@ func TestEmptyDirectoryHandling(t *testing.T) {
 	assert.NoError(t, err, "commitWorktreeChanges should handle empty dirs gracefully")
 }
 
-// // TODO: Engine Bug - Race condition in global environments map
-// // Expected: Concurrent access to environments map should be thread-safe
-// // Actual: The global 'environments' map in environment.go:169 has no synchronization
-// // This causes data races when multiple goroutines access/modify the map
-// // Run with 'go test -race' to see the warnings
-// //
-// // Concurrent access safety ensures multiple goroutines can safely interact with environments
-// func TestConcurrentEnvironmentAccess(t *testing.T) {
-
-// 	if testing.Short() {
-// 		t.Skip("Skipping concurrent test in short mode")
-// 	}
-
-// 	// This test uses the real environment creation/access to trigger the race
-// 	te := NewTestEnv(t, "concurrent")
-// 	te.WriteFile("README.md", "test")
-// 	te.GitCommit("Initial commit")
-
-// 	// Clean up any existing environments
-// 	for id := range environments {
-// 		delete(environments, id)
-// 	}
-
-// 	var wg sync.WaitGroup
-
-// 	// Simulate concurrent environment operations like a real scenario
-// 	for i := 0; i < 3; i++ {
-// 		wg.Add(1)
-// 		go func(id int) {
-// 			defer wg.Done()
-
-// 			// Try to create environments concurrently (writes to map)
-// 			env := &Environment{
-// 				ID:       fmt.Sprintf("test-%d", id),
-// 				Name:     fmt.Sprintf("test%d", id),
-// 				Worktree: te.repoDir,
-// 			}
-// 			environments[env.ID] = env
-
-// 			// Access operations (reads from map)
-// 			Get(env.ID)
-// 			List()
-// 		}(i)
-// 	}
-
-// 	wg.Wait()
-
-// 	// Clean up
-// 	for id := range environments {
-// 		delete(environments, id)
-// 	}
-// }
 
 // Selective file staging ensures problematic files are automatically excluded from commits
 // This tests the actual user-facing behavior: "I want to commit my changes but not break git"
