@@ -535,7 +535,7 @@ func TestUploadAfterModification(t *testing.T) {
 	}
 
 	t.Run("upload_cache", func(t *testing.T) {
-		t.Skip("Skipping - demonstrates Dagger caching issue where Upload uses cached directory instead of updated local files")
+		// t.Skip("Skipping - demonstrates Dagger caching issue where Upload uses cached directory instead of updated local files")
 		// This test exposes a Dagger caching behavior where:
 		// 1. First Upload of local directory works fine
 		// 2. Local files are modified
@@ -545,10 +545,10 @@ func TestUploadAfterModification(t *testing.T) {
 			ctx := context.Background()
 			v := newVerifier(t, env)
 
-			// --- Setup: Create a local directory to upload from ---
-			localDir := filepath.Join(env.Worktree, "upload-test")
-			err := os.MkdirAll(localDir, 0755)
+			// --- Setup: Create a local directory outside the worktree (simulating user's local project) ---
+			localDir, err := os.MkdirTemp("", "upload-test-*")
 			require.NoError(t, err)
+			defer os.RemoveAll(localDir)
 
 			// --- Setup: Create initial file ---
 			initialContent := "console.log('Version 1');"
@@ -576,6 +576,51 @@ func TestUploadAfterModification(t *testing.T) {
 			require.NoError(t, err)
 			assert.Contains(t, content, "Version 2", "Should upload updated version")
 			assert.NotContains(t, content, "Version 1", "Should not have old cached version")
+		})
+
+		// Also test uploading from within the worktree (edge case but valid)
+		t.Run("upload_cache_worktree", func(t *testing.T) {
+			t.Skip("Skipping - worktree subdirectories get wiped by propagateToWorktree. Kept for reference of edge case.")
+			// This test demonstrates an edge case where users might try to upload from within the worktree itself.
+			// Currently this doesn't work as expected because propagateToWorktree exports the container's /workdir
+			// back to the worktree with wipe=true, which deletes any local subdirectories created after the initial setup.
+			
+			WithEnvironment(t, "upload_cache_worktree", SetupNodeProject, func(t *testing.T, env *Environment) {
+				ctx := context.Background()
+				v := newVerifier(t, env)
+
+				// --- Setup: Create a subdirectory in the worktree ---
+				localDir := filepath.Join(env.Worktree, "local-project")
+				err := os.MkdirAll(localDir, 0755)
+				require.NoError(t, err)
+
+				// --- Setup: Create initial file ---
+				initialContent := "console.log('Worktree Version 1');"
+				err = os.WriteFile(filepath.Join(localDir, "app.js"), []byte(initialContent), 0644)
+				require.NoError(t, err)
+
+				// --- Action: Upload to container ---
+				err = env.Upload(ctx, "Upload worktree v1", "file://"+localDir, "/project")
+				require.NoError(t, err)
+
+				// --- Verify: Initial version uploaded ---
+				v.fileExists("/project/app.js", "Worktree Version 1")
+
+				// --- Action: Modify local file in worktree ---
+				updatedContent := "console.log('Worktree Version 2');"
+				err = os.WriteFile(filepath.Join(localDir, "app.js"), []byte(updatedContent), 0644)
+				require.NoError(t, err)
+
+				// --- Action: Upload again ---
+				err = env.Upload(ctx, "Upload worktree v2", "file://"+localDir, "/project")
+				require.NoError(t, err)
+
+				// --- Verify: Updated version should be uploaded ---
+				content, err := env.FileRead(ctx, "/project/app.js", true, 0, 0)
+				require.NoError(t, err)
+				assert.Contains(t, content, "Worktree Version 2", "Should upload updated worktree version")
+				assert.NotContains(t, content, "Worktree Version 1", "Should not have old cached worktree version")
+			})
 		})
 	})
 }
