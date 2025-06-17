@@ -398,7 +398,12 @@ func TestSystemHandlesProblematicFiles(t *testing.T) {
 	})
 
 	t.Run("BinaryDirectories", func(t *testing.T) {
-		t.Skip("Skipping - demonstrates unfixed bug")
+		t.Skip("Skipping - demonstrates unfixed bug where git commit fails when commands create only binary files")
+		// This bug is related to issue #82 but distinct:
+		// - Issue #82: Commands producing NO git-trackable changes (empty directories)
+		// - This bug: Commands producing ONLY binary files that get filtered out
+		// Both stem from coupling audit logging to git commits. When addNonBinaryFiles()
+		// skips all files, git commit fails with "nothing to commit" despite untracked files.
 
 		WithEnvironment(t, "binary_dirs", SetupPythonProjectNoGitignore, func(t *testing.T, env *Environment) {
 			ctx := context.Background()
@@ -530,7 +535,12 @@ func TestUploadAfterModification(t *testing.T) {
 	}
 
 	t.Run("upload_cache", func(t *testing.T) {
-		t.Skip("Skipping - exposes bug where Upload doesn't see local changes after modification")
+		t.Skip("Skipping - demonstrates Dagger caching issue where Upload uses cached directory instead of updated local files")
+		// This test exposes a Dagger caching behavior where:
+		// 1. First Upload of local directory works fine
+		// 2. Local files are modified
+		// 3. Second Upload uses cached version from step 1, not seeing the modifications
+		// The Host.directory() call likely needs noCache:true or similar to ensure fresh reads
 		WithEnvironment(t, "upload_cache", SetupNodeProject, func(t *testing.T, env *Environment) {
 			ctx := context.Background()
 			v := newVerifier(t, env)
@@ -815,7 +825,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 	})
 
 	t.Run("EnvironmentVariableLimitations", func(t *testing.T) {
-		t.Skip("Skipping - demonstrates unfixed limitation")
+		t.Skip("Skipping - demonstrates unfixed limitation with environment variable persistence")
 
 		WithEnvironment(t, "envvar_test", func(te *TestEnv) {
 			te.SetupNodeProject()
