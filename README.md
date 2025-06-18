@@ -165,6 +165,8 @@ curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercont
 
 ### [VSCode](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) / [GitHub Copilot](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-chat-with-mcp)
 
+[Watch video walkthrough.](https://youtu.be/Nz2sOef0gW0)
+
 The result of the instructions above will be to update your VSCode settings with something that looks like this:
 
 ```json
