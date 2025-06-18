@@ -135,13 +135,6 @@ For the Goose desktop, paste this into your browser:
 goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments"
 </code>
 
-Then append to your .goosehints file: 
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> .goosehints
-```
-
-
 
 ### [Cursor](https://docs.cursor.com/context/model-context-protocol)
 
