@@ -1,12 +1,8 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
-	"syscall"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
@@ -24,14 +20,7 @@ var terminalCmd = &cobra.Command{
 		// FIXME(aluzzardi): This is a hack to make sure we're wrapped in `dagger run` since `Terminal()` only works with the CLI.
 		// If not, it will auto-wrap this command in a `dagger run`.
 		if _, ok := os.LookupEnv("DAGGER_SESSION_TOKEN"); !ok {
-			daggerBin, err := exec.LookPath("dagger")
-			if err != nil {
-				if errors.Is(err, exec.ErrNotFound) {
-					return fmt.Errorf("dagger is not installed. Please install it from https://docs.dagger.io/install/")
-				}
-				return fmt.Errorf("failed to look up dagger binary: %w", err)
-			}
-			return syscall.Exec(daggerBin, append([]string{"dagger", "run"}, os.Args...), os.Environ())
+			return execDagger(os.Args)
 		}
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))

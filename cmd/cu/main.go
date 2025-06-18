@@ -62,19 +62,8 @@ func init() {
 	)
 }
 
-func handleSIGUSR(sigusrCh <-chan os.Signal) {
-	for sig := range sigusrCh {
-		if sig == syscall.SIGUSR1 {
-			dumpStacks()
-		}
-	}
-}
-
 func main() {
-	sigusrCh := make(chan os.Signal, 1)
-	signal.Notify(sigusrCh, syscall.SIGUSR1)
-
-	go handleSIGUSR(sigusrCh)
+	setupPlatformSignals()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
