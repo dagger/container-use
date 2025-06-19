@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/dagger/container-use/environment"
@@ -28,10 +27,14 @@ type Repository struct {
 }
 
 func Open(ctx context.Context, repo string) (*Repository, error) {
-	userRepoPath, err := filepath.Abs(repo)
+	output, err := runGitCommand(ctx, repo, "rev-parse", "--show-toplevel")
 	if err != nil {
+		if strings.Contains(err.Error(), "not a git repository") {
+			return nil, errors.New("you must be in a git repository to use container-use")
+		}
 		return nil, err
 	}
+	userRepoPath := strings.TrimSpace(output)
 
 	forkRepoPath, err := getContainerUseRemote(ctx, userRepoPath)
 	if err != nil {
@@ -98,11 +101,22 @@ func (r *Repository) ensureLocalRemote(ctx context.Context) error {
 	return nil
 }
 
-func (r *Repository) Get(ctx context.Context, id string) (*environment.Environment, error) {
+func (r *Repository) SourcePath() string {
+	return r.userRepoPath
+}
+
+func (r *Repository) exists(ctx context.Context, id string) error {
 	if _, err := runGitCommand(ctx, r.forkRepoPath, "rev-parse", "--verify", id); err != nil {
 		if strings.Contains(err.Error(), "Needed a single revision") {
-			return nil, fmt.Errorf("environment %q not found", id)
+			return fmt.Errorf("environment %q not found", id)
 		}
+		return err
+	}
+	return nil
+}
+
+func (r *Repository) Get(ctx context.Context, id string) (*environment.Environment, error) {
+	if err := r.exists(ctx, id); err != nil {
 		return nil, err
 	}
 
@@ -172,7 +186,7 @@ func (r *Repository) List(ctx context.Context) ([]string, error) {
 }
 
 func (r *Repository) Delete(ctx context.Context, id string) error {
-	if _, err := r.Get(ctx, id); err != nil {
+	if err := r.exists(ctx, id); err != nil {
 		return err
 	}
 

@@ -72,9 +72,8 @@ func (r *Repository) deleteWorktree(id string) error {
 	if err != nil {
 		return err
 	}
-	parentDir := filepath.Dir(worktreePath)
-	fmt.Printf("Deleting parent directory of worktree at %s\n", parentDir)
-	return os.RemoveAll(parentDir)
+	fmt.Printf("Deleting worktree at %s\n", worktreePath)
+	return os.RemoveAll(worktreePath)
 }
 
 func (r *Repository) deleteLocalRemoteBranch(id string) error {
