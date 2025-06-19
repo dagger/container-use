@@ -122,5 +122,7 @@ func (env *Environment) AddService(ctx context.Context, explanation string, cfg 
 		return nil, err
 	}
 
+	env.Notes.Add("Add service %s\n%s\n\n", cfg.Name, explanation)
+
 	return svc, nil
 }

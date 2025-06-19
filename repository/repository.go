@@ -145,8 +145,11 @@ func (r *Repository) Create(ctx context.Context, name, explanation string) (*env
 }
 
 func (r *Repository) Update(ctx context.Context, env *environment.Environment, operation, explanation string) error {
-	if err := r.addGitNote(ctx, env, env.Notes.Pop()); err != nil {
-		return err
+	note := env.Notes.Pop()
+	if strings.TrimSpace(note) != "" {
+		if err := r.addGitNote(ctx, env, note); err != nil {
+			return err
+		}
 	}
 	return r.propagateToWorktree(ctx, env, operation, explanation)
 }
