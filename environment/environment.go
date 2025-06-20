@@ -129,11 +129,15 @@ func (env *Environment) apply(ctx context.Context, name, explanation, output str
 		return err
 	}
 
+	env.updateContainer(newState)
+
+	return nil
+}
+
+func (env *Environment) updateContainer(newState *dagger.Container) {
 	env.mu.Lock()
 	defer env.mu.Unlock()
 	env.container = newState
-
-	return nil
 }
 
 func containerWithEnvAndSecrets(container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
@@ -160,16 +164,20 @@ func containerWithEnvAndSecrets(container *dagger.Container, envs, secrets []str
 }
 
 func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error) {
-	sourceDir := dag.Host().Directory(env.Worktree, dagger.HostDirectoryOpts{
-		NoCache: true,
-	})
+	sourceDir, err := dag.
+		Host().
+		Directory(env.Worktree, dagger.HostDirectoryOpts{NoCache: true}). // bust cache for seperate calls (create vs update)
+		Sync(ctx)                                                         // but when restoring from a save, sourceDir changes shouldn't bust cache
+	if err != nil {
+		return nil, fmt.Errorf("failed to load environment source: %w", err)
+	}
 
 	container := dag.
 		Container().
 		From(env.Config.BaseImage).
 		WithWorkdir(env.Config.Workdir)
 
-	container, err := containerWithEnvAndSecrets(container, env.Config.Env, env.Config.Secrets)
+	container, err = containerWithEnvAndSecrets(container, env.Config.Env, env.Config.Secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +221,7 @@ func (env *Environment) UpdateConfig(ctx context.Context, explanation string, ne
 
 	env.Config = newConfig
 
-	// Re-build the base image from the worktree
+	// Re-build the base image from the worktree to check for errors.
 	container, err := env.buildBase(ctx)
 	if err != nil {
 		return err
@@ -234,16 +242,22 @@ func (env *Environment) Run(ctx context.Context, explanation, command, shell str
 	newState := env.container.WithExec(args, dagger.ContainerWithExecOpts{
 		UseEntrypoint: useEntrypoint,
 	})
+
 	stdout, err := newState.Stdout(ctx)
 	if err != nil {
 		var exitErr *dagger.ExecError
-		if errors.As(err, &exitErr) {
-			env.Notes.Add("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n", command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-			return fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr), nil
+		if !errors.As(err, &exitErr) {
+			return "", err
 		}
-		return "", err
+
+		env.Notes.Add("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n", command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
+		env.updateContainer(newState)
+
+		return fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr), nil
 	}
+
 	env.Notes.Add("$ %s\n%s\n\n", command, stdout)
+	env.updateContainer(newState)
 
 	return stdout, nil
 }
@@ -277,6 +291,7 @@ func (env *Environment) RunBackground(ctx context.Context, explanation, command,
 	}
 
 	env.Notes.Add("$ %s &\n\n", command)
+	// note: we don't save these to env.Services, they will not be restored on Open
 
 	endpoints := EndpointMappings{}
 	for _, port := range ports {
