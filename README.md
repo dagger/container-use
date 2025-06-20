@@ -211,6 +211,26 @@ Add the following to your Cline MCP server configuration JSON:
 }
 ```
 
+### [Qodo Gen](https://docs.qodo.ai/qodo-documentation/qodo-gen/qodo-gen-chat/agentic-mode/agentic-tools-mcps)
+
+1. Open Qodo Gen chat panel in VSCode or IntelliJ.
+2. Click Connect more tools.
+3. Click + Add new MCP.
+4. Add the following configuration:
+
+```json
+{
+  "mcpServers": {
+      "container-use": {
+          "command": "cu",
+          "args": [
+              "stdio"
+          ]
+      }
+  }
+}
+```
+
 Include the container-use prompt in your Cline rules:
 
 ```sh
