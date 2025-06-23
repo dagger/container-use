@@ -108,36 +108,21 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 	}
 
 	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
-	_, err = runGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote)
+
+	currentHead, err := runGitCommand(ctx, r.userRepoPath, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	currentHead = strings.TrimSpace(currentHead)
+
+	_, err = runGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
 	if err != nil {
 		return "", err
 	}
 
-	currentBranch, err := runGitCommand(ctx, r.userRepoPath, "branch", "--show-current")
+	_, err = runGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
 	if err != nil {
 		return "", err
-	}
-	currentBranch = strings.TrimSpace(currentBranch)
-
-	// this is racy, i think? like if a human is rewriting history on a branch and creating containers, things get complicated.
-	// there's only 1 copy of the source branch in the localremote, so there's potential for conflicts.
-	_, err = runGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, "--force", currentBranch)
-	if err != nil {
-		return "", err
-	}
-
-	// create worktree, accomodating past partial failures where the branch pushed but the worktree wasn't created
-	_, err = runGitCommand(ctx, r.forkRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", id))
-	if err != nil {
-		_, err = runGitCommand(ctx, r.forkRepoPath, "worktree", "add", "-b", id, worktreePath, currentBranch)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		_, err = runGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
-		if err != nil {
-			return "", err
-		}
 	}
 
 	if err := r.applyUncommittedChanges(ctx, worktreePath); err != nil {

@@ -55,7 +55,7 @@ func Open(ctx context.Context, repo string) (*Repository, error) {
 	if err := r.ensureFork(ctx); err != nil {
 		return nil, fmt.Errorf("unable to fork the repository: %w", err)
 	}
-	if err := r.ensureLocalRemote(ctx); err != nil {
+	if err := r.ensureUserRemote(ctx); err != nil {
 		return nil, fmt.Errorf("unable to set container-use remote: %w", err)
 	}
 
@@ -76,14 +76,14 @@ func (r *Repository) ensureFork(ctx context.Context) error {
 	if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
 		return err
 	}
-	_, err = runGitCommand(ctx, r.userRepoPath, "clone", "--bare", r.userRepoPath, r.forkRepoPath)
+	_, err = runGitCommand(ctx, r.forkRepoPath, "init", "--bare")
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *Repository) ensureLocalRemote(ctx context.Context) error {
+func (r *Repository) ensureUserRemote(ctx context.Context) error {
 	currentForkPath, err := getContainerUseRemote(ctx, r.userRepoPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
