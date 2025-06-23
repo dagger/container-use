@@ -286,9 +286,7 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string)
 		return err
 	}
 
-	lines := strings.Split(strings.TrimSpace(statusOutput), "\n")
-
-	for _, line := range lines {
+	for line := range strings.SplitSeq(strings.TrimSpace(statusOutput), "\n") {
 		if line == "" {
 			continue
 		}
@@ -394,26 +392,27 @@ func (r *Repository) applyUncommittedChanges(ctx context.Context, worktreePath s
 
 	slog.Info("Applying uncommitted changes to worktree", "repository", r.userRepoPath, "worktree", worktreePath)
 
-	patch, err := runGitCommand(ctx, r.userRepoPath, "diff", "HEAD")
+	trackedFilesPatch, err := runGitCommand(ctx, r.userRepoPath, "diff", "HEAD")
 	if err != nil {
 		return err
 	}
 
-	if strings.TrimSpace(patch) != "" {
+	if strings.TrimSpace(trackedFilesPatch) != "" {
 		cmd := exec.Command("git", "apply")
 		cmd.Dir = worktreePath
-		cmd.Stdin = strings.NewReader(patch)
+		cmd.Stdin = strings.NewReader(trackedFilesPatch)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to apply patch: %w", err)
 		}
 	}
 
+	// --exclude-standard excludes .gitignored files. those are more likely to be platform-specific, so we don't copy them.
 	untrackedFiles, err := runGitCommand(ctx, r.userRepoPath, "ls-files", "--others", "--exclude-standard")
 	if err != nil {
 		return err
 	}
 
-	for _, file := range strings.Split(strings.TrimSpace(untrackedFiles), "\n") {
+	for file := range strings.SplitSeq(strings.TrimSpace(untrackedFiles), "\n") {
 		if file == "" {
 			continue
 		}
@@ -481,6 +480,11 @@ func (r *Repository) isBinaryFile(worktreePath, fileName string) bool {
 
 	if stat.Size() > maxFileSizeForTextCheck {
 		return true
+	}
+
+	// Empty files should be treated as text files so `touch .gitkeep` and friends work correctly
+	if stat.Size() == 0 {
+		return false
 	}
 
 	file, err := os.Open(fullPath)

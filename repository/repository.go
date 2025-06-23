@@ -175,7 +175,7 @@ func (r *Repository) List(ctx context.Context) ([]*environment.Environment, erro
 	}
 
 	envs := []*environment.Environment{}
-	for _, branch := range strings.Split(branches, "\n") {
+	for branch := range strings.SplitSeq(branches, "\n") {
 		branch = strings.TrimSpace(branch)
 		// FIXME(aluzzardi): This logic is broken
 		if !strings.Contains(branch, "/") {
