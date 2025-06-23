@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	petname "github.com/dustinkirkland/golang-petname"
 )
@@ -115,7 +116,31 @@ func (r *Repository) exists(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *Repository) Get(ctx context.Context, id string) (*environment.Environment, error) {
+// Create creates a new environment with the given description and explanation.
+// Requires a dagger client for container operations during environment initialization.
+func (r *Repository) Create(ctx context.Context, client *dagger.Client, description, explanation string) (*environment.Environment, error) {
+	id := petname.Generate(2, "-")
+	worktree, err := r.initializeWorktree(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	env, err := environment.New(ctx, client, id, description, worktree)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := r.propagateToWorktree(ctx, env, "Create env "+id, explanation); err != nil {
+		return nil, err
+	}
+
+	return env, nil
+}
+
+// Get retrieves a full Environment with dagger client embedded for container operations.
+// Use this when you need to perform container operations like running commands, terminals, etc.
+// For basic metadata access without container operations, use Info() instead.
+func (r *Repository) Get(ctx context.Context, client *dagger.Client, id string) (*environment.Environment, error) {
 	if err := r.exists(ctx, id); err != nil {
 		return nil, err
 	}
@@ -130,7 +155,7 @@ func (r *Repository) Get(ctx context.Context, id string) (*environment.Environme
 		return nil, err
 	}
 
-	env, err := environment.Load(ctx, id, state, worktree)
+	env, err := environment.Load(ctx, client, id, state, worktree)
 	if err != nil {
 		return nil, err
 	}
@@ -138,42 +163,42 @@ func (r *Repository) Get(ctx context.Context, id string) (*environment.Environme
 	return env, nil
 }
 
-func (r *Repository) Create(ctx context.Context, description, explanation string) (*environment.Environment, error) {
-	id := petname.Generate(2, "-")
+// Info retrieves basic environment metadata without requiring dagger operations.
+// This is more efficient than Get() when you only need access to configuration,
+// state, and other metadata without performing container operations.
+func (r *Repository) Info(ctx context.Context, id string) (*environment.EnvironmentInfo, error) {
+	if err := r.exists(ctx, id); err != nil {
+		return nil, err
+	}
+
 	worktree, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	env, err := environment.New(ctx, id, description, worktree)
+	state, err := r.loadState(ctx, worktree)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := r.propagateToWorktree(ctx, env, "Create env "+id, explanation); err != nil {
+	envInfo, err := environment.LoadInfo(ctx, id, state, worktree)
+	if err != nil {
 		return nil, err
 	}
 
-	return env, nil
+	return envInfo, nil
 }
 
-func (r *Repository) Update(ctx context.Context, env *environment.Environment, operation, explanation string) error {
-	note := env.Notes.Pop()
-	if strings.TrimSpace(note) != "" {
-		if err := r.addGitNote(ctx, env, note); err != nil {
-			return err
-		}
-	}
-	return r.propagateToWorktree(ctx, env, operation, explanation)
-}
-
-func (r *Repository) List(ctx context.Context) ([]*environment.Environment, error) {
+// List returns basic information about all environments in the repository.
+// Returns EnvironmentInfo slice avoiding dagger client initialization.
+// Use Get() on individual environments when you need full Environment with container operations.
+func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, error) {
 	branches, err := runGitCommand(ctx, r.forkRepoPath, "branch", "--format", "%(refname:short)")
 	if err != nil {
 		return nil, err
 	}
 
-	envs := []*environment.Environment{}
+	envs := []*environment.EnvironmentInfo{}
 	for branch := range strings.SplitSeq(branches, "\n") {
 		branch = strings.TrimSpace(branch)
 
@@ -188,15 +213,25 @@ func (r *Repository) List(ctx context.Context) ([]*environment.Environment, erro
 			continue
 		}
 
-		env, err := r.Get(ctx, branch)
+		envInfo, err := r.Info(ctx, branch)
 		if err != nil {
 			return nil, err
 		}
 
-		envs = append(envs, env)
+		envs = append(envs, envInfo)
 	}
 
 	return envs, nil
+}
+
+func (r *Repository) Update(ctx context.Context, env *environment.Environment, operation, explanation string) error {
+	note := env.Notes.Pop()
+	if strings.TrimSpace(note) != "" {
+		if err := r.addGitNote(ctx, env, note); err != nil {
+			return err
+		}
+	}
+	return r.propagateToWorktree(ctx, env, operation, explanation)
 }
 
 func (r *Repository) Delete(ctx context.Context, id string) error {

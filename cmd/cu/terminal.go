@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"dagger.io/dagger"
-	"github.com/dagger/container-use/environment"
 	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
 )
@@ -44,9 +43,7 @@ var terminalCmd = &cobra.Command{
 			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
-		environment.Initialize(dag)
-
-		env, err := repo.Get(ctx, args[0])
+		env, err := repo.Get(ctx, dag, args[0])
 		if err != nil {
 			return err
 		}

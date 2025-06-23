@@ -14,19 +14,20 @@ import (
 	"dagger.io/dagger"
 )
 
-var dag *dagger.Client
-
-func Initialize(client *dagger.Client) error {
-	dag = client
-	return nil
-}
-
-type Environment struct {
+// EnvironmentInfo contains basic metadata about an environment
+// without requiring dagger operations
+type EnvironmentInfo struct {
 	Config *EnvironmentConfig
 	State  *State
 
 	ID       string
 	Worktree string
+}
+
+type Environment struct {
+	*EnvironmentInfo
+
+	Client *dagger.Client
 
 	Services []*Service
 	Notes    Notes
@@ -34,16 +35,19 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, id, title, worktree string) (*Environment, error) {
+func New(ctx context.Context, client *dagger.Client, id, title, worktree string) (*Environment, error) {
 	env := &Environment{
-		ID:       id,
-		Worktree: worktree,
-		Config:   DefaultConfig(),
-		State: &State{
-			Title:     title,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+		EnvironmentInfo: &EnvironmentInfo{
+			ID:       id,
+			Worktree: worktree,
+			Config:   DefaultConfig(),
+			State: &State{
+				Title:     title,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
 		},
+		Client: client,
 	}
 
 	if err := env.Config.Load(worktree); err != nil {
@@ -88,15 +92,18 @@ func (env *Environment) container() *dagger.Container {
 	env.mu.RLock()
 	defer env.mu.RUnlock()
 
-	return dag.LoadContainerFromID(dagger.ContainerID(env.State.Container))
+	return env.Client.LoadContainerFromID(dagger.ContainerID(env.State.Container))
 }
 
-func Load(ctx context.Context, id string, state []byte, worktree string) (*Environment, error) {
+func Load(ctx context.Context, client *dagger.Client, id string, state []byte, worktree string) (*Environment, error) {
 	env := &Environment{
-		ID:       id,
-		Worktree: worktree,
-		Config:   DefaultConfig(),
-		State:    &State{},
+		EnvironmentInfo: &EnvironmentInfo{
+			ID:       id,
+			Worktree: worktree,
+			Config:   DefaultConfig(),
+			State:    &State{},
+		},
+		Client: client,
 	}
 	if err := env.Config.Load(worktree); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -109,6 +116,29 @@ func Load(ctx context.Context, id string, state []byte, worktree string) (*Envir
 	}
 
 	return env, nil
+}
+
+// LoadInfo loads basic environment metadata without requiring dagger operations.
+// This is useful for operations that only need access to configuration and state
+// information without the overhead of initializing container operations.
+func LoadInfo(ctx context.Context, id string, state []byte, worktree string) (*EnvironmentInfo, error) {
+	envInfo := &EnvironmentInfo{
+		ID:       id,
+		Worktree: worktree,
+		Config:   DefaultConfig(),
+		State:    &State{},
+	}
+	if err := envInfo.Config.Load(worktree); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+
+	if err := envInfo.State.Unmarshal(state); err != nil {
+		return nil, err
+	}
+
+	return envInfo, nil
 }
 
 func (env *Environment) apply(ctx context.Context, name, explanation, output string, newState *dagger.Container) error {
@@ -129,7 +159,7 @@ func (env *Environment) apply(ctx context.Context, name, explanation, output str
 	return nil
 }
 
-func containerWithEnvAndSecrets(container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
+func containerWithEnvAndSecrets(client *dagger.Client, container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
 	for _, env := range envs {
 		k, v, found := strings.Cut(env, "=")
 		if !found {
@@ -146,23 +176,23 @@ func containerWithEnvAndSecrets(container *dagger.Container, envs, secrets []str
 		if !found {
 			return nil, fmt.Errorf("invalid secret: %s", secret)
 		}
-		container = container.WithSecretVariable(k, dag.Secret(v))
+		container = container.WithSecretVariable(k, client.Secret(v))
 	}
 
 	return container, nil
 }
 
 func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error) {
-	sourceDir := dag.Host().Directory(env.Worktree, dagger.HostDirectoryOpts{
+	sourceDir := env.Client.Host().Directory(env.Worktree, dagger.HostDirectoryOpts{
 		NoCache: true,
 	})
 
-	container := dag.
+	container := env.Client.
 		Container().
 		From(env.Config.BaseImage).
 		WithWorkdir(env.Config.Workdir)
 
-	container, err := containerWithEnvAndSecrets(container, env.Config.Env, env.Config.Secrets)
+	container, err := containerWithEnvAndSecrets(env.Client, container, env.Config.Env, env.Config.Secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +307,7 @@ func (env *Environment) RunBackground(ctx context.Context, explanation, command,
 		endpoints[port] = endpoint
 
 		// Expose port on the host
-		tunnel, err := dag.Host().Tunnel(svc, dagger.HostTunnelOpts{
+		tunnel, err := env.Client.Host().Tunnel(svc, dagger.HostTunnelOpts{
 			Ports: []dagger.PortForward{
 				{
 					Backend:  port,

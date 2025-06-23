@@ -35,8 +35,8 @@ func (env *Environment) startServices(ctx context.Context) ([]*Service, error) {
 }
 
 func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*Service, error) {
-	container := dag.Container().From(cfg.Image)
-	container, err := containerWithEnvAndSecrets(container, cfg.Env, cfg.Secrets)
+	container := env.Client.Container().From(cfg.Image)
+	container, err := containerWithEnvAndSecrets(env.Client, container, cfg.Env, cfg.Secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*
 		endpoints[port] = endpoint
 
 		// Expose ports on the host
-		tunnel, err := dag.Host().Tunnel(svc, dagger.HostTunnelOpts{
+		tunnel, err := env.Client.Host().Tunnel(svc, dagger.HostTunnelOpts{
 			Ports: []dagger.PortForward{
 				{
 					Backend:  port,

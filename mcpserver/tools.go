@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	"github.com/dagger/container-use/repository"
 	"github.com/dagger/container-use/rules"
@@ -35,7 +36,11 @@ func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*reposit
 	if err != nil {
 		return nil, nil, err
 	}
-	env, err := repo.Get(ctx, envID)
+	client, ok := ctx.Value("dagger_client").(*dagger.Client)
+	if !ok {
+		return nil, nil, fmt.Errorf("dagger client not found in context")
+	}
+	env, err := repo.Get(ctx, client, envID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -47,7 +52,7 @@ type Tool struct {
 	Handler    server.ToolHandlerFunc
 }
 
-func RunStdioServer(ctx context.Context) error {
+func RunStdioServer(ctx context.Context, client *dagger.Client) error {
 	s := server.NewMCPServer(
 		"Dagger",
 		"1.0.0",
@@ -55,7 +60,7 @@ func RunStdioServer(ctx context.Context) error {
 	)
 
 	for _, t := range tools {
-		s.AddTool(t.Definition, t.Handler)
+		s.AddTool(t.Definition, wrapToolWithClient(t, client).Handler)
 	}
 
 	slog.Info("starting server")
@@ -70,15 +75,29 @@ func registerTool(tool ...*Tool) {
 	}
 }
 
-func wrapTool(t *Tool) *Tool {
+func wrapTool(tool *Tool) *Tool {
 	return &Tool{
-		Definition: t.Definition,
-		Handler: func(ctx context.Context, request mcp.CallToolRequest) (_ *mcp.CallToolResult, rerr error) {
-			slog.Info("Calling tool", "tool", t.Definition.Name)
+		Definition: tool.Definition,
+		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			slog.Info("Tool called", "tool", tool.Definition.Name)
 			defer func() {
-				slog.Info("Tool call completed", "tool", t.Definition.Name, "err", rerr)
+				slog.Info("Tool finished", "tool", tool.Definition.Name)
 			}()
-			return t.Handler(ctx, request)
+			return tool.Handler(ctx, request)
+		},
+	}
+}
+
+func wrapToolWithClient(tool *Tool, client *dagger.Client) *Tool {
+	return &Tool{
+		Definition: tool.Definition,
+		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			slog.Info("Tool called", "tool", tool.Definition.Name)
+			defer func() {
+				slog.Info("Tool finished", "tool", tool.Definition.Name)
+			}()
+			ctx = context.WithValue(ctx, "dagger_client", client)
+			return tool.Handler(ctx, request)
 		},
 	}
 }
@@ -135,10 +154,38 @@ func marshalEnvironment(env *environment.Environment) (string, error) {
 	return string(out), nil
 }
 
+func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error) {
+	resp := &EnvironmentResponse{
+		ID:              envInfo.ID,
+		Title:           envInfo.State.Title,
+		Instructions:    envInfo.Config.Instructions,
+		BaseImage:       envInfo.Config.BaseImage,
+		SetupCommands:   envInfo.Config.SetupCommands,
+		Workdir:         envInfo.Config.Workdir,
+		RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
+		CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
+		LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
+		Services:        nil, // EnvironmentInfo doesn't have services
+	}
+	out, err := json.Marshal(resp)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return string(out), nil
+}
+
 func EnvironmentToCallResult(env *environment.Environment) (*mcp.CallToolResult, error) {
 	out, err := marshalEnvironment(env)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
+		return nil, err
+	}
+	return mcp.NewToolResultText(out), nil
+}
+
+func EnvironmentInfoToCallResult(envInfo *environment.EnvironmentInfo) (*mcp.CallToolResult, error) {
+	out, err := marshalEnvironmentInfo(envInfo)
+	if err != nil {
+		return nil, err
 	}
 	return mcp.NewToolResultText(out), nil
 }
@@ -196,7 +243,12 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return nil, err
 		}
 
-		env, err := repo.Create(ctx, title, request.GetString("explanation", ""))
+		client, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+		}
+
+		env, err := repo.Create(ctx, client, title, request.GetString("explanation", ""))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
@@ -331,11 +383,29 @@ var EnvironmentListTool = &Tool{
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
 		}
-		envs, err := repo.List(ctx)
+		envInfos, err := repo.List(ctx)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("invalid source", err), nil
 		}
-		out, err := json.Marshal(envs)
+
+		// Convert EnvironmentInfo slice to EnvironmentResponse slice
+		responses := make([]EnvironmentResponse, len(envInfos))
+		for i, envInfo := range envInfos {
+			responses[i] = EnvironmentResponse{
+				ID:              envInfo.ID,
+				Title:           envInfo.State.Title,
+				Instructions:    envInfo.Config.Instructions,
+				BaseImage:       envInfo.Config.BaseImage,
+				SetupCommands:   envInfo.Config.SetupCommands,
+				Workdir:         envInfo.Config.Workdir,
+				RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
+				CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
+				LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
+				Services:        nil, // EnvironmentInfo doesn't have services
+			}
+		}
+
+		out, err := json.Marshal(responses)
 		if err != nil {
 			return nil, err
 		}

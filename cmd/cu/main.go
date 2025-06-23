@@ -12,12 +12,9 @@ import (
 	"syscall"
 
 	"dagger.io/dagger"
-	"github.com/dagger/container-use/environment"
 	"github.com/dagger/container-use/mcpserver"
 	"github.com/spf13/cobra"
 )
-
-var dag *dagger.Client
 
 func dumpStacks() {
 	buf := make([]byte, 1<<20) // 1MB buffer
@@ -41,16 +38,14 @@ var (
 
 			slog.Info("connecting to dagger")
 
-			var err error
-			dag, err = dagger.Connect(ctx, dagger.WithLogOutput(logWriter))
+			client, err := dagger.Connect(ctx, dagger.WithLogOutput(logWriter))
 			if err != nil {
 				slog.Error("Error starting dagger", "error", err)
 				os.Exit(1)
 			}
-			defer dag.Close()
+			defer client.Close()
 
-			environment.Initialize(dag)
-			return mcpserver.RunStdioServer(ctx)
+			return mcpserver.RunStdioServer(ctx, client)
 		},
 	}
 )

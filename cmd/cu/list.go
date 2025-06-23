@@ -20,13 +20,13 @@ var listCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		envs, err := repo.List(ctx)
+		envInfos, err := repo.List(ctx)
 		if err != nil {
 			return err
 		}
 		if quiet, _ := app.Flags().GetBool("quiet"); quiet {
-			for _, env := range envs {
-				fmt.Println(env.ID)
+			for _, envInfo := range envInfos {
+				fmt.Println(envInfo.ID)
 			}
 			return nil
 		}
@@ -35,8 +35,8 @@ var listCmd = &cobra.Command{
 		fmt.Fprintln(tw, "ID\tTITLE\tCREATED\tUPDATED")
 
 		defer tw.Flush()
-		for _, env := range envs {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", env.ID, truncate(app, env.State.Title, 40), humanize.Time(env.State.CreatedAt), humanize.Time(env.State.UpdatedAt))
+		for _, envInfo := range envInfos {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", envInfo.ID, truncate(app, envInfo.State.Title, 40), humanize.Time(envInfo.State.CreatedAt), humanize.Time(envInfo.State.UpdatedAt))
 		}
 		return nil
 	},
