@@ -141,32 +141,30 @@ func init() {
 }
 
 type EnvironmentResponse struct {
-	ID               string                 `json:"id"`
-	Title            string                 `json:"title"`
-	BaseImage        string                 `json:"base_image"`
-	SetupCommands    []string               `json:"setup_commands"`
-	Instructions     string                 `json:"instructions"`
-	Workdir          string                 `json:"workdir"`
-	Branch           string                 `json:"branch"`
-	TrackingBranch   string                 `json:"tracking_branch"`
-	CheckoutCommand  string                 `json:"checkout_command_for_human"`
-	HostWorktreePath string                 `json:"host_worktree_path"`
-	Services         []*environment.Service `json:"services,omitempty"`
+	ID              string                 `json:"id"`
+	Title           string                 `json:"title"`
+	BaseImage       string                 `json:"base_image"`
+	SetupCommands   []string               `json:"setup_commands"`
+	Instructions    string                 `json:"instructions"`
+	Workdir         string                 `json:"workdir"`
+	RemoteRef       string                 `json:"remote_ref"`
+	CheckoutCommand string                 `json:"checkout_command_to_share_with_user"`
+	LogCommand      string                 `json:"log_command_to_share_with_user"`
+	Services        []*environment.Service `json:"services,omitempty"`
 }
 
 func marshalEnvironment(env *environment.Environment) (string, error) {
 	resp := &EnvironmentResponse{
-		ID:               env.ID,
-		Title:            env.State.Title,
-		Instructions:     env.Config.Instructions,
-		BaseImage:        env.Config.BaseImage,
-		SetupCommands:    env.Config.SetupCommands,
-		Workdir:          env.Config.Workdir,
-		Branch:           env.ID,
-		TrackingBranch:   fmt.Sprintf("container-use/%s", env.ID),
-		CheckoutCommand:  fmt.Sprintf("git checkout %s", env.ID),
-		HostWorktreePath: env.Worktree,
-		Services:         env.Services,
+		ID:              env.ID,
+		Title:           env.State.Title,
+		Instructions:    env.Config.Instructions,
+		BaseImage:       env.Config.BaseImage,
+		SetupCommands:   env.Config.SetupCommands,
+		Workdir:         env.Config.Workdir,
+		RemoteRef:       fmt.Sprintf("container-use/%s", env.ID),
+		CheckoutCommand: fmt.Sprintf("cu checkout %s", env.ID),
+		LogCommand:      fmt.Sprintf("cu log %s", env.ID),
+		Services:        env.Services,
 	}
 	out, err := json.Marshal(resp)
 	if err != nil {
@@ -190,7 +188,7 @@ var EnvironmentOpenTool = &Tool{
 			mcp.Description("One sentence explanation for why this environment is being opened."),
 		),
 		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Description("Path to the source git repository for the environment. Prefer absolute paths from available context, but if you don't have one, you can try '.'"),
 			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
@@ -483,7 +481,7 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 			return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/%s", stdout, env.Config.Workdir, env.ID)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir)), nil
 	},
 }
 
@@ -623,7 +621,7 @@ var EnvironmentFileWriteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully, changes pushed to container-use/%s", targetFile, env.ID)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote", targetFile)), nil
 	},
 }
 
@@ -665,7 +663,7 @@ var EnvironmentFileDeleteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully, changes pushed to container-use/%s", targetFile, env.ID)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully and committed to container-use/ remote", targetFile)), nil
 	},
 }
 
