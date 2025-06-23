@@ -216,14 +216,42 @@ func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 
 	// set up remote tracking branch if it's not already there
 	_, err := runGitCommand(ctx, r.userRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))
-	if err != nil {
+	localBranchExists := err == nil
+	if !localBranchExists {
 		_, err = runGitCommand(ctx, r.userRepoPath, "branch", "--track", branch, fmt.Sprintf("%s/%s", containerUseRemote, id))
 		if err != nil {
 			return "", err
 		}
 	}
 
-	_, err = runGitCommand(ctx, r.userRepoPath, "checkout", branch)
+	_, err = runGitCommand(ctx, r.userRepoPath, "checkout", id)
+	if err != nil {
+		return "", err
+	}
+
+	if localBranchExists {
+		remoteRef := fmt.Sprintf("%s/%s", containerUseRemote, id)
+
+		counts, err := runGitCommand(ctx, r.userRepoPath, "rev-list", "--left-right", "--count", fmt.Sprintf("HEAD...%s", remoteRef))
+		if err != nil {
+			return branch, err
+		}
+
+		parts := strings.Split(strings.TrimSpace(counts), "\t")
+		if len(parts) != 2 {
+			return branch, fmt.Errorf("unexpected git rev-list output: %s", counts)
+		}
+		aheadCount, behindCount := parts[0], parts[1]
+
+		if behindCount != "0" && aheadCount == "0" {
+			_, err = runGitCommand(ctx, r.userRepoPath, "merge", "--ff-only", remoteRef)
+			if err != nil {
+				return branch, err
+			}
+		} else if behindCount != "0" {
+			return branch, fmt.Errorf("switched to %s, but %s is %s ahead and container-use/ remote has %s additional commits", branch, branch, aheadCount, behindCount)
+		}
+	}
 
 	return branch, err
 }
