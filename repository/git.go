@@ -273,7 +273,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, na
 	}
 
 	commitMsg := fmt.Sprintf("%s\n\n%s", name, explanation)
-	_, err = runGitCommand(ctx, worktreePath, "commit", "-m", commitMsg)
+	_, err = runGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", commitMsg)
 	return err
 }
 
