@@ -35,16 +35,16 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, id, name, description, worktree string) (*Environment, error) {
+func New(ctx context.Context, id, name, title, worktree string) (*Environment, error) {
 	env := &Environment{
 		ID:       id,
 		Name:     name,
 		Worktree: worktree,
 		Config:   DefaultConfig(),
 		State: &State{
-			Description: description,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			Title:     title,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		},
 	}
 

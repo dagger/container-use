@@ -142,7 +142,7 @@ func init() {
 
 type EnvironmentResponse struct {
 	ID               string                 `json:"id"`
-	Description      string                 `json:"short_description"`
+	Title            string                 `json:"title"`
 	BaseImage        string                 `json:"base_image"`
 	SetupCommands    []string               `json:"setup_commands"`
 	Instructions     string                 `json:"instructions"`
@@ -157,7 +157,7 @@ type EnvironmentResponse struct {
 func marshalEnvironment(env *environment.Environment) (string, error) {
 	resp := &EnvironmentResponse{
 		ID:               env.ID,
-		Description:      env.State.Description,
+		Title:            env.State.Title,
 		Instructions:     env.Config.Instructions,
 		BaseImage:        env.Config.BaseImage,
 		SetupCommands:    env.Config.SetupCommands,
@@ -217,8 +217,8 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this environment is being created."),
 		),
-		mcp.WithString("description",
-			mcp.Description("Short description of the work that is happening in this environment. Keep this description updated using `environment_update`."),
+		mcp.WithString("title",
+			mcp.Description("Short description of the work that is happening in this environment. Keep this title updated using `environment_update`."),
 			mcp.Required(),
 		),
 		mcp.WithString("environment_source",
@@ -239,7 +239,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 		if err != nil {
 			return nil, err
 		}
-		description, err := request.RequireString("description")
+		title, err := request.RequireString("title")
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +247,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return mcp.NewToolResultErrorFromErr("invalid name", err), nil
 		}
 
-		env, err := repo.Create(ctx, name, description, request.GetString("explanation", ""))
+		env, err := repo.Create(ctx, name, title, request.GetString("explanation", ""))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
@@ -276,8 +276,9 @@ var EnvironmentUpdateTool = &Tool{
 			mcp.Description("The instructions for the environment. This should contain any information that might be useful to operate in the environment, such as what tools are available, what commands to use to build/test/etc"),
 			mcp.Required(),
 		),
-		mcp.WithString("description",
-			mcp.Description("Short description of the work that is happening in this environment.."),
+		mcp.WithString("title",
+			mcp.Description("Short description of the work that is happening in this environment."),
+			mcp.Required(),
 		),
 		mcp.WithString("base_image",
 			mcp.Description("Change the base image for the environment."),
@@ -345,8 +346,8 @@ Supported schemas are:
 		}
 		config.Secrets = secrets
 
-		if description := request.GetString("description", ""); description != "" {
-			env.State.Description = description
+		if title := request.GetString("title", ""); title != "" {
+			env.State.Title = title
 		}
 
 		if err := env.UpdateConfig(ctx, request.GetString("explanation", ""), config); err != nil {

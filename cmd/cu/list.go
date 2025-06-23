@@ -32,11 +32,11 @@ var listCmd = &cobra.Command{
 		}
 
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "ID\tDESCRIPTION\tCREATED\tUPDATED")
+		fmt.Fprintln(tw, "ID\tTITLE\tCREATED\tUPDATED")
 
 		defer tw.Flush()
 		for _, env := range envs {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", env.Name, env.State.Description, humanize.Time(env.State.CreatedAt), humanize.Time(env.State.UpdatedAt))
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", env.Name, env.State.Title, humanize.Time(env.State.CreatedAt), humanize.Time(env.State.UpdatedAt))
 		}
 		return nil
 	},
