@@ -27,7 +27,7 @@ type EnvironmentInfo struct {
 type Environment struct {
 	*EnvironmentInfo
 
-	Client *dagger.Client
+	dag *dagger.Client
 
 	Services []*Service
 	Notes    Notes
@@ -47,7 +47,7 @@ func New(ctx context.Context, client *dagger.Client, id, title, worktree string)
 				UpdatedAt: time.Now(),
 			},
 		},
-		Client: client,
+		dag: client,
 	}
 
 	if err := env.Config.Load(worktree); err != nil {
@@ -92,7 +92,7 @@ func (env *Environment) container() *dagger.Container {
 	env.mu.RLock()
 	defer env.mu.RUnlock()
 
-	return env.Client.LoadContainerFromID(dagger.ContainerID(env.State.Container))
+	return env.dag.LoadContainerFromID(dagger.ContainerID(env.State.Container))
 }
 
 func Load(ctx context.Context, client *dagger.Client, id string, state []byte, worktree string) (*Environment, error) {
@@ -103,7 +103,7 @@ func Load(ctx context.Context, client *dagger.Client, id string, state []byte, w
 			Config:   DefaultConfig(),
 			State:    &State{},
 		},
-		Client: client,
+		dag: client,
 	}
 	if err := env.Config.Load(worktree); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -183,16 +183,16 @@ func containerWithEnvAndSecrets(client *dagger.Client, container *dagger.Contain
 }
 
 func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error) {
-	sourceDir := env.Client.Host().Directory(env.Worktree, dagger.HostDirectoryOpts{
+	sourceDir := env.dag.Host().Directory(env.Worktree, dagger.HostDirectoryOpts{
 		NoCache: true,
 	})
 
-	container := env.Client.
+	container := env.dag.
 		Container().
 		From(env.Config.BaseImage).
 		WithWorkdir(env.Config.Workdir)
 
-	container, err := containerWithEnvAndSecrets(env.Client, container, env.Config.Env, env.Config.Secrets)
+	container, err := containerWithEnvAndSecrets(env.dag, container, env.Config.Env, env.Config.Secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func (env *Environment) RunBackground(ctx context.Context, explanation, command,
 		endpoints[port] = endpoint
 
 		// Expose port on the host
-		tunnel, err := env.Client.Host().Tunnel(svc, dagger.HostTunnelOpts{
+		tunnel, err := env.dag.Host().Tunnel(svc, dagger.HostTunnelOpts{
 			Ports: []dagger.PortForward{
 				{
 					Backend:  port,
