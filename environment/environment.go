@@ -20,7 +20,8 @@ type EnvironmentInfo struct {
 	Config *EnvironmentConfig
 	State  *State
 
-	ID       string
+	ID string
+	//TODO(braa): I think we only need this for Export, now. remove and pass explicitly.
 	Worktree string
 }
 
@@ -64,7 +65,7 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree, initialSo
 
 	slog.Info("Creating environment", "id", env.ID, "workdir", env.Config.Workdir)
 
-	if err := env.apply(ctx, "Create environment", "Create the environment", "", container); err != nil {
+	if err := env.apply(ctx, container); err != nil {
 		return nil, err
 	}
 
@@ -133,7 +134,8 @@ func LoadInfo(ctx context.Context, id string, state []byte, worktree string) (*E
 	return envInfo, nil
 }
 
-func (env *Environment) apply(ctx context.Context, name, explanation, output string, newState *dagger.Container) error {
+func (env *Environment) apply(ctx context.Context, newState *dagger.Container) error {
+	// TODO(braa): is this sync redundant with newState.ID?
 	if _, err := newState.Sync(ctx); err != nil {
 		return err
 	}
@@ -175,8 +177,6 @@ func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container,
 }
 
 func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error) {
-	sourceDir := env.dag.LoadDirectoryFromID(dagger.DirectoryID(env.State.InitialSourceDir))
-
 	container := env.dag.
 		Container().
 		From(env.Config.BaseImage).
@@ -214,7 +214,8 @@ func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error
 		container = container.WithServiceBinding(service.Config.Name, service.svc)
 	}
 
-	container = container.WithDirectory(".", sourceDir)
+	initialSourceDir := env.dag.LoadDirectoryFromID(dagger.DirectoryID(env.State.InitialSourceDir))
+	container = container.WithDirectory(".", initialSourceDir)
 
 	return container, nil
 }
@@ -226,13 +227,13 @@ func (env *Environment) UpdateConfig(ctx context.Context, explanation string, ne
 
 	env.Config = newConfig
 
-	// Re-build the base image from the worktree
+	// Re-build the base image with the new config
 	container, err := env.buildBase(ctx)
 	if err != nil {
 		return err
 	}
 
-	if err := env.apply(ctx, "Update environment", explanation, "", container); err != nil {
+	if err := env.apply(ctx, container); err != nil {
 		return err
 	}
 
@@ -252,11 +253,18 @@ func (env *Environment) Run(ctx context.Context, explanation, command, shell str
 		var exitErr *dagger.ExecError
 		if errors.As(err, &exitErr) {
 			env.Notes.Add("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n", command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-			return fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr), nil
+			wrappedStdio := fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
+			if err := env.apply(ctx, newState); err != nil {
+				return wrappedStdio, err
+			}
+			return wrappedStdio, nil
 		}
 		return "", err
 	}
 	env.Notes.Add("$ %s\n%s\n\n", command, stdout)
+	if err := env.apply(ctx, newState); err != nil {
+		return stdout, err
+	}
 
 	return stdout, nil
 }

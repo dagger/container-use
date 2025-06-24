@@ -118,7 +118,7 @@ func (env *Environment) AddService(ctx context.Context, explanation string, cfg 
 	env.Services = append(env.Services, svc)
 
 	state := env.container().WithServiceBinding(cfg.Name, svc.svc)
-	if err := env.apply(ctx, "Add service "+cfg.Name, explanation, "", state); err != nil {
+	if err := env.apply(ctx, state); err != nil {
 		return nil, err
 	}
 
