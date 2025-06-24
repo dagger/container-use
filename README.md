@@ -145,7 +145,7 @@ extensions:
 ```
 or use `goose configure` and add a command line extension with `cu stdio` as the command.
 
-For the Goose desktop, paste this into your browser: 
+For the Goose desktop, paste this into your browser:
 <code>
 goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments"
 </code>
@@ -268,6 +268,24 @@ In your `~/.codex/config.toml`, add the following:
 command = "cu"
 args = ["stdio"]
 env = {}
+```
+
+### [Warp](https://www.warp.dev/)
+
+`Warp` 2.0 introduces coding agents!
+
+In the Warp sidebar, under `Personal`, select `MCP Servers` and `New`:
+
+```json
+{
+  "container-use": {
+    "command": "cu",
+    "args": ["stdio"],
+    "env": {},
+    "working_directory": null,
+    "start_on_launch": true
+  }
+}
 ```
 
 ## Examples
