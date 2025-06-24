@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
 	"strings"
 
 	"dagger.io/dagger"
@@ -220,6 +221,11 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 
 		envs = append(envs, envInfo)
 	}
+
+	// Sort by most recently updated environments first
+	sort.Slice(envs, func(i, j int) bool {
+		return envs[i].State.UpdatedAt.After(envs[j].State.UpdatedAt)
+	})
 
 	return envs, nil
 }
