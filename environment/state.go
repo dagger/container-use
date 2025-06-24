@@ -9,10 +9,11 @@ import (
 )
 
 type State struct {
-	Container string    `json:"container,omitempty"`
-	Title     string    `json:"title,omitempty"`
-	CreatedAt time.Time `json:"created_at,omitempty"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	Container        string    `json:"container,omitempty"`
+	InitialSourceDir string    `json:"initial_source_dir,omitempty"`
+	Title            string    `json:"title,omitempty"`
+	CreatedAt        time.Time `json:"created_at,omitempty"`
+	UpdatedAt        time.Time `json:"updated_at,omitempty"`
 }
 
 func (s *State) Marshal() ([]byte, error) {

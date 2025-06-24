@@ -120,12 +120,23 @@ func (r *Repository) exists(ctx context.Context, id string) error {
 // Requires a dagger client for container operations during environment initialization.
 func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description, explanation string) (*environment.Environment, error) {
 	id := petname.Generate(2, "-")
-	worktree, err := r.initializeWorktree(ctx, id)
+	worktree, worktreeHead, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	env, err := environment.New(ctx, dag, id, description, worktree)
+	initialSourceDir, err := dag.
+		Host().
+		Directory(r.forkRepoPath, dagger.HostDirectoryOpts{NoCache: true}). // bust cache for each "new" call
+		AsGit().
+		Ref(worktreeHead).
+		Tree().
+		ID(ctx) // don't bust cache when loading from state
+	if err != nil {
+		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
+	}
+
+	env, err := environment.New(ctx, dag, id, description, worktree, string(initialSourceDir))
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +156,7 @@ func (r *Repository) Get(ctx context.Context, dag *dagger.Client, id string) (*e
 		return nil, err
 	}
 
-	worktree, err := r.initializeWorktree(ctx, id)
+	worktree, _, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +182,7 @@ func (r *Repository) Info(ctx context.Context, id string) (*environment.Environm
 		return nil, err
 	}
 
-	worktree, err := r.initializeWorktree(ctx, id)
+	worktree, _, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}

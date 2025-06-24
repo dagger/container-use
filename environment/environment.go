@@ -35,16 +35,17 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, dag *dagger.Client, id, title, worktree string) (*Environment, error) {
+func New(ctx context.Context, dag *dagger.Client, id, title, worktree, initialSourceDirID string) (*Environment, error) {
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
 			ID:       id,
 			Worktree: worktree,
 			Config:   DefaultConfig(),
 			State: &State{
-				Title:     title,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				Title:            title,
+				InitialSourceDir: initialSourceDirID,
+				CreatedAt:        time.Now(),
+				UpdatedAt:        time.Now(),
 			},
 		},
 		dag: dag,
@@ -174,9 +175,7 @@ func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container,
 }
 
 func (env *Environment) buildBase(ctx context.Context) (*dagger.Container, error) {
-	sourceDir := env.dag.Host().Directory(env.Worktree, dagger.HostDirectoryOpts{
-		NoCache: true,
-	})
+	sourceDir := env.dag.LoadDirectoryFromID(dagger.DirectoryID(env.State.InitialSourceDir))
 
 	container := env.dag.
 		Container().
