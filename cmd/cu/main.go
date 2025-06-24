@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sort"
 	"syscall"
 
 	"dagger.io/dagger"
@@ -36,12 +37,16 @@ func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) (
 		return nil, cobra.ShellCompDirectiveError
 	}
 
+	// Most recently updated environments first
+	sort.Slice(envs, func(i, j int) bool {
+		return envs[i].State.UpdatedAt.After(envs[j].State.UpdatedAt)
+	})
+
 	ids := []string{}
 	for _, e := range envs {
 		ids = append(ids, e.ID)
 	}
-
-	return ids, cobra.ShellCompDirectiveDefault
+	return ids, cobra.ShellCompDirectiveKeepOrder
 }
 
 var (
