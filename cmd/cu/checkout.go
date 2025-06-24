@@ -22,7 +22,12 @@ var checkoutCmd = &cobra.Command{
 			return err
 		}
 
-		branch, err := repo.Checkout(ctx, envID)
+		branchName, err := app.Flags().GetString("branch")
+		if err != nil {
+			return err
+		}
+
+		branch, err := repo.Checkout(ctx, envID, branchName)
 		if err != nil {
 			return err
 		}
@@ -33,5 +38,6 @@ var checkoutCmd = &cobra.Command{
 }
 
 func init() {
+	checkoutCmd.Flags().StringP("branch", "b", "", "Local branch name to use")
 	rootCmd.AddCommand(checkoutCmd)
 }

@@ -304,12 +304,14 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 
 // Checkout changes the user's current branch to that of the identified environment.
 // It attempts to get the most recent commit from the environment without discarding any user changes.
-func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
+func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, error) {
 	if err := r.exists(ctx, id); err != nil {
 		return "", err
 	}
 
-	branch := "cu-" + id
+	if branch == "" {
+		branch = "cu-" + id
+	}
 
 	// set up remote tracking branch if it's not already there
 	_, err := RunGitCommand(ctx, r.userRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))
@@ -321,7 +323,7 @@ func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 		}
 	}
 
-	_, err = RunGitCommand(ctx, r.userRepoPath, "checkout", id)
+	_, err = RunGitCommand(ctx, r.userRepoPath, "checkout", branch)
 	if err != nil {
 		return "", err
 	}
