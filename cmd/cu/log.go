@@ -10,9 +10,10 @@ import (
 )
 
 var logCmd = &cobra.Command{
-	Use:   "log <env>",
-	Short: "Show the log for an environment",
-	Args:  cobra.ExactArgs(1),
+	Use:               "log <env>",
+	Short:             "Show the log for an environment",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: suggestEnvironments,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 
