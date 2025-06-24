@@ -118,14 +118,14 @@ func (r *Repository) exists(ctx context.Context, id string) error {
 
 // Create creates a new environment with the given description and explanation.
 // Requires a dagger client for container operations during environment initialization.
-func (r *Repository) Create(ctx context.Context, client *dagger.Client, description, explanation string) (*environment.Environment, error) {
+func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description, explanation string) (*environment.Environment, error) {
 	id := petname.Generate(2, "-")
 	worktree, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	env, err := environment.New(ctx, client, id, description, worktree)
+	env, err := environment.New(ctx, dag, id, description, worktree)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (r *Repository) Create(ctx context.Context, client *dagger.Client, descript
 // Get retrieves a full Environment with dagger client embedded for container operations.
 // Use this when you need to perform container operations like running commands, terminals, etc.
 // For basic metadata access without container operations, use Info() instead.
-func (r *Repository) Get(ctx context.Context, client *dagger.Client, id string) (*environment.Environment, error) {
+func (r *Repository) Get(ctx context.Context, dag *dagger.Client, id string) (*environment.Environment, error) {
 	if err := r.exists(ctx, id); err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (r *Repository) Get(ctx context.Context, client *dagger.Client, id string) 
 		return nil, err
 	}
 
-	env, err := environment.Load(ctx, client, id, state, worktree)
+	env, err := environment.Load(ctx, dag, id, state, worktree)
 	if err != nil {
 		return nil, err
 	}

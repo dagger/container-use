@@ -38,14 +38,14 @@ var (
 
 			slog.Info("connecting to dagger")
 
-			client, err := dagger.Connect(ctx, dagger.WithLogOutput(logWriter))
+			dag, err := dagger.Connect(ctx, dagger.WithLogOutput(logWriter))
 			if err != nil {
 				slog.Error("Error starting dagger", "error", err)
 				os.Exit(1)
 			}
-			defer client.Close()
+			defer dag.Close()
 
-			return mcpserver.RunStdioServer(ctx, client)
+			return mcpserver.RunStdioServer(ctx, dag)
 		},
 	}
 )

@@ -35,7 +35,7 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, client *dagger.Client, id, title, worktree string) (*Environment, error) {
+func New(ctx context.Context, dag *dagger.Client, id, title, worktree string) (*Environment, error) {
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
 			ID:       id,
@@ -47,7 +47,7 @@ func New(ctx context.Context, client *dagger.Client, id, title, worktree string)
 				UpdatedAt: time.Now(),
 			},
 		},
-		dag: client,
+		dag: dag,
 	}
 
 	if err := env.Config.Load(worktree); err != nil {
@@ -95,24 +95,15 @@ func (env *Environment) container() *dagger.Container {
 	return env.dag.LoadContainerFromID(dagger.ContainerID(env.State.Container))
 }
 
-func Load(ctx context.Context, client *dagger.Client, id string, state []byte, worktree string) (*Environment, error) {
-	env := &Environment{
-		EnvironmentInfo: &EnvironmentInfo{
-			ID:       id,
-			Worktree: worktree,
-			Config:   DefaultConfig(),
-			State:    &State{},
-		},
-		dag: client,
-	}
-	if err := env.Config.Load(worktree); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-	}
-
-	if err := env.State.Unmarshal(state); err != nil {
+func Load(ctx context.Context, dag *dagger.Client, id string, state []byte, worktree string) (*Environment, error) {
+	envInfo, err := LoadInfo(ctx, id, state, worktree)
+	if err != nil {
 		return nil, err
+	}
+	env := &Environment{
+		EnvironmentInfo: envInfo,
+		dag:             dag,
+		// Services: ?
 	}
 
 	return env, nil
@@ -159,7 +150,7 @@ func (env *Environment) apply(ctx context.Context, name, explanation, output str
 	return nil
 }
 
-func containerWithEnvAndSecrets(client *dagger.Client, container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
+func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
 	for _, env := range envs {
 		k, v, found := strings.Cut(env, "=")
 		if !found {
@@ -176,7 +167,7 @@ func containerWithEnvAndSecrets(client *dagger.Client, container *dagger.Contain
 		if !found {
 			return nil, fmt.Errorf("invalid secret: %s", secret)
 		}
-		container = container.WithSecretVariable(k, client.Secret(v))
+		container = container.WithSecretVariable(k, dag.Secret(v))
 	}
 
 	return container, nil

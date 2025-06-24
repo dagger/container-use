@@ -36,11 +36,11 @@ func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*reposit
 	if err != nil {
 		return nil, nil, err
 	}
-	client, ok := ctx.Value("dagger_client").(*dagger.Client)
+	dag, ok := ctx.Value("dagger_client").(*dagger.Client)
 	if !ok {
 		return nil, nil, fmt.Errorf("dagger client not found in context")
 	}
-	env, err := repo.Get(ctx, client, envID)
+	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -52,7 +52,7 @@ type Tool struct {
 	Handler    server.ToolHandlerFunc
 }
 
-func RunStdioServer(ctx context.Context, client *dagger.Client) error {
+func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
 	s := server.NewMCPServer(
 		"Dagger",
 		"1.0.0",
@@ -60,7 +60,7 @@ func RunStdioServer(ctx context.Context, client *dagger.Client) error {
 	)
 
 	for _, t := range tools {
-		s.AddTool(t.Definition, wrapToolWithClient(t, client).Handler)
+		s.AddTool(t.Definition, wrapToolWithClient(t, dag).Handler)
 	}
 
 	slog.Info("starting server")
@@ -89,11 +89,11 @@ func wrapTool(tool *Tool) *Tool {
 }
 
 // keeping this modular for now. we could move tool registration to RunStdioServer and collapse the 2 wrapTool functions.
-func wrapToolWithClient(tool *Tool, client *dagger.Client) *Tool {
+func wrapToolWithClient(tool *Tool, dag *dagger.Client) *Tool {
 	return &Tool{
 		Definition: tool.Definition,
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			ctx = context.WithValue(ctx, "dagger_client", client)
+			ctx = context.WithValue(ctx, "dagger_client", dag)
 			return tool.Handler(ctx, request)
 		},
 	}
@@ -240,12 +240,12 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return nil, err
 		}
 
-		client, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		env, err := repo.Create(ctx, client, title, request.GetString("explanation", ""))
+		env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
