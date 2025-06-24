@@ -236,6 +236,9 @@ func (env *Environment) Run(ctx context.Context, explanation, command, shell str
 		}
 		return "", err
 	}
+	if err := env.apply(ctx, "Run "+command, explanation, stdout, newState); err != nil {
+		return "", err
+	}
 	env.Notes.Add("$ %s\n%s\n\n", command, stdout)
 
 	return stdout, nil
