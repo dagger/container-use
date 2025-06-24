@@ -240,7 +240,7 @@ func (env *Environment) UpdateConfig(ctx context.Context, explanation string, ne
 	return nil
 }
 
-func (env *Environment) Run(ctx context.Context, explanation, command, shell string, useEntrypoint bool) (string, error) {
+func (env *Environment) Run(ctx context.Context, command, shell string, useEntrypoint bool) (string, error) {
 	args := []string{}
 	if command != "" {
 		args = []string{shell, "-c", command}
@@ -253,11 +253,12 @@ func (env *Environment) Run(ctx context.Context, explanation, command, shell str
 		var exitErr *dagger.ExecError
 		if errors.As(err, &exitErr) {
 			env.Notes.Add("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n", command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-			wrappedStdio := fmt.Sprintf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
+			flatError := fmt.Errorf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
+
 			if err := env.apply(ctx, newState); err != nil {
-				return wrappedStdio, err
+				return "", fmt.Errorf("failed applying failed command: %w, %w", err, flatError)
 			}
-			return wrappedStdio, nil
+			return "", flatError
 		}
 		return "", err
 	}
@@ -269,7 +270,7 @@ func (env *Environment) Run(ctx context.Context, explanation, command, shell str
 	return stdout, nil
 }
 
-func (env *Environment) RunBackground(ctx context.Context, explanation, command, shell string, ports []int, useEntrypoint bool) (EndpointMappings, error) {
+func (env *Environment) RunBackground(ctx context.Context, command, shell string, ports []int, useEntrypoint bool) (EndpointMappings, error) {
 	args := []string{}
 	if command != "" {
 		args = []string{shell, "-c", command}

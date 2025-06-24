@@ -468,7 +468,7 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 					ports = append(ports, int(port.(float64)))
 				}
 			}
-			endpoints, runErr := env.RunBackground(ctx, request.GetString("explanation", ""), command, shell, ports, request.GetBool("use_entrypoint", false))
+			endpoints, runErr := env.RunBackground(ctx, command, shell, ports, request.GetBool("use_entrypoint", false))
 			// We want to update the repository even if the command failed.
 			if resp, err := updateRepo(); err != nil {
 				return resp, nil
@@ -490,13 +490,13 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 				string(out), env.Config.Workdir, env.ID)), nil
 		}
 
-		stdout, runErr := env.Run(ctx, request.GetString("explanation", ""), command, shell, request.GetBool("use_entrypoint", false))
+		stdout, runErr := env.Run(ctx, command, shell, request.GetBool("use_entrypoint", false))
 		// We want to update the repository even if the command failed.
 		if resp, err := updateRepo(); err != nil {
 			return resp, nil
 		}
 		if runErr != nil {
-			return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
+			return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir)), nil
