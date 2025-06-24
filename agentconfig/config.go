@@ -20,6 +20,11 @@ func Configure(a *Agent, root string, confirm func(string) (bool, error)) error 
 		return err
 	}
 
+	// Auto Approve MCP tools
+	if err := autoApproveMCP(a, root, confirm); err != nil {
+		return err
+	}
+
 	// Install rules
 	if err := installRules(a, root, confirm); err != nil {
 		return err
@@ -43,6 +48,26 @@ func installMCP(a *Agent, confirm func(string) (bool, error)) error {
 	}
 
 	if err := a.ConfigureMCP(bin); err != nil {
+		return fmt.Errorf("failed to configure MCP: %w", err)
+	}
+	return nil
+}
+
+func autoApproveMCP(a *Agent, root string, confirm func(string) (bool, error)) error {
+	if a.AutoApproveMCP == nil {
+		return nil
+	}
+
+	ok, err := confirm(fmt.Sprintf("Automatically approve container-use MCP calls in %s?", a.Name))
+	if err != nil {
+		return fmt.Errorf("failed to get confirmation: %w", err)
+	}
+	if !ok {
+		fmt.Printf("👉 Skipping: MCP auto approve (user declined)\n")
+		return nil
+	}
+
+	if err := a.AutoApproveMCP(root); err != nil {
 		return fmt.Errorf("failed to configure MCP: %w", err)
 	}
 	return nil
@@ -217,11 +242,28 @@ func mergeConfigs(base, new any) any {
 			}
 			return result
 		}
+	case []string:
+		merged := map[string]struct{}{}
+		for _, v := range newVal {
+			merged[v] = struct{}{}
+		}
+		for _, v := range base.([]any) {
+			merged[v.(string)] = struct{}{}
+
+		}
+		result := []string{}
+		for v := range merged {
+			result = append(result, v)
+		}
+		return result
 	case []any:
+		fmt.Printf("Merging arrays\n")
 		if baseVal, ok := base.([]any); ok {
 			// For arrays, just append new values
 			return append(baseVal, newVal...)
 		}
+	default:
+		fmt.Printf("Merging %T\n", newVal)
 	}
 	// For non-maps/arrays or type mismatches, use the new value
 	return new

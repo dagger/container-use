@@ -64,6 +64,10 @@ func RunStdioServer(ctx context.Context) error {
 
 var tools = []*Tool{}
 
+func Tools() []*Tool {
+	return tools
+}
+
 func registerTool(tool ...*Tool) {
 	for _, t := range tool {
 		tools = append(tools, wrapTool(t))

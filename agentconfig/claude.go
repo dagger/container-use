@@ -1,9 +1,12 @@
 package agentconfig
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/dagger/container-use/mcpserver"
 )
 
 var claudeAgent = &Agent{
@@ -24,5 +27,20 @@ var claudeAgent = &Agent{
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 		return c.Run()
+	},
+	AutoApproveMCP: func(dir string) error {
+		tools := []string{}
+		for _, t := range mcpserver.Tools() {
+			tools = append(tools, fmt.Sprintf("mcp__container-use__%s", t.Definition.Name))
+		}
+		return updateConfig(
+			filepath.Join(dir, ".claude", "settings.local.json"),
+			map[string]any{
+				"permissions": map[string]any{
+					"allow": tools,
+				},
+			},
+			"json",
+		)
 	},
 }

@@ -22,6 +22,9 @@ type Agent struct {
 	// ConfigureMCP returns the configuration to add/merge into the agent's config
 	ConfigureMCP func(cmd string) error
 
+	// ConfigureMCP returns the configuration to add/merge into the agent's config
+	AutoApproveMCP func(cmd string) error
+
 	// RulesFile is where to install agent-specific instructions
 	RulesFile string
 
