@@ -4,8 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"dagger.io/dagger"
+)
+
+var (
+	serviceStartTimeout = 30 * time.Second
 )
 
 type Service struct {
@@ -59,10 +64,12 @@ func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*
 	}
 
 	// Start the service
+	startCtx, cancel := context.WithTimeout(ctx, serviceStartTimeout)
+	defer cancel()
 	svc, err := container.AsService(dagger.ContainerAsServiceOpts{
 		Args:          args,
 		UseEntrypoint: true,
-	}).Start(ctx)
+	}).Start(startCtx)
 	if err != nil {
 		var exitErr *dagger.ExecError
 		if errors.As(err, &exitErr) {
