@@ -97,18 +97,14 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 	return nil
 }
 
-func (r *Repository) initializeWorktree(ctx context.Context, id string) (string, string, error) {
+func (r *Repository) initializeWorktree(ctx context.Context, id string) (string, error) {
 	worktreePath, err := worktreePath(id)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	if _, err := os.Stat(worktreePath); err == nil {
-		worktreeHead, err := runGitCommand(ctx, worktreePath, "rev-parse", "HEAD")
-		if err != nil {
-			return "", "", err
-		}
-		return worktreePath, strings.TrimSpace(worktreeHead), nil
+		return worktreePath, nil
 	}
 
 	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
@@ -121,29 +117,24 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 
 	_, err = runGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	_, err = runGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	if err := r.applyUncommittedChanges(ctx, worktreePath); err != nil {
-		return "", "", fmt.Errorf("failed to apply uncommitted changes: %w", err)
+		return "", fmt.Errorf("failed to apply uncommitted changes: %w", err)
 	}
 
 	_, err = runGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
-	worktreeHead, err := runGitCommand(ctx, worktreePath, "rev-parse", "HEAD")
-	if err != nil {
-		return "", "", err
-	}
-
-	return worktreePath, strings.TrimSpace(worktreeHead), nil
+	return worktreePath, nil
 }
 
 func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, name, explanation string) (rerr error) {

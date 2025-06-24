@@ -120,10 +120,16 @@ func (r *Repository) exists(ctx context.Context, id string) error {
 // Requires a dagger client for container operations during environment initialization.
 func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description, explanation string) (*environment.Environment, error) {
 	id := petname.Generate(2, "-")
-	worktree, worktreeHead, err := r.initializeWorktree(ctx, id)
+	worktree, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+
+	worktreeHead, err := runGitCommand(ctx, worktree, "rev-parse", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	worktreeHead = strings.TrimSpace(worktreeHead)
 
 	initialSourceDir, err := dag.
 		Host().
@@ -156,7 +162,7 @@ func (r *Repository) Get(ctx context.Context, dag *dagger.Client, id string) (*e
 		return nil, err
 	}
 
-	worktree, _, err := r.initializeWorktree(ctx, id)
+	worktree, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +188,7 @@ func (r *Repository) Info(ctx context.Context, id string) (*environment.Environm
 		return nil, err
 	}
 
-	worktree, _, err := r.initializeWorktree(ctx, id)
+	worktree, err := r.initializeWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
