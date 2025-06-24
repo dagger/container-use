@@ -163,7 +163,7 @@ func (r *Repository) Get(ctx context.Context, client *dagger.Client, id string) 
 	return env, nil
 }
 
-// Info retrieves basic environment metadata without requiring dagger operations.
+// Info retrieves environment metadata without requiring dagger operations.
 // This is more efficient than Get() when you only need access to configuration,
 // state, and other metadata without performing container operations.
 func (r *Repository) Info(ctx context.Context, id string) (*environment.EnvironmentInfo, error) {
@@ -189,7 +189,7 @@ func (r *Repository) Info(ctx context.Context, id string) (*environment.Environm
 	return envInfo, nil
 }
 
-// List returns basic information about all environments in the repository.
+// List returns information about all environments in the repository.
 // Returns EnvironmentInfo slice avoiding dagger client initialization.
 // Use Get() on individual environments when you need full Environment with container operations.
 func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, error) {
@@ -224,6 +224,8 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 	return envs, nil
 }
 
+// Update saves the provided environment to the repository.
+// Writes configuration and source code changes to the worktree and history + state to git notes.
 func (r *Repository) Update(ctx context.Context, env *environment.Environment, operation, explanation string) error {
 	note := env.Notes.Pop()
 	if strings.TrimSpace(note) != "" {
@@ -234,6 +236,7 @@ func (r *Repository) Update(ctx context.Context, env *environment.Environment, o
 	return r.propagateToWorktree(ctx, env, operation, explanation)
 }
 
+// Delete removes an environment from the repository.
 func (r *Repository) Delete(ctx context.Context, id string) error {
 	if err := r.exists(ctx, id); err != nil {
 		return err
@@ -248,6 +251,8 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// Checkout changes the user's current branch to that of the identified environment.
+// It attempts to get the most recent commit from the environment without discarding any user changes.
 func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 	if err := r.exists(ctx, id); err != nil {
 		return "", err

@@ -88,14 +88,11 @@ func wrapTool(tool *Tool) *Tool {
 	}
 }
 
+// keeping this modular for now. we could move tool registration to RunStdioServer and collapse the 2 wrapTool functions.
 func wrapToolWithClient(tool *Tool, client *dagger.Client) *Tool {
 	return &Tool{
 		Definition: tool.Definition,
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			slog.Info("Tool called", "tool", tool.Definition.Name)
-			defer func() {
-				slog.Info("Tool finished", "tool", tool.Definition.Name)
-			}()
 			ctx = context.WithValue(ctx, "dagger_client", client)
 			return tool.Handler(ctx, request)
 		},
@@ -165,7 +162,7 @@ func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error
 		RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
 		CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
 		LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
-		Services:        nil, // EnvironmentInfo doesn't have services
+		Services:        nil, // EnvironmentInfo doesn't have "active" services, specifically useful for EndpointMappings
 	}
 	out, err := json.Marshal(resp)
 	if err != nil {
