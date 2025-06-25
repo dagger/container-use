@@ -288,6 +288,26 @@ In the Warp sidebar, under `Personal`, select `MCP Servers` and `New`:
 }
 ```
 
+### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+
+To use container-use with Gemini CLI, add the following JSON to your user settings `~/.gemini/settings.json` or project settings `.gemini/settings.json` file.
+
+Full documentation for the settings file can be found [here](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/configuration.md)
+
+```json
+{
+  "coreTools": [],
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"],
+      "timeout": 60000,
+      "trust": true
+    }
+  }
+}
+```
+
 ## Examples
 
 | Example | Description |
