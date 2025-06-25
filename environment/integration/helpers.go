@@ -217,7 +217,7 @@ func (u *UserActions) RunCommand(envID, command, explanation string) string {
 	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
-	output, err := env.Run(u.ctx, explanation, command, "/bin/sh", false)
+	output, err := env.Run(u.ctx, command, "/bin/sh", false)
 	require.NoError(u.t, err, "Run command should succeed")
 
 	err = u.repo.Update(u.ctx, env, "Run "+command, explanation)

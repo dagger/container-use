@@ -157,7 +157,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	worktreeHead, err := runGitCommand(ctx, worktree, "rev-parse", "HEAD")
+	worktreeHead, err := RunGitCommand(ctx, worktree, "rev-parse", "HEAD")
 	if err != nil {
 		return nil, err
 	}
