@@ -102,8 +102,8 @@ func wrapToolWithClient(tool *Tool, dag *dagger.Client) *Tool {
 func init() {
 	registerTool(
 		EnvironmentOpenTool,
-		EnvironmentCreateTool,
-		EnvironmentUpdateTool,
+		EnvironmentListTool,
+		// EnvironmentUpdateTool,
 
 		EnvironmentRunCmdTool,
 
@@ -151,8 +151,8 @@ func marshalEnvironment(env *environment.Environment) (string, error) {
 	return string(out), nil
 }
 
-func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error) {
-	resp := &EnvironmentResponse{
+func envInfoToResponse(envInfo *environment.EnvironmentInfo) *EnvironmentResponse {
+	return &EnvironmentResponse{
 		ID:              envInfo.ID,
 		Title:           envInfo.State.Title,
 		Instructions:    envInfo.Config.Instructions,
@@ -164,6 +164,10 @@ func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error
 		LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
 		Services:        nil, // EnvironmentInfo doesn't have "active" services, specifically useful for EndpointMappings
 	}
+}
+
+func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error) {
+	resp := envInfoToResponse(envInfo)
 	out, err := json.Marshal(resp)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal response: %w", err)
@@ -189,7 +193,7 @@ func EnvironmentInfoToCallResult(envInfo *environment.EnvironmentInfo) (*mcp.Cal
 
 var EnvironmentOpenTool = &Tool{
 	Definition: mcp.NewTool("environment_open",
-		mcp.WithDescription("Opens an existing environment. Return format is same as environment_create."),
+		mcp.WithDescription("Opens an existing environment. If unsure, use `environment_list` to list available environments."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this environment is being opened."),
 		),
@@ -245,7 +249,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
+		env, err := repo.Create(ctx, dag, "", title, request.GetString("explanation", ""))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
@@ -421,7 +425,7 @@ var EnvironmentRunCmdTool = &Tool{
 			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Description("The ID of the environment for this command."),
 			mcp.Required(),
 		),
 		mcp.WithString("command",
@@ -514,7 +518,7 @@ var EnvironmentFileReadTool = &Tool{
 			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Description("The ID of the environment for this command."),
 			mcp.Required(),
 		),
 		mcp.WithString("target_file",
@@ -565,7 +569,7 @@ var EnvironmentFileListTool = &Tool{
 			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Description("The ID of the environment for this command."),
 			mcp.Required(),
 		),
 		mcp.WithString("path",
@@ -604,7 +608,7 @@ var EnvironmentFileWriteTool = &Tool{
 			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Description("The ID of the environment for this command."),
 			mcp.Required(),
 		),
 		mcp.WithString("target_file",
@@ -654,7 +658,7 @@ var EnvironmentFileDeleteTool = &Tool{
 			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Description("The ID of the environment for this command."),
 			mcp.Required(),
 		),
 		mcp.WithString("target_file",
@@ -692,7 +696,7 @@ var EnvironmentCheckpointTool = &Tool{
 			mcp.Description("One sentence explanation for why this checkpoint is being created."),
 		),
 		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Description("The ID of the environment for this command."),
 			mcp.Required(),
 		),
 		mcp.WithString("destination",
@@ -729,7 +733,7 @@ var EnvironmentAddServiceTool = &Tool{
 			mcp.Required(),
 		),
 		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Description("The ID of the environment for this command."),
 			mcp.Required(),
 		),
 		mcp.WithString("name",
