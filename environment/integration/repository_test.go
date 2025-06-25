@@ -13,6 +13,7 @@ import (
 
 // TestRepositoryCreate tests creating a new environment
 func TestRepositoryCreate(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-create", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		// Create an environment
 		env := user.CreateEnvironment("Test Create", "Testing repository create")
@@ -31,6 +32,7 @@ func TestRepositoryCreate(t *testing.T) {
 
 // TestRepositoryGet tests retrieving an existing environment
 func TestRepositoryGet(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-get", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 		
@@ -38,20 +40,21 @@ func TestRepositoryGet(t *testing.T) {
 		env := user.CreateEnvironment("Test Get", "Testing repository get")
 		
 		// Get the environment using repository directly
-		retrieved, err := repo.Get(ctx, env.ID)
+		retrieved, err := repo.Get(ctx, user.dag, env.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, retrieved)
 		assert.Equal(t, env.ID, retrieved.ID)
 		assert.Equal(t, env.State.Title, retrieved.State.Title)
 		
 		// Test getting non-existent environment
-		_, err = repo.Get(ctx, "non-existent-env")
+		_, err = repo.Get(ctx, user.dag, "non-existent-env")
 		assert.Error(t, err)
 	})
 }
 
 // TestRepositoryList tests listing all environments
 func TestRepositoryList(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-list", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 		
@@ -76,6 +79,7 @@ func TestRepositoryList(t *testing.T) {
 
 // TestRepositoryDelete tests deleting an environment
 func TestRepositoryDelete(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-delete", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 		
@@ -89,7 +93,7 @@ func TestRepositoryDelete(t *testing.T) {
 		require.NoError(t, err)
 		
 		// Verify it's gone
-		_, err = repo.Get(ctx, envID)
+		_, err = repo.Get(ctx, user.dag, envID)
 		assert.Error(t, err)
 		
 		// Verify worktree is deleted
@@ -100,6 +104,7 @@ func TestRepositoryDelete(t *testing.T) {
 
 // TestRepositoryCheckout tests checking out an environment branch
 func TestRepositoryCheckout(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-checkout", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 		

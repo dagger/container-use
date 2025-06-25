@@ -71,7 +71,7 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 	require.NoError(t, err, "Failed to open repository")
 
 	// Create UserActions with extended capabilities
-	user := NewUserActions(t, repo).WithDirectAccess(repoDir, configDir)
+	user := NewUserActions(t, repo, testDaggerClient).WithDirectAccess(repoDir, configDir)
 
 	// Cleanup
 	t.Cleanup(func() {
@@ -165,13 +165,6 @@ func initializeDaggerOnce(t *testing.T) {
 			return
 		}
 
-		err = environment.Initialize(client)
-		if err != nil {
-			client.Close()
-			daggerErr = err
-			return
-		}
-
 		testDaggerClient = client
 	})
 
@@ -186,15 +179,17 @@ type UserActions struct {
 	t         *testing.T
 	ctx       context.Context
 	repo      *repository.Repository
+	dag       *dagger.Client
 	repoDir   string // Source directory (for direct manipulation)
 	configDir string // Container-use config directory
 }
 
-func NewUserActions(t *testing.T, repo *repository.Repository) *UserActions {
+func NewUserActions(t *testing.T, repo *repository.Repository, dag *dagger.Client) *UserActions {
 	return &UserActions{
 		t:    t,
 		ctx:  context.Background(),
 		repo: repo,
+		dag:  dag,
 	}
 }
 
@@ -207,7 +202,7 @@ func (u *UserActions) WithDirectAccess(repoDir, configDir string) *UserActions {
 
 // FileWrite mirrors environment_file_write MCP tool behavior
 func (u *UserActions) FileWrite(envID, targetFile, contents, explanation string) {
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	err = env.FileWrite(u.ctx, explanation, targetFile, contents)
@@ -219,7 +214,7 @@ func (u *UserActions) FileWrite(envID, targetFile, contents, explanation string)
 
 // RunCommand mirrors environment_run_cmd MCP tool behavior
 func (u *UserActions) RunCommand(envID, command, explanation string) string {
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	output, err := env.Run(u.ctx, explanation, command, "/bin/sh", false)
@@ -233,14 +228,14 @@ func (u *UserActions) RunCommand(envID, command, explanation string) string {
 
 // CreateEnvironment mirrors environment_create MCP tool behavior
 func (u *UserActions) CreateEnvironment(title, explanation string) *environment.Environment {
-	env, err := u.repo.Create(u.ctx, title, explanation)
+	env, err := u.repo.Create(u.ctx, u.dag, title, explanation)
 	require.NoError(u.t, err, "Create environment should succeed")
 	return env
 }
 
 // UpdateEnvironment mirrors environment_update MCP tool behavior
 func (u *UserActions) UpdateEnvironment(envID, title, explanation string, config *environment.EnvironmentConfig) {
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	if title != "" {
@@ -256,7 +251,7 @@ func (u *UserActions) UpdateEnvironment(envID, title, explanation string, config
 
 // FileDelete mirrors environment_file_delete MCP tool behavior
 func (u *UserActions) FileDelete(envID, targetFile, explanation string) {
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	err = env.FileDelete(u.ctx, explanation, targetFile)
@@ -268,7 +263,7 @@ func (u *UserActions) FileDelete(envID, targetFile, explanation string) {
 
 // FileRead mirrors environment_file_read MCP tool behavior (read-only, no update)
 func (u *UserActions) FileRead(envID, targetFile string) string {
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	content, err := env.FileRead(u.ctx, targetFile, true, 0, 0)
@@ -278,7 +273,7 @@ func (u *UserActions) FileRead(envID, targetFile string) string {
 
 // FileReadExpectError is for testing expected failures
 func (u *UserActions) FileReadExpectError(envID, targetFile string) {
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	_, err = env.FileRead(u.ctx, targetFile, true, 0, 0)
@@ -288,7 +283,7 @@ func (u *UserActions) FileReadExpectError(envID, targetFile string) {
 // GetEnvironment retrieves an environment by ID - mirrors how MCP tools work
 // Each MCP tool call starts fresh by getting the environment from the repository
 func (u *UserActions) GetEnvironment(envID string) *environment.Environment {
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Should be able to get environment %s", envID)
 	return env
 }
@@ -311,7 +306,7 @@ func (u *UserActions) WriteSourceFile(path, content string) {
 // ReadWorktreeFile reads directly from an environment's worktree
 func (u *UserActions) ReadWorktreeFile(envID, path string) string {
 	// Get fresh environment to get current worktree path
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	fullPath := filepath.Join(env.Worktree, path)
@@ -323,7 +318,7 @@ func (u *UserActions) ReadWorktreeFile(envID, path string) string {
 // CorruptWorktree simulates worktree corruption for recovery testing
 func (u *UserActions) CorruptWorktree(envID string) {
 	// Get fresh environment to get current worktree path
-	env, err := u.repo.Get(u.ctx, envID)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
 	// Remove .git directory to corrupt the worktree

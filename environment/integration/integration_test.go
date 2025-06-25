@@ -18,6 +18,7 @@ import (
 
 // TestGitAuditTrail verifies that all operations are tracked in git
 func TestGitAuditTrail(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -61,6 +62,7 @@ func TestGitAuditTrail(t *testing.T) {
 
 // TestEnvironmentIsolation verifies that changes in one environment don't affect others
 func TestEnvironmentIsolation(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -107,6 +109,7 @@ func TestEnvironmentIsolation(t *testing.T) {
 
 // TestSystemHandlesProblematicFiles verifies edge cases don't break the system
 func TestSystemHandlesProblematicFiles(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -179,6 +182,7 @@ func TestSystemHandlesProblematicFiles(t *testing.T) {
 
 // Large project performance ensures the system scales to real-world codebases
 func TestLargeProjectPerformance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping performance test")
 	}
@@ -211,6 +215,7 @@ func TestLargeProjectPerformance(t *testing.T) {
 
 // TestWorktreeUpdatesAreVisibleAfterRebuild verifies file changes persist through rebuilds
 func TestWorktreeUpdatesAreVisibleAfterRebuild(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -250,6 +255,7 @@ func TestWorktreeUpdatesAreVisibleAfterRebuild(t *testing.T) {
 
 // TestWeirdUserScenarios verifies edge case handling
 func TestWeirdUserScenarios(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -270,11 +276,11 @@ func TestWeirdUserScenarios(t *testing.T) {
 
 			// Both should be independently accessible
 			ctx := context.Background()
-			retrieved1, err := repo.Get(ctx, env1.ID)
+			retrieved1, err := repo.Get(ctx, user.dag, env1.ID)
 			assert.NoError(t, err)
 			assert.NotNil(t, retrieved1, "First env should be retrievable")
 
-			retrieved2, err := repo.Get(ctx, env2.ID)
+			retrieved2, err := repo.Get(ctx, user.dag, env2.ID)
 			assert.NoError(t, err)
 			assert.NotNil(t, retrieved2, "Second env should be retrievable")
 
@@ -372,7 +378,7 @@ func TestWeirdUserScenarios(t *testing.T) {
 		repo1, err := repository.OpenWithBasePath(ctx, repoDir1, configDir1)
 		require.NoError(t, err)
 
-		env1, err := repo1.Create(ctx, "App", "Creating app in repo1")
+		env1, err := repo1.Create(ctx, testDaggerClient, "App", "Creating app in repo1")
 		require.NoError(t, err)
 		defer repo1.Delete(ctx, env1.ID)
 
@@ -394,6 +400,7 @@ func TestWeirdUserScenarios(t *testing.T) {
 
 // TestEnvironmentConfigurationPersists verifies configuration persistence
 func TestEnvironmentConfigurationPersists(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -513,7 +520,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 			originalWorktree := newEnv.Worktree
 
 			// Environment is registered
-			retrieved, err := repo.Get(ctx, envID)
+			retrieved, err := repo.Get(ctx, user.dag, envID)
 			assert.NoError(t, err)
 			assert.NotNil(t, retrieved, "Environment should be retrievable")
 
@@ -540,7 +547,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 			require.NoError(t, err, "Should delete environment")
 
 			// Verify cleanup
-			_, err = repo.Get(ctx, envID)
+			_, err = repo.Get(ctx, user.dag, envID)
 			assert.Error(t, err, "Environment should not be retrievable after deletion")
 
 			// Worktree deleted
