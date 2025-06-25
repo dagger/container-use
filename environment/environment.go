@@ -301,10 +301,12 @@ func (env *Environment) RunBackground(ctx context.Context, command, shell string
 	}
 
 	// Start the service
+	startCtx, cancel := context.WithTimeout(ctx, serviceStartTimeout)
+	defer cancel()
 	svc, err := serviceState.AsService(dagger.ContainerAsServiceOpts{
 		Args:          args,
 		UseEntrypoint: useEntrypoint,
-	}).Start(ctx)
+	}).Start(startCtx)
 	if err != nil {
 		var exitErr *dagger.ExecError
 		if errors.As(err, &exitErr) {

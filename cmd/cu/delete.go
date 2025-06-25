@@ -8,10 +8,11 @@ import (
 )
 
 var deleteCmd = &cobra.Command{
-	Use:   "delete <env>...",
-	Short: "Delete environments",
-	Long:  `Delete one or more environments and their associated resources.`,
-	Args:  cobra.MinimumNArgs(1),
+	Use:               "delete <env>...",
+	Short:             "Delete environments",
+	Long:              `Delete one or more environments and their associated resources.`,
+	Args:              cobra.MinimumNArgs(1),
+	ValidArgsFunction: suggestEnvironments,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 

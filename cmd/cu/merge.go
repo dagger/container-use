@@ -9,9 +9,10 @@ import (
 )
 
 var mergeCmd = &cobra.Command{
-	Use:   "merge <env>",
-	Short: "Merges an environment into the current git branch",
-	Args:  cobra.ExactArgs(1),
+	Use:               "merge <env>",
+	Short:             "Merges an environment into the current git branch",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: suggestEnvironments,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 

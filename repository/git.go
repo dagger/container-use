@@ -27,8 +27,9 @@ var (
 	scpLikeURLRegExp = regexp.MustCompile(`^(?:(?P<user>[^@]+)@)?(?P<host>[^:\s]+):(?:(?P<port>[0-9]{1,5})(?:\/|:))?(?P<path>[^\\].*\/[^\\].*)$`)
 )
 
-// FIXME(aluzzardi): This is a copy of the function in the environment package
-func runGitCommand(ctx context.Context, dir string, args ...string) (out string, rerr error) {
+// RunGitCommand executes a git command in the specified directory.
+// This is exported for use in tests and other packages that need direct git access.
+func RunGitCommand(ctx context.Context, dir string, args ...string) (out string, rerr error) {
 	slog.Info(fmt.Sprintf("[%s] $ git %s", dir, strings.Join(args, " ")))
 	defer func() {
 		slog.Info(fmt.Sprintf("[%s] $ git %s (DONE)", dir, strings.Join(args, " ")), "err", rerr)
@@ -52,9 +53,11 @@ func runGitCommand(ctx context.Context, dir string, args ...string) (out string,
 
 func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 	// Check if we already have a container-use remote
-	cuRemote, err := runGitCommand(ctx, repo, "remote", "get-url", "container-use")
+	cuRemote, err := RunGitCommand(ctx, repo, "remote", "get-url", "container-use")
 	if err != nil {
-		if strings.Contains(err.Error(), "No such remote") {
+		// Check for exit code 2 which means the remote doesn't exist
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
 			return "", os.ErrNotExist
 		}
 		return "", err
@@ -63,12 +66,12 @@ func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 	return strings.TrimSpace(cuRemote), nil
 }
 
-func worktreePath(id string) (string, error) {
-	return homedir.Expand(path.Join(cuWorktreePath, id))
+func (r *Repository) worktreePath(id string) (string, error) {
+	return homedir.Expand(path.Join(r.getWorktreePath(), id))
 }
 
 func (r *Repository) deleteWorktree(id string) error {
-	worktreePath, err := worktreePath(id)
+	worktreePath, err := r.worktreePath(id)
 	if err != nil {
 		return err
 	}
@@ -78,18 +81,18 @@ func (r *Repository) deleteWorktree(id string) error {
 
 func (r *Repository) deleteLocalRemoteBranch(id string) error {
 	slog.Info("Pruning git worktrees", "repo", r.forkRepoPath)
-	if _, err := runGitCommand(context.Background(), r.forkRepoPath, "worktree", "prune"); err != nil {
+	if _, err := RunGitCommand(context.Background(), r.forkRepoPath, "worktree", "prune"); err != nil {
 		slog.Error("Failed to prune git worktrees", "repo", r.forkRepoPath, "err", err)
 		return err
 	}
 
 	slog.Info("Deleting local branch", "repo", r.forkRepoPath, "branch", id)
-	if _, err := runGitCommand(context.Background(), r.forkRepoPath, "branch", "-D", id); err != nil {
+	if _, err := RunGitCommand(context.Background(), r.forkRepoPath, "branch", "-D", id); err != nil {
 		slog.Error("Failed to delete local branch", "repo", r.forkRepoPath, "branch", id, "err", err)
 		return err
 	}
 
-	if _, err := runGitCommand(context.Background(), r.userRepoPath, "remote", "prune", containerUseRemote); err != nil {
+	if _, err := RunGitCommand(context.Background(), r.userRepoPath, "remote", "prune", containerUseRemote); err != nil {
 		slog.Error("Failed to fetch and prune container-use remote", "local-repo", r.userRepoPath, "err", err)
 		return err
 	}
@@ -98,7 +101,7 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 }
 
 func (r *Repository) initializeWorktree(ctx context.Context, id string) (string, error) {
-	worktreePath, err := worktreePath(id)
+	worktreePath, err := r.worktreePath(id)
 	if err != nil {
 		return "", err
 	}
@@ -109,18 +112,18 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 
 	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
 
-	currentHead, err := runGitCommand(ctx, r.userRepoPath, "rev-parse", "HEAD")
+	currentHead, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", "HEAD")
 	if err != nil {
 		return "", err
 	}
 	currentHead = strings.TrimSpace(currentHead)
 
-	_, err = runGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
+	_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
 	if err != nil {
 		return "", err
 	}
 
-	_, err = runGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
+	_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +132,7 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 		return "", fmt.Errorf("failed to apply uncommitted changes: %w", err)
 	}
 
-	_, err = runGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
+	_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
 	if err != nil {
 		return "", err
 	}
@@ -163,7 +166,7 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 	}
 
 	slog.Info("Fetching container-use remote in source repository")
-	if _, err := runGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID); err != nil {
+	if _, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID); err != nil {
 		return err
 	}
 
@@ -177,13 +180,13 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 	fullRef := fmt.Sprintf("refs/notes/%s", ref)
 	fetch := func() error {
-		_, err := runGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
+		_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
 		return err
 	}
 
 	if err := fetch(); err != nil {
 		if strings.Contains(err.Error(), "[rejected]") {
-			if _, err := runGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
+			if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
 				return fetch()
 			}
 		}
@@ -206,7 +209,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 		return err
 	}
 
-	_, err = runGitCommand(ctx, env.Worktree, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
+	_, err = RunGitCommand(ctx, env.Worktree, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
 	if err != nil {
 		return err
 	}
@@ -214,7 +217,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 }
 
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {
-	buff, err := runGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
+	buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
 	if err != nil {
 		if strings.Contains(err.Error(), "no note found") {
 			return nil, nil
@@ -225,7 +228,7 @@ func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte
 }
 
 func (r *Repository) addGitNote(ctx context.Context, env *environment.Environment, note string) error {
-	_, err := runGitCommand(ctx, env.Worktree, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
+	_, err := RunGitCommand(ctx, env.Worktree, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
 	if err != nil {
 		return err
 	}
@@ -233,7 +236,7 @@ func (r *Repository) addGitNote(ctx context.Context, env *environment.Environmen
 }
 
 func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, name, explanation string) error {
-	status, err := runGitCommand(ctx, worktreePath, "status", "--porcelain")
+	status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return err
 	}
@@ -247,7 +250,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, na
 	}
 
 	commitMsg := fmt.Sprintf("%s\n\n%s", name, explanation)
-	_, err = runGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", commitMsg)
+	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", commitMsg)
 	return err
 }
 
@@ -255,7 +258,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, na
 // this is just to keep us moving fast because big git repos get hard to work with
 // and our demos like to download large dependencies.
 func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string) error {
-	statusOutput, err := runGitCommand(ctx, worktreePath, "status", "--porcelain")
+	statusOutput, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return err
 	}
@@ -291,7 +294,7 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string)
 			} else {
 				// Untracked file - add if not binary
 				if !r.isBinaryFile(worktreePath, fileName) {
-					_, err = runGitCommand(ctx, worktreePath, "add", fileName)
+					_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
 					if err != nil {
 						return err
 					}
@@ -302,14 +305,14 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string)
 			continue
 		case indexStatus == 'D' || workTreeStatus == 'D':
 			// D = deleted files (always stage deletion)
-			_, err = runGitCommand(ctx, worktreePath, "add", fileName)
+			_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
 			if err != nil {
 				return err
 			}
 		default:
 			// M, R, C and other statuses - add if not binary
 			if !r.isBinaryFile(worktreePath, fileName) {
-				_, err = runGitCommand(ctx, worktreePath, "add", fileName)
+				_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
 				if err != nil {
 					return err
 				}
@@ -355,7 +358,7 @@ func (r *Repository) shouldSkipFile(fileName string) bool {
 }
 
 func (r *Repository) applyUncommittedChanges(ctx context.Context, worktreePath string) error {
-	status, err := runGitCommand(ctx, r.userRepoPath, "status", "--porcelain")
+	status, err := RunGitCommand(ctx, r.userRepoPath, "status", "--porcelain")
 	if err != nil {
 		return err
 	}
@@ -366,7 +369,7 @@ func (r *Repository) applyUncommittedChanges(ctx context.Context, worktreePath s
 
 	slog.Info("Applying uncommitted changes to worktree", "repository", r.userRepoPath, "worktree", worktreePath)
 
-	trackedFilesPatch, err := runGitCommand(ctx, r.userRepoPath, "diff", "HEAD")
+	trackedFilesPatch, err := RunGitCommand(ctx, r.userRepoPath, "diff", "HEAD")
 	if err != nil {
 		return err
 	}
@@ -381,7 +384,7 @@ func (r *Repository) applyUncommittedChanges(ctx context.Context, worktreePath s
 	}
 
 	// --exclude-standard excludes .gitignored files. those are more likely to be platform-specific, so we don't copy them.
-	untrackedFiles, err := runGitCommand(ctx, r.userRepoPath, "ls-files", "--others", "--exclude-standard")
+	untrackedFiles, err := RunGitCommand(ctx, r.userRepoPath, "ls-files", "--others", "--exclude-standard")
 	if err != nil {
 		return err
 	}
@@ -430,7 +433,7 @@ func (r *Repository) addFilesFromUntrackedDirectory(ctx context.Context, worktre
 		}
 
 		if !r.isBinaryFile(worktreePath, relPath) {
-			_, err = runGitCommand(ctx, worktreePath, "add", relPath)
+			_, err = RunGitCommand(ctx, worktreePath, "add", relPath)
 			if err != nil {
 				return err
 			}
@@ -482,13 +485,15 @@ func (r *Repository) isBinaryFile(worktreePath, fileName string) bool {
 	return false
 }
 
-func normalizeForkPath(ctx context.Context, repo string) (string, error) {
+func (r *Repository) normalizeForkPath(ctx context.Context, repo string) (string, error) {
 	// Check if there's an origin remote
-	origin, err := runGitCommand(ctx, repo, "remote", "get-url", "origin")
+	origin, err := RunGitCommand(ctx, repo, "remote", "get-url", "origin")
 	if err != nil {
 		// If not -- this repository is a local one, we're going to use the filesystem path for the container-use repo
-		if strings.Contains(err.Error(), "No such remote") {
-			return homedir.Expand(filepath.Join(cuRepoPath, repo))
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
+			// Exit code 2 means the remote doesn't exist
+			return homedir.Expand(filepath.Join(r.getRepoPath(), repo))
 		}
 		return "", err
 	}
@@ -498,7 +503,7 @@ func normalizeForkPath(ctx context.Context, repo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return homedir.Expand(filepath.Join(cuRepoPath, normalizedOrigin))
+	return homedir.Expand(filepath.Join(r.getRepoPath(), normalizedOrigin))
 }
 
 func normalizeGitURL(endpoint string) (string, error) {

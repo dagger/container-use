@@ -41,6 +41,12 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 brew install dagger/tap/container-use
 ```
 
+(Optional) Install shell completions:
+
+```sh
+cu completion bash > $(brew --prefix)/etc/bash_completion.d/container-use
+```
+
 ### All Platforms (Shell Script)
 
 ```sh
@@ -49,21 +55,13 @@ curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.s
 
 This will check for Docker & Git (required), detect your platform, and install the latest `cu` binary to your `$PATH`.
 
-## Building
-
-To build the `cu` binary without installing it to your `$PATH`, you can use either Dagger or Go directly:
-
-### Using Go
+(Optional) Install shell completions:
 
 ```sh
-go build -o cu ./cmd/cu
+cu completion bash > /etc/bash_completion.d/container-use
 ```
 
-### Using Dagger
-
-```sh
-dagger call build --platform=current export --path ./cu
-```
+For building from source, see [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 ## Integrate Agents
 

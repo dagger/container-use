@@ -13,10 +13,11 @@ import (
 )
 
 var terminalCmd = &cobra.Command{
-	Use:   "terminal <env>",
-	Short: "Drop a terminal into an environment",
-	Long:  `Create a container with the same state as the agent for a given branch or commmit.`,
-	Args:  cobra.ExactArgs(1),
+	Use:               "terminal <env>",
+	Short:             "Drop a terminal into an environment",
+	Long:              `Create a container with the same state as the agent for a given branch or commmit.`,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: suggestEnvironments,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 

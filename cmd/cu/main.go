@@ -13,6 +13,7 @@ import (
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/mcpserver"
+	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +21,26 @@ func dumpStacks() {
 	buf := make([]byte, 1<<20) // 1MB buffer
 	n := runtime.Stack(buf, true)
 	io.MultiWriter(logWriter, os.Stderr).Write(buf[:n])
+}
+
+func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	ctx := cmd.Context()
+
+	repo, err := repository.Open(ctx, ".")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	envs, err := repo.List(ctx)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	ids := []string{}
+	for _, e := range envs {
+		ids = append(ids, e.ID)
+	}
+	return ids, cobra.ShellCompDirectiveKeepOrder
 }
 
 var (

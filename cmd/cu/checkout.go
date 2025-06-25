@@ -8,9 +8,10 @@ import (
 )
 
 var checkoutCmd = &cobra.Command{
-	Use:   "checkout <env>",
-	Short: "Check out an environment in git",
-	Args:  cobra.ExactArgs(1),
+	Use:               "checkout <env>",
+	Short:             "Check out an environment in git",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: suggestEnvironments,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 		envID := args[0]
