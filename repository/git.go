@@ -493,8 +493,7 @@ func (r *Repository) normalizeForkPath(ctx context.Context, repo string) (string
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
 			// Exit code 2 means the remote doesn't exist
-			// Use just the base name for temporary directories to avoid deeply nested paths
-			return homedir.Expand(filepath.Join(r.getRepoPath(), filepath.Base(repo)))
+			return homedir.Expand(filepath.Join(r.getRepoPath(), repo))
 		}
 		return "", err
 	}
