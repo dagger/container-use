@@ -412,7 +412,7 @@ var EnvironmentListTool = &Tool{
 
 var EnvironmentRunCmdTool = &Tool{
 	Definition: mcp.NewTool("environment_run_cmd",
-		mcp.WithDescription("Run a command on behalf of the user in the terminal."),
+		mcp.WithDescription("Run a terminal command inside the environment."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this command is being run."),
 		),
@@ -440,7 +440,7 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 			mcp.Description("Use the image entrypoint, if present, by prepending it to the args."),
 		),
 		mcp.WithArray("ports",
-			mcp.Description("Ports to expose. Only works with background environments. For each port, returns the internal (for use by other environments) and external (for use by the user) address."),
+			mcp.Description("Ports to expose. Only works with background environments. For each port, returns the environment_internal (for use inside environments) and host_external (for use by the user) addresses."),
 			mcp.Items(map[string]any{"type": "number"}),
 		),
 	),
@@ -744,7 +744,7 @@ var EnvironmentAddServiceTool = &Tool{
 			mcp.Description("The command to start the service. If not provided the image default command will be used."),
 		),
 		mcp.WithArray("ports",
-			mcp.Description("Ports to expose. For each port, returns the internal (for use by other environments) and external (for use by the user) address."),
+			mcp.Description("Ports to expose. For each port, returns the environment_internal (for use by environments) and external (for use by the user) address."),
 			mcp.Items(map[string]any{"type": "number"}),
 		),
 		mcp.WithArray("envs",

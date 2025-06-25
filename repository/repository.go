@@ -131,18 +131,18 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 	}
 	worktreeHead = strings.TrimSpace(worktreeHead)
 
-	initialSourceDir, err := dag.
+	baseSourceDir, err := dag.
 		Host().
-		Directory(r.forkRepoPath, dagger.HostDirectoryOpts{NoCache: true}). // bust cache for each "new" call
+		Directory(r.forkRepoPath, dagger.HostDirectoryOpts{NoCache: true}). // bust cache for each Create call
 		AsGit().
 		Ref(worktreeHead).
 		Tree().
-		ID(ctx) // don't bust cache when loading from state
+		Sync(ctx) // don't bust cache when loading from state
 	if err != nil {
 		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
 	}
 
-	env, err := environment.New(ctx, dag, id, description, worktree, string(initialSourceDir))
+	env, err := environment.New(ctx, dag, id, description, worktree, baseSourceDir)
 	if err != nil {
 		return nil, err
 	}
