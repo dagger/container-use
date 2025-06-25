@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 
@@ -26,12 +27,39 @@ const (
 type Repository struct {
 	userRepoPath string
 	forkRepoPath string
+	basePath     string // defaults to ~/.config/container-use if empty
+}
+
+// getBasePath returns the base path for container-use data, using the default if not set
+func (r *Repository) getBasePath() string {
+	if r.basePath != "" {
+		return r.basePath
+	}
+	return cuGlobalConfigPath
+}
+
+// getRepoPath returns the path for storing repository data
+func (r *Repository) getRepoPath() string {
+	return r.getBasePath() + "/repos"
+}
+
+// getWorktreePath returns the path for storing worktrees
+func (r *Repository) getWorktreePath() string {
+	return r.getBasePath() + "/worktrees"
 }
 
 func Open(ctx context.Context, repo string) (*Repository, error) {
-	output, err := runGitCommand(ctx, repo, "rev-parse", "--show-toplevel")
+	return OpenWithBasePath(ctx, repo, cuGlobalConfigPath)
+}
+
+// OpenWithBasePath opens a repository with a custom base path for container-use data.
+// This is useful for tests that need isolated environments.
+func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repository, error) {
+	output, err := RunGitCommand(ctx, repo, "rev-parse", "--show-toplevel")
 	if err != nil {
-		if strings.Contains(err.Error(), "not a git repository") {
+		// Check for exit code 128 which means not a git repository
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 128 {
 			return nil, errors.New("you must be in a git repository to use container-use")
 		}
 		return nil, err
@@ -43,7 +71,9 @@ func Open(ctx context.Context, repo string) (*Repository, error) {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
-		forkRepoPath, err = normalizeForkPath(ctx, userRepoPath)
+		// Create a temporary repository to get the normalized fork path
+		tempRepo := &Repository{basePath: basePath}
+		forkRepoPath, err = tempRepo.normalizeForkPath(ctx, userRepoPath)
 		if err != nil {
 			return nil, err
 		}
@@ -52,6 +82,7 @@ func Open(ctx context.Context, repo string) (*Repository, error) {
 	r := &Repository{
 		userRepoPath: userRepoPath,
 		forkRepoPath: forkRepoPath,
+		basePath:     basePath,
 	}
 
 	if err := r.ensureFork(ctx); err != nil {
@@ -78,7 +109,7 @@ func (r *Repository) ensureFork(ctx context.Context) error {
 	if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
 		return err
 	}
-	_, err = runGitCommand(ctx, r.forkRepoPath, "init", "--bare")
+	_, err = RunGitCommand(ctx, r.forkRepoPath, "init", "--bare")
 	if err != nil {
 		return err
 	}
@@ -91,12 +122,12 @@ func (r *Repository) ensureUserRemote(ctx context.Context) error {
 		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		_, err := runGitCommand(ctx, r.userRepoPath, "remote", "add", containerUseRemote, r.forkRepoPath)
+		_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "add", containerUseRemote, r.forkRepoPath)
 		return err
 	}
 
 	if currentForkPath != r.forkRepoPath {
-		_, err := runGitCommand(ctx, r.userRepoPath, "remote", "set-url", containerUseRemote, r.forkRepoPath)
+		_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "set-url", containerUseRemote, r.forkRepoPath)
 		return err
 	}
 
@@ -108,7 +139,7 @@ func (r *Repository) SourcePath() string {
 }
 
 func (r *Repository) exists(ctx context.Context, id string) error {
-	if _, err := runGitCommand(ctx, r.forkRepoPath, "rev-parse", "--verify", id); err != nil {
+	if _, err := RunGitCommand(ctx, r.forkRepoPath, "rev-parse", "--verify", id); err != nil {
 		if strings.Contains(err.Error(), "Needed a single revision") {
 			return fmt.Errorf("environment %q not found", id)
 		}
@@ -194,7 +225,7 @@ func (r *Repository) Info(ctx context.Context, id string) (*environment.Environm
 // Returns EnvironmentInfo slice avoiding dagger client initialization.
 // Use Get() on individual environments when you need full Environment with container operations.
 func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, error) {
-	branches, err := runGitCommand(ctx, r.forkRepoPath, "branch", "--format", "%(refname:short)")
+	branches, err := RunGitCommand(ctx, r.forkRepoPath, "branch", "--format", "%(refname:short)")
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +236,7 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 
 		// FIXME(aluzzardi): This is a hack to make sure the branch is actually an environment.
 		// There must be a better way to do this.
-		worktree, err := worktreePath(branch)
+		worktree, err := r.worktreePath(branch)
 		if err != nil {
 			return nil, err
 		}
@@ -267,16 +298,16 @@ func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 	branch := "cu-" + id
 
 	// set up remote tracking branch if it's not already there
-	_, err := runGitCommand(ctx, r.userRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))
+	_, err := RunGitCommand(ctx, r.userRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))
 	localBranchExists := err == nil
 	if !localBranchExists {
-		_, err = runGitCommand(ctx, r.userRepoPath, "branch", "--track", branch, fmt.Sprintf("%s/%s", containerUseRemote, id))
+		_, err = RunGitCommand(ctx, r.userRepoPath, "branch", "--track", branch, fmt.Sprintf("%s/%s", containerUseRemote, id))
 		if err != nil {
 			return "", err
 		}
 	}
 
-	_, err = runGitCommand(ctx, r.userRepoPath, "checkout", id)
+	_, err = RunGitCommand(ctx, r.userRepoPath, "checkout", id)
 	if err != nil {
 		return "", err
 	}
@@ -284,7 +315,7 @@ func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 	if localBranchExists {
 		remoteRef := fmt.Sprintf("%s/%s", containerUseRemote, id)
 
-		counts, err := runGitCommand(ctx, r.userRepoPath, "rev-list", "--left-right", "--count", fmt.Sprintf("HEAD...%s", remoteRef))
+		counts, err := RunGitCommand(ctx, r.userRepoPath, "rev-list", "--left-right", "--count", fmt.Sprintf("HEAD...%s", remoteRef))
 		if err != nil {
 			return branch, err
 		}
@@ -296,7 +327,7 @@ func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 		aheadCount, behindCount := parts[0], parts[1]
 
 		if behindCount != "0" && aheadCount == "0" {
-			_, err = runGitCommand(ctx, r.userRepoPath, "merge", "--ff-only", remoteRef)
+			_, err = RunGitCommand(ctx, r.userRepoPath, "merge", "--ff-only", remoteRef)
 			if err != nil {
 				return branch, err
 			}
