@@ -204,13 +204,13 @@ func configureGoose() error {
 	}
 	
 	// Add container-use extension
-	extensions["container-use"] = GooseExtension{
-		Name:    "container-use",
-		Type:    "stdio",
-		Enabled: true,
-		Cmd:     "cu",
-		Args:    []string{"stdio"},
-		Envs:    map[string]string{},
+	extensions["container-use"] = map[string]interface{}{
+		"name":    "container-use",
+		"type":    "stdio",
+		"enabled": true,
+		"cmd":     "cu",
+		"args":    []interface{}{"stdio"},
+		"envs":    map[string]interface{}{},
 	}
 	
 	// Write config back
