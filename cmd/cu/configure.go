@@ -31,15 +31,15 @@ type MCPServersConfig struct {
 }
 
 type MCPServer struct {
-	Command     string            `json:"command"`
-	Args        []string          `json:"args"`
-	Env         map[string]string `json:"env,omitempty"`
-	Timeout     *int              `json:"timeout,omitempty"`
-	Disabled    *bool             `json:"disabled,omitempty"`
-	AutoApprove []string          `json:"autoApprove,omitempty"`
-	AlwaysAllow []string          `json:"alwaysAllow,omitempty"`
-	WorkingDir  *string           `json:"working_directory,omitempty"`
-	StartOnLaunch *bool           `json:"start_on_launch,omitempty"`
+	Command       string            `json:"command"`
+	Args          []string          `json:"args"`
+	Env           map[string]string `json:"env,omitempty"`
+	Timeout       *int              `json:"timeout,omitempty"`
+	Disabled      *bool             `json:"disabled,omitempty"`
+	AutoApprove   []string          `json:"autoApprove,omitempty"`
+	AlwaysAllow   []string          `json:"alwaysAllow,omitempty"`
+	WorkingDir    *string           `json:"working_directory,omitempty"`
+	StartOnLaunch *bool             `json:"start_on_launch,omitempty"`
 }
 
 type VSCodeSettings struct {
@@ -92,8 +92,46 @@ var configureCmd = &cobra.Command{
 }
 
 func interactiveConfiguration() error {
-	// TODO: Implement interactive agent selection
-	return fmt.Errorf("interactive configuration not yet implemented")
+	fmt.Println("Select an agent to configure:")
+	fmt.Println("1. Claude Code")
+	fmt.Println("2. Goose")
+	fmt.Println("3. Cursor")
+	fmt.Println("4. VSCode / GitHub Copilot")
+	fmt.Println("5. Cline")
+	fmt.Println("6. Warp")
+	fmt.Println("7. Qodo Gen")
+	fmt.Println("8. Kilo Code")
+	fmt.Println("9. OpenAI Codex")
+	fmt.Println("10. Amazon Q Developer")
+	fmt.Println("Enter number (1-10):")
+	
+	var choice string
+	fmt.Scanln(&choice)
+	
+	switch choice {
+	case "1":
+		return configureClaude()
+	case "2":
+		return configureGoose()
+	case "3":
+		return configureCursor()
+	case "4":
+		return configureVSCode()
+	case "5":
+		return configureCline()
+	case "6":
+		return configureWarp()
+	case "7":
+		return configureQodo()
+	case "8":
+		return configureKilo()
+	case "9":
+		return configureCodex()
+	case "10":
+		return configureAmazonQ()
+	default:
+		return fmt.Errorf("invalid selection: %s", choice)
+	}
 }
 
 func configureClaude() error {
@@ -226,7 +264,7 @@ func configureVSCode() error {
 	fmt.Println(`            "args": ["stdio"]`)
 	fmt.Println(`        }`)
 	fmt.Println(`    }`)
-	fmt.Println(`}`))
+	fmt.Println(`}`)
 	return nil
 }
 
