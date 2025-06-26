@@ -128,6 +128,7 @@ type EnvironmentResponse struct {
 	RemoteRef       string                 `json:"remote_ref"`
 	CheckoutCommand string                 `json:"checkout_command_to_share_with_user"`
 	LogCommand      string                 `json:"log_command_to_share_with_user"`
+	DiffCommand     string                 `json:"diff_command_to_share_with_user"`
 	Services        []*environment.Service `json:"services,omitempty"`
 }
 
@@ -142,6 +143,7 @@ func marshalEnvironment(env *environment.Environment) (string, error) {
 		RemoteRef:       fmt.Sprintf("container-use/%s", env.ID),
 		CheckoutCommand: fmt.Sprintf("cu checkout %s", env.ID),
 		LogCommand:      fmt.Sprintf("cu log %s", env.ID),
+		DiffCommand:     fmt.Sprintf("cu diff %s", env.ID),
 		Services:        env.Services,
 	}
 	out, err := json.Marshal(resp)

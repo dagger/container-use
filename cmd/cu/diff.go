@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var logCmd = &cobra.Command{
-	Use:               "log <env>",
-	Short:             "Show the log for an environment",
+var diffCmd = &cobra.Command{
+	Use:               "diff <env>",
+	Short:             "Show changes between the environment and the local branch",
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	RunE: func(app *cobra.Command, args []string) error {
@@ -21,13 +21,10 @@ var logCmd = &cobra.Command{
 			return err
 		}
 
-		patch, _ := app.Flags().GetBool("patch")
-
-		return repo.Log(ctx, args[0], patch, os.Stdout)
+		return repo.Diff(ctx, args[0], os.Stdout)
 	},
 }
 
 func init() {
-	logCmd.Flags().BoolP("patch", "p", false, "Generate patch")
-	rootCmd.AddCommand(logCmd)
+	rootCmd.AddCommand(diffCmd)
 }

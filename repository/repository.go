@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -353,4 +354,61 @@ func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, e
 	}
 
 	return branch, err
+}
+
+func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	logArgs := []string{
+		"git",
+		"log",
+		fmt.Sprintf("--notes=%s", gitNotesLogRef),
+	}
+
+	if patch {
+		logArgs = append(logArgs, "--patch")
+	}
+
+	revisionRange, err := r.revisionRange(ctx, envInfo)
+	if err != nil {
+		return err
+	}
+
+	logArgs = append(logArgs, revisionRange)
+
+	cmd := exec.CommandContext(ctx, "git")
+	cmd.Dir = r.userRepoPath
+	cmd.Args = logArgs
+	cmd.Stdout = w
+
+	return cmd.Run()
+}
+
+func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	diffArgs := []string{
+		"git",
+		"diff",
+	}
+
+	revisionRange, err := r.revisionRange(ctx, envInfo)
+	if err != nil {
+		return err
+	}
+
+	diffArgs = append(diffArgs, revisionRange)
+
+	cmd := exec.CommandContext(ctx, "git")
+	cmd.Dir = r.userRepoPath
+	cmd.Args = diffArgs
+	cmd.Stdout = w
+
+	return cmd.Run()
 }

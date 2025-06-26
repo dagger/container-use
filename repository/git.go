@@ -235,6 +235,33 @@ func (r *Repository) addGitNote(ctx context.Context, env *environment.Environmen
 	return r.propagateGitNotes(ctx, gitNotesLogRef)
 }
 
+func (r *Repository) currentUserBranch(ctx context.Context) (string, error) {
+	return RunGitCommand(ctx, r.userRepoPath, "branch", "--show-current")
+}
+
+func (r *Repository) mergeBase(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
+	currentBranch, err := r.currentUserBranch(ctx)
+	if err != nil {
+		return "", err
+	}
+	currentBranch = strings.TrimSpace(currentBranch)
+	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
+	mergeBase, err := RunGitCommand(ctx, r.userRepoPath, "merge-base", currentBranch, envGitRef)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(mergeBase), nil
+}
+
+func (r *Repository) revisionRange(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
+	mergeBase, err := r.mergeBase(ctx, env)
+	if err != nil {
+		return "", err
+	}
+	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
+	return fmt.Sprintf("%s..%s", mergeBase, envGitRef), nil
+}
+
 func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, name, explanation string) error {
 	status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
