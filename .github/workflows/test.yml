@@ -15,16 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run unit tests
+      - name: Run tests
         uses: dagger/dagger-for-github@8.0.0
         with:
           version: "latest"
           verb: call
-          args: test-environment --verbose
-
-      - name: Run integration tests
-        uses: dagger/dagger-for-github@8.0.0
-        with:
-          version: "latest"
-          verb: call
-          args: test-environment --verbose --integration
+          args: test --verbose
