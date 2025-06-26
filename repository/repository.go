@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -30,22 +31,14 @@ type Repository struct {
 	basePath     string // defaults to ~/.config/container-use if empty
 }
 
-// getBasePath returns the base path for container-use data, using the default if not set
-func (r *Repository) getBasePath() string {
-	if r.basePath != "" {
-		return r.basePath
-	}
-	return cuGlobalConfigPath
-}
-
 // getRepoPath returns the path for storing repository data
 func (r *Repository) getRepoPath() string {
-	return r.getBasePath() + "/repos"
+	return filepath.Join(r.basePath, "repos")
 }
 
 // getWorktreePath returns the path for storing worktrees
 func (r *Repository) getWorktreePath() string {
-	return r.getBasePath() + "/worktrees"
+	return filepath.Join(r.basePath, "worktrees")
 }
 
 func Open(ctx context.Context, repo string) (*Repository, error) {
