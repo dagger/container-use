@@ -1,1 +1,1 @@
-Go development environment for implementing cu configure command. Has go, git, and standard development tools. Use 'go run cmd/cu/main.go' to test the CLI.
+Go 1.24 development environment for implementing cu configure command. Has go, git, and standard development tools. Use 'go run cmd/cu/main.go' to test the CLI.

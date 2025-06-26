@@ -1,6 +1,6 @@
 {
   "workdir": "/workdir",
-  "base_image": "golang:1.23-alpine",
+  "base_image": "golang:1.24-alpine",
   "setup_commands": [
     "apk add --no-cache git bash"
   ]
