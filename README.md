@@ -35,17 +35,13 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ## Install
 
-### macOS (Homebrew - Recommended)
+### Homebrew (Recommended for MacOS)
 
 ```sh
 brew install dagger/tap/container-use
 ```
 
-(Optional) Install shell completions:
-
-```sh
-cu completion bash > $(brew --prefix)/etc/bash_completion.d/container-use
-```
+Our tap should install shell completions for you.
 
 ### All Platforms (Shell Script)
 
@@ -53,13 +49,7 @@ cu completion bash > $(brew --prefix)/etc/bash_completion.d/container-use
 curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
 ```
 
-This will check for Docker & Git (required), detect your platform, and install the latest `cu` binary to your `$PATH`.
-
-(Optional) Install shell completions:
-
-```sh
-cu completion bash > /etc/bash_completion.d/container-use
-```
+This will check for Docker & Git (required), detect your platform, install the latest `cu` binary to your `$PATH`, and provide completion installation instructions.
 
 For building from source, see [CONTRIBUTING.md](CONTRIBUTING.md#building).
 

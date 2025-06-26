@@ -127,6 +127,18 @@ get_latest_version() {
     curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
 }
 
+# Show shell completion setup instructions
+show_completion_instructions() {
+    local binary="$1"
+
+    log_info "To enable shell completions, run:"
+    echo "  Bash (with bash-completion): $binary completion bash > ~/.local/share/bash-completion/completions/cu"
+    echo "  Bash (unconfigured): echo 'source <($binary completion bash)' >> ~/.bashrc"
+    echo "  Zsh (with compinit and a writable fpath[1]):  $binary completion zsh > \"\${fpath[1]}/_cu\""
+    echo "  Zsh (unconfigured):  echo 'source <($binary completion bash)' >> ~/.zshrc"
+    echo "  Fish: $binary completion fish > ~/.config/fish/completions/cu.fish"
+}
+
 # Verify checksum of downloaded file
 verify_checksum() {
     local archive_file="$1"
@@ -280,6 +292,9 @@ main() {
     # Verify installation
     if [ -x "$INSTALL_DIR/$BINARY_NAME" ]; then
         log_success "Installation complete!"
+
+        # Show shell completion instructions
+        show_completion_instructions "$BINARY_NAME"
 
         # Check if the correct cu command is being found in PATH
         local found_binary=$(command -v "$BINARY_NAME" 2>/dev/null || echo "")
