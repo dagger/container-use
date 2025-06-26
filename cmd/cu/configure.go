@@ -10,7 +10,7 @@ import (
 var configureCmd = &cobra.Command{
 	Use:   "configure [agent]",
 	Short: "Configure MCP server for different agents",
-	Long:  `Setup the container-use MCP server according to the specified agent including Claude Code, Goose, Cursor, and others.`
+	Long:  `Setup the container-use MCP server according to the specified agent including Claude Code, Goose, Cursor, and others.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
 			return interactiveConfiguration()
