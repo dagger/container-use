@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"encoding/json"
 	"github.com/spf13/cobra"
 )
 
@@ -32,34 +31,34 @@ var configureCmd = &cobra.Command{
 
 func interactiveConfiguration() error {
 	// Implement interactive agent selection
-	return nil
+	return fmt.Errorf("interactive configuration not yet implemented")
 }
 
 func configureClaude() error {
 	// Implement Claude configuration
-	cmd := "npm install -g @anthropic-ai/claude-code; cd /path/to/repository; claude mcp add container-use -- <full path to cu command> stdio; curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md"
+	_ = "npm install -g @anthropic-ai/claude-code; cd /path/to/repository; claude mcp add container-use -- <full path to cu command> stdio; curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md"
 	// Execute commands as needed
-	return nil
+	return fmt.Errorf("claude configuration not yet implemented")
 }
 
 func configureGoose() error {
 	// Implement Goose configuration
-	configPath := os.Getenv("HOME") + "/.config/goose/config.yaml"
+	_ = os.Getenv("HOME") + "/.config/goose/config.yaml"
 	// ... existing implementation ...
-	return nil
+	return fmt.Errorf("goose configuration not yet implemented")
 }
 
 func configureCursor() error {
 	// Implement Cursor configuration
-	curlCmd := "curl --create-dirs -o .cursor/rules/container-use.mdc 'https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc'"
+	_ = "curl --create-dirs -o .cursor/rules/container-use.mdc 'https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc'"
 	// Execute commands as needed
-	return nil
+	return fmt.Errorf("cursor configuration not yet implemented")
 }
 
 func configureWarp() error {
 	// Implement Warp configuration
 	// ... existing implementation ...
-	return nil
+	return fmt.Errorf("warp configuration not yet implemented")
 }
 
 func init() {
