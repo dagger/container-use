@@ -1,1 +1,1 @@
-No instructions found. Please look around the filesystem and update me
+Go development environment for implementing cu configure command. Has go, git, and standard development tools. Use 'go run cmd/cu/main.go' to test the CLI.

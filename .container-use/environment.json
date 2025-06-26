@@ -1,4 +1,7 @@
 {
   "workdir": "/workdir",
-  "base_image": "ubuntu:24.04"
+  "base_image": "golang:1.23-alpine",
+  "setup_commands": [
+    "apk add --no-cache git bash"
+  ]
 }
