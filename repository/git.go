@@ -132,6 +132,11 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 		return "", fmt.Errorf("failed to apply uncommitted changes: %w", err)
 	}
 
+	// Initialize empty git notes refs to ensure they exist for propagation
+	if err := r.initializeGitNotesRefs(ctx, worktreePath); err != nil {
+		return "", fmt.Errorf("failed to initialize git notes refs: %w", err)
+	}
+
 	_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
 	if err != nil {
 		return "", err
@@ -177,6 +182,16 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 	return nil
 }
 
+func (r *Repository) initializeGitNotesRefs(ctx context.Context, worktreePath string) error {
+	// Create empty git notes refs if they don't exist
+	// This ensures propagateGitNotes won't fail on first run
+	for _, ref := range []string{gitNotesStateRef, gitNotesLogRef} {
+		// Try to create empty notes ref - this will fail silently if notes already exist
+		RunGitCommand(ctx, worktreePath, "notes", "--ref", ref, "add", "-m", "initialized", "HEAD")
+	}
+	return nil
+}
+
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 	fullRef := fmt.Sprintf("refs/notes/%s", ref)
 	fetch := func() error {
@@ -189,10 +204,6 @@ func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 			if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
 				return fetch()
 			}
-		}
-		// Handle case where the notes reference doesn't exist yet (normal for new repositories)
-		if strings.Contains(err.Error(), "couldn't find remote ref") {
-			return nil
 		}
 		return err
 	}
