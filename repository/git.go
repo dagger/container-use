@@ -190,6 +190,10 @@ func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 				return fetch()
 			}
 		}
+		// Handle case where the notes reference doesn't exist yet (normal for new repositories)
+		if strings.Contains(err.Error(), "couldn't find remote ref") {
+			return nil
+		}
 		return err
 	}
 	return nil
