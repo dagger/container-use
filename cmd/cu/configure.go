@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -55,16 +54,6 @@ type VSCodeMCPServer struct {
 	Type    string   `json:"type"`
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
-}
-
-type CodexConfig struct {
-	MCPServers map[string]CodexMCPServer `toml:"mcp_servers"`
-}
-
-type CodexMCPServer struct {
-	Command string            `toml:"command"`
-	Args    []string          `toml:"args"`
-	Env     map[string]string `toml:"env"`
 }
 
 var configureCmd = &cobra.Command{
@@ -341,51 +330,13 @@ func configureKilo() error {
 
 func configureCodex() error {
 	fmt.Println("Configuring OpenAI Codex...")
-	
-	configPath := filepath.Join(os.Getenv("HOME"), ".codex", "config.toml")
-	
-	// Create directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-	
-	// Read existing config or create new
-	var config CodexConfig
-	if data, err := os.ReadFile(configPath); err == nil {
-		if _, err := toml.Decode(string(data), &config); err != nil {
-			return fmt.Errorf("failed to parse existing config: %w", err)
-		}
-	}
-	
-	// Initialize mcp_servers map if nil
-	if config.MCPServers == nil {
-		config.MCPServers = make(map[string]CodexMCPServer)
-	}
-	
-	// Check if container-use already exists
-	if _, exists := config.MCPServers["container-use"]; exists {
-		fmt.Println("✓ container-use already configured in Codex")
-		return nil
-	}
-	
-	// Add container-use server
-	config.MCPServers["container-use"] = CodexMCPServer{
-		Command: "cu",
-		Args:    []string{"stdio"},
-		Env:     map[string]string{},
-	}
-	
-	// Write config back
-	var buf strings.Builder
-	if err := toml.NewEncoder(&buf).Encode(config); err != nil {
-		return fmt.Errorf("failed to encode config: %w", err)
-	}
-	
-	if err := os.WriteFile(configPath, []byte(buf.String()), 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
-	}
-	
-	fmt.Printf("✓ Added container-use server to %s\n", configPath)
+	fmt.Println("Please add the following to your ~/.codex/config.toml:")
+	fmt.Println()
+	fmt.Println("[mcp_servers.container-use]")
+	fmt.Println("command = \"cu\"")
+	fmt.Println("args = [\"stdio\"]")
+	fmt.Println("env = {}")
+	fmt.Println()
 	fmt.Println("OpenAI Codex configuration complete!")
 	return nil
 }
