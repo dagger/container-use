@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"strings"
@@ -124,5 +125,74 @@ func TestRepositoryCheckout(t *testing.T) {
 		actualBranch := strings.TrimSpace(currentBranch)
 		assert.True(t, actualBranch == env.ID || actualBranch == "cu-"+env.ID,
 			"Expected branch to be %s or cu-%s, got %s", env.ID, env.ID, actualBranch)
+	})
+}
+
+// TestRepositoryLog tests retrieving commit history for an environment
+func TestRepositoryLog(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-log", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create an environment and add some commits
+		env := user.CreateEnvironment("Test Log", "Testing repository log")
+		user.FileWrite(env.ID, "file1.txt", "initial content", "Initial commit")
+		user.FileWrite(env.ID, "file1.txt", "updated content", "Update file")
+		user.FileWrite(env.ID, "file2.txt", "new file", "Add second file")
+
+		// Get commit log without patches
+		var logBuf bytes.Buffer
+		err := repo.Log(ctx, env.ID, false, &logBuf)
+		require.NoError(t, err)
+		logOutput := logBuf.String()
+
+		// Verify commit messages are present
+		assert.Contains(t, logOutput, "Add second file")
+		assert.Contains(t, logOutput, "Update file")
+		assert.Contains(t, logOutput, "Initial commit")
+
+		// Get commit log with patches
+		logBuf.Reset()
+		err = repo.Log(ctx, env.ID, true, &logBuf)
+		require.NoError(t, err)
+		logWithPatchOutput := logBuf.String()
+
+		// Verify patch information is included
+		assert.Contains(t, logWithPatchOutput, "diff --git")
+		assert.Contains(t, logWithPatchOutput, "+updated content")
+
+		// Test log for non-existent environment
+		err = repo.Log(ctx, "non-existent-env", false, &logBuf)
+		assert.Error(t, err)
+	})
+}
+
+// TestRepositoryDiff tests retrieving changes between commits
+func TestRepositoryDiff(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-diff", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create an environment and make some changes
+		env := user.CreateEnvironment("Test Diff", "Testing repository diff")
+
+		// First commit - add a file
+		user.FileWrite(env.ID, "test.txt", "initial content\n", "Initial commit")
+
+		// Make changes to the file
+		user.FileWrite(env.ID, "test.txt", "initial content\nupdated content\n", "Update file")
+
+		// Get diff output
+		var diffBuf bytes.Buffer
+		err := repo.Diff(ctx, env.ID, &diffBuf)
+		require.NoError(t, err)
+		diffOutput := diffBuf.String()
+
+		// Verify diff contains expected changes
+		assert.Contains(t, diffOutput, "+updated content")
+
+		// Test diff with non-existent environment
+		err = repo.Diff(ctx, "non-existent-env", &diffBuf)
+		assert.Error(t, err)
 	})
 }
