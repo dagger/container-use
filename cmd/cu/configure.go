@@ -12,10 +12,6 @@ import (
 )
 
 // Configuration structures for different agents
-type GooseConfig struct {
-	Extensions map[string]GooseExtension `yaml:"extensions"`
-}
-
 type GooseExtension struct {
 	Name    string            `yaml:"name"`
 	Type    string            `yaml:"type"`
@@ -183,26 +179,32 @@ func configureGoose() error {
 	}
 	
 	// Read existing config or create new
-	var config GooseConfig
+	var config map[string]interface{}
 	if data, err := os.ReadFile(configPath); err == nil {
 		if err := yaml.Unmarshal(data, &config); err != nil {
 			return fmt.Errorf("failed to parse existing config: %w", err)
 		}
+	} else {
+		config = make(map[string]interface{})
 	}
 	
-	// Initialize extensions map if nil
-	if config.Extensions == nil {
-		config.Extensions = make(map[string]GooseExtension)
+	// Get extensions map
+	var extensions map[string]interface{}
+	if ext, ok := config["extensions"]; ok {
+		extensions = ext.(map[string]interface{})
+	} else {
+		extensions = make(map[string]interface{})
+		config["extensions"] = extensions
 	}
 	
 	// Check if container-use already exists
-	if _, exists := config.Extensions["container-use"]; exists {
+	if _, exists := extensions["container-use"]; exists {
 		fmt.Println("✓ container-use already configured in Goose")
 		return nil
 	}
 	
 	// Add container-use extension
-	config.Extensions["container-use"] = GooseExtension{
+	extensions["container-use"] = GooseExtension{
 		Name:    "container-use",
 		Type:    "stdio",
 		Enabled: true,
