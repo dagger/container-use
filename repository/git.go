@@ -132,11 +132,6 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 		return "", fmt.Errorf("failed to apply uncommitted changes: %w", err)
 	}
 
-	// Initialize empty git notes refs to ensure they exist for propagation
-	if err := r.initializeGitNotesRefs(ctx, worktreePath); err != nil {
-		return "", fmt.Errorf("failed to initialize git notes refs: %w", err)
-	}
-
 	_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
 	if err != nil {
 		return "", err
@@ -179,16 +174,6 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
-	return nil
-}
-
-func (r *Repository) initializeGitNotesRefs(ctx context.Context, worktreePath string) error {
-	// Create empty git notes refs if they don't exist
-	// This ensures propagateGitNotes won't fail on first run
-	for _, ref := range []string{gitNotesStateRef, gitNotesLogRef} {
-		// Try to create empty notes ref - this will fail silently if notes already exist
-		RunGitCommand(ctx, worktreePath, "notes", "--ref", ref, "add", "-m", "initialized", "HEAD")
-	}
 	return nil
 }
 
