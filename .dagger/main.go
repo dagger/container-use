@@ -68,8 +68,11 @@ func (m *ContainerUse) Test(ctx context.Context,
 	ctr := dag.Go(m.Source).
 		Base().
 		WithMountedDirectory("/src", m.Source).
-		WithWorkdir("/src")
-	
+		WithWorkdir("/src").
+		// Configure git for tests
+		WithExec([]string{"git", "config", "--global", "user.email", "test@example.com"}).
+		WithExec([]string{"git", "config", "--global", "user.name", "Test User"})
+
 	args := []string{"go", "test"}
 	if verboseOutput {
 		args = append(args, "-v")
@@ -78,8 +81,8 @@ func (m *ContainerUse) Test(ctx context.Context,
 		args = append(args, "-short")
 	}
 	args = append(args, pkg)
-	
+
 	return ctr.
-		WithExec(args).
+		WithExec(args, dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true}).
 		Stdout(ctx)
 }
