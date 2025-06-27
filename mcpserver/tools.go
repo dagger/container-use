@@ -16,12 +16,6 @@ import (
 )
 
 func openRepository(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, error) {
-	// Check if a test repository is provided in context
-	if repo, ok := ctx.Value("test_repository").(*repository.Repository); ok {
-		return repo, nil
-	}
-
-	// Normal production path
 	source, err := request.RequireString("environment_source")
 	if err != nil {
 		return nil, err
