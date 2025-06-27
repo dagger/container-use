@@ -16,6 +16,12 @@ import (
 )
 
 func openRepository(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, error) {
+	// Check if a test repository is provided in context
+	if repo, ok := ctx.Value("test_repository").(*repository.Repository); ok {
+		return repo, nil
+	}
+
+	// Normal production path
 	source, err := request.RequireString("environment_source")
 	if err != nil {
 		return nil, err
@@ -68,6 +74,16 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
 }
 
 var tools = []*Tool{}
+
+// GetToolByName finds a tool by its name
+func GetToolByName(name string) *Tool {
+	for _, t := range tools {
+		if t.Definition.Name == name {
+			return t
+		}
+	}
+	return nil
+}
 
 func registerTool(tool ...*Tool) {
 	for _, t := range tool {
