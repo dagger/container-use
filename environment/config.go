@@ -29,7 +29,7 @@ type EnvironmentConfig struct {
 	BaseImage     string         `json:"base_image,omitempty"`
 	SetupCommands []string       `json:"setup_commands,omitempty"`
 	Env           []string       `json:"env,omitempty"`
-	Secrets       []string       `json:"secrets,omitempty"`
+	Secrets       Secrets        `json:"secrets,omitempty"`
 	Services      ServiceConfigs `json:"services,omitempty"`
 }
 
