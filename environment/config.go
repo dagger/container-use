@@ -17,9 +17,9 @@ const (
 
 func DefaultConfig() *EnvironmentConfig {
 	return &EnvironmentConfig{
-		BaseImage:    defaultImage,
-		Instructions: "No instructions found. Please look around the filesystem and update me",
-		Workdir:      "/workdir",
+		BaseImage: defaultImage,
+		// Instructions: "No instructions found. Please look around the filesystem and update me",
+		Workdir: "/workdir",
 	}
 }
 
