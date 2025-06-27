@@ -154,8 +154,8 @@ func TestRepositoryLog(t *testing.T) {
 		// Get commit log with patches
 		logBuf.Reset()
 		err = repo.Log(ctx, env.ID, true, &logBuf)
-		require.NoError(t, err)
 		logWithPatchOutput := logBuf.String()
+		require.NoError(t, err, logWithPatchOutput)
 
 		// Verify patch information is included
 		assert.Contains(t, logWithPatchOutput, "diff --git")
