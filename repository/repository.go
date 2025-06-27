@@ -383,6 +383,7 @@ func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer
 	cmd.Dir = r.userRepoPath
 	cmd.Args = logArgs
 	cmd.Stdout = w
+	cmd.Stderr = w
 
 	return cmd.Run()
 }
@@ -409,6 +410,7 @@ func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
 	cmd.Dir = r.userRepoPath
 	cmd.Args = diffArgs
 	cmd.Stdout = w
+	cmd.Stderr = w
 
 	return cmd.Run()
 }
