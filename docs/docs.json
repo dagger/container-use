@@ -1,0 +1,70 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Container Use",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373"
+  },
+  "favicon": "/images/container-use.png",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "agent-integrations"
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/dagger/container-use",
+          "icon": "github"
+        },
+        {
+          "anchor": "Discord",
+          "href": "https://discord.gg/YXbtwRQv",
+          "icon": "discord"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/images/container-use.png",
+    "dark": "/images/container-use.png"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "https://discord.gg/YXbtwRQv"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/dagger/container-use"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/dagger/container-use",
+      "discord": "https://discord.gg/YXbtwRQv"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./_assets/container-use.png" align="center" alt="Container use: Development environments for coding agents." />
+  <img src="./docs/images/container-use.png" align="center" alt="Container use: Development environments for coding agents." />
   <h1 align="center">container-use</h2>
   <p align="center">Containerized environments for coding agents. (📦🤖) (📦🤖) (📦🤖)</p>
   <p align="center">
@@ -16,7 +16,7 @@
 **Container Use** lets each of your coding agents have their own containerized environment. Go from babysitting one agent at a time to enabling multiple agents to work safely and independently with your preferred stack. Check out the [Container Use playlist](https://www.youtube.com/playlist?list=PLyHqb4A5ee1u5LrsbalfVkBRsrbjDsnN5) to see examples of how others are using it.
 
 <p align='center'>
-    <img src='./_assets/demo.gif' width='700' alt='container-use demo'>
+    <img src='./docs/images/demo.gif' width='700' alt='container-use demo'>
 </p>
 
 It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor, and other MCP-compatible agents.

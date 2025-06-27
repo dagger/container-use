@@ -1,0 +1,369 @@
+---
+title: Agents
+description: "Complete setup guides for all supported coding agents. Configure Container Use with Claude Code, Cursor, VSCode, Goose, and more."
+icon: robot
+---
+
+## Overview
+
+Container Use works with any coding agent that supports the Model Context Protocol (MCP). This page provides comprehensive setup guides for all supported agents.
+
+<Note>All agents use the same MCP server command: `cu stdio`</Note>
+
+## Claude Code
+
+### Install Claude Code
+
+```sh
+npm install -g @anthropic-ai/claude-code
+```
+
+### Add MCP Configuration
+
+```sh
+cd /path/to/repository
+claude mcp add container-use -- <full path to cu command> stdio
+```
+
+### Add Agent Rules (Optional)
+
+Save the CLAUDE.md file at the root of your repository:
+
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
+```
+
+### Trust Only Container Use Tools (Optional)
+
+For maximum security, restrict Claude Code to only use Container Use tools:
+
+```sh
+claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_create,mcp__container-use__environment_add_service,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update
+```
+
+<Info>
+  Learn more: [Claude Code MCP
+  Documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
+</Info>
+
+## Amazon Q Developer
+
+### Add MCP Configuration
+
+Add this configuration to `~/.aws/amazonq/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"],
+      "env": {},
+      "timeout": 60000
+    }
+  }
+}
+```
+
+### Add Agent Rules
+
+Save agent instructions to your project root:
+
+```sh
+mkdir -p ./.amazonq/rules && curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md > .amazonq/rules/container-use.md
+```
+
+### Trust Only Container Use Tools (Optional)
+
+```sh
+q chat --trust-tools=container_use___environment_checkpoint,container_use___environment_file_delete,container_use___environment_file_list,container_use___environment_file_read,container_use___environment_file_write,container_use___environment_open,container_use___environment_run_cmd,container_use___environment_update
+```
+
+<Card title="Video Tutorial" icon="youtube" href="https://youtu.be/C2g3vdbffOI">
+  Watch the Amazon Q Developer setup walkthrough
+</Card>
+
+## Cursor
+
+### Install MCP Server
+
+Use the one-click deeplink to install (requires Cursor and Container Use already installed):
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY3Ugc3RkaW8ifQ%3D%3D)
+
+### Add Agent Rules
+
+Add the rules file to your project or home directory:
+
+```sh
+curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc
+```
+
+<Info>
+  Learn more: [Cursor MCP
+  Documentation](https://docs.cursor.com/context/model-context-protocol)
+</Info>
+
+## VSCode / GitHub Copilot
+
+### Configure MCP Server
+
+Update your VSCode settings with:
+
+```json
+"mcp": {
+  "servers": {
+    "container-use": {
+      "type": "stdio",
+      "command": "cu",
+      "args": ["stdio"]
+    }
+  }
+}
+```
+
+### Add Copilot Instructions (Optional)
+
+```sh
+curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+```
+
+<Card title="Video Tutorial" icon="youtube" href="https://youtu.be/Nz2sOef0gW0">
+  Watch the VSCode setup walkthrough
+</Card>
+
+<Info>
+  Learn more: [VSCode
+  MCP](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) | [GitHub
+  Copilot
+  MCP](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-chat-with-mcp)
+</Info>
+
+## Goose
+
+### Method 1: Configuration File
+
+Add to `~/.config/goose/config.yaml`:
+
+```yaml
+extensions:
+  container-use:
+    name: container-use
+    type: stdio
+    enabled: true
+    cmd: cu
+    args:
+      - stdio
+    envs: {}
+```
+
+### Method 2: Interactive Setup
+
+```sh
+goose configure
+```
+
+Then add a command line extension with `cu stdio` as the command.
+
+### Method 3: Goose Desktop
+
+Paste this URL into your browser:
+
+```
+goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments
+```
+
+<Info>
+  Learn more: [Goose MCP
+  Extensions](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
+</Info>
+
+## Cline
+
+### Add MCP Configuration
+
+Add to your Cline MCP server configuration JSON:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "disabled": false,
+      "timeout": 60000,
+      "type": "stdio",
+      "command": "cu",
+      "args": ["stdio"],
+      "env": {},
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### Add Agent Rules
+
+```sh
+curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+```
+
+<Info>Learn more: [Cline Documentation](https://cline.bot/)</Info>
+
+## Qodo Gen
+
+### Setup Steps
+
+1. Open Qodo Gen chat panel in VSCode or IntelliJ
+2. Click "Connect more tools"
+3. Click "+ Add new MCP"
+4. Add this configuration:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"]
+    }
+  }
+}
+```
+
+<Info>
+  Learn more: [Qodo Gen MCP
+  Documentation](https://docs.qodo.ai/qodo-documentation/qodo-gen/qodo-gen-chat/agentic-mode/agentic-tools-mcps)
+</Info>
+
+## Kilo Code
+
+### Add MCP Configuration
+
+Add at global or project level:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "replace with pathname of cu",
+      "args": ["stdio"],
+      "env": {},
+      "alwaysAllow": [],
+      "disabled": false
+    }
+  }
+}
+```
+
+<Info>
+  Kilo Code allows setting MCP servers at the global or project level. Learn
+  more: [Kilo Code MCP
+  Documentation](https://kilocode.ai/docs/features/mcp/using-mcp-in-kilo-code)
+</Info>
+
+## OpenAI Codex
+
+### Add MCP Configuration
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.container-use]
+command = "cu"
+args = ["stdio"]
+env = {}
+```
+
+<Info>
+  Learn more: [OpenAI Codex
+  Documentation](https://github.com/openai/codex/tree/main/codex-rs)
+</Info>
+
+## Warp
+
+### Add MCP Configuration
+
+In the Warp sidebar, under Personal → MCP Servers → New:
+
+```json
+{
+  "container-use": {
+    "command": "cu",
+    "args": ["stdio"],
+    "env": {},
+    "working_directory": null,
+    "start_on_launch": true
+  }
+}
+```
+
+<Info>Warp 2.0 introduces coding agents with MCP support.</Info>
+
+## Gemini CLI
+
+### Add MCP Configuration
+
+Add to `~/.gemini/settings.json` or `.gemini/settings.json`:
+
+```json
+{
+  "coreTools": [],
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"],
+      "timeout": 60000,
+      "trust": true
+    }
+  }
+}
+```
+
+<Info>
+  Learn more: [Gemini CLI
+  Configuration](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/configuration.md)
+</Info>
+
+## Verification
+
+After setting up your agent, verify Container Use is working:
+
+1. **Check MCP Connection**: Your agent should recognize Container Use tools
+2. **Test Environment Creation**: Ask your agent to create a new environment
+3. **Verify Isolation**: Multiple environments should work independently
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent doesn't recognize Container Use">
+    - Verify the `cu` command is in your PATH: `which cu`
+    - Check MCP configuration syntax
+    - Restart your agent after configuration changes
+  </Accordion>
+
+{" "}
+
+<Accordion title="Permission errors">
+  - Ensure Docker is running and accessible - Check file permissions for
+  configuration files - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+</Accordion>
+
+  <Accordion title="Tools not appearing">
+    - Some agents require explicit tool trust/approval
+    - Check your agent's MCP server logs
+    - Verify Container Use tools are enabled in agent settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Back to Quickstart" icon="rocket" href="/quickstart">
+    Return to the quickstart guide to create your first environment
+  </Card>
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
+    Get help and share experiences in #container-use
+  </Card>
+</CardGroup>
