@@ -474,7 +474,7 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 				return resp, nil
 			}
 			if runErr != nil {
-				return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
+				return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
 			}
 
 			out, err := json.Marshal(endpoints)
