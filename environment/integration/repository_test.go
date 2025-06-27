@@ -143,8 +143,8 @@ func TestRepositoryLog(t *testing.T) {
 		// Get commit log without patches
 		var logBuf bytes.Buffer
 		err := repo.Log(ctx, env.ID, false, &logBuf)
-		require.NoError(t, err)
 		logOutput := logBuf.String()
+		require.NoError(t, err, logOutput)
 
 		// Verify commit messages are present
 		assert.Contains(t, logOutput, "Add second file")
