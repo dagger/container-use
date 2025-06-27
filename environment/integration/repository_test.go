@@ -185,8 +185,8 @@ func TestRepositoryDiff(t *testing.T) {
 		// Get diff output
 		var diffBuf bytes.Buffer
 		err := repo.Diff(ctx, env.ID, &diffBuf)
-		require.NoError(t, err)
 		diffOutput := diffBuf.String()
+		require.NoError(t, err, diffOutput)
 
 		// Verify diff contains expected changes
 		assert.Contains(t, diffOutput, "+updated content")
