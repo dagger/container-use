@@ -75,13 +75,16 @@ func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*
 		if errors.As(err, &exitErr) {
 			return nil, fmt.Errorf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
 		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("service failed to start within %s timeout", serviceStartTimeout)
+		}
 		return nil, err
 	}
 
 	endpoints := EndpointMappings{}
 	for _, port := range cfg.ExposedPorts {
 		endpoint := &EndpointMapping{
-			EnvironmentInternal: fmt.Sprintf("%s:%d", cfg.Name, port),
+			EnvironmentInternal: fmt.Sprintf("tcp://%s:%d", cfg.Name, port),
 		}
 		endpoints[port] = endpoint
 
@@ -99,7 +102,9 @@ func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*
 			return nil, err
 		}
 
-		externalEndpoint, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{})
+		externalEndpoint, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{
+			Scheme: "tcp",
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get endpoint for service %s: %w", cfg.Name, err)
 		}

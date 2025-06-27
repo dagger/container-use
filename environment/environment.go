@@ -312,6 +312,9 @@ func (env *Environment) RunBackground(ctx context.Context, command, shell string
 		if errors.As(err, &exitErr) {
 			return nil, fmt.Errorf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
 		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("service failed to start within %s timeout", serviceStartTimeout)
+		}
 		return nil, err
 	}
 
@@ -335,14 +338,17 @@ func (env *Environment) RunBackground(ctx context.Context, command, shell string
 			return nil, err
 		}
 
-		externalEndpoint, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{})
+		externalEndpoint, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{
+			Scheme: "tcp",
+		})
 		if err != nil {
 			return nil, err
 		}
 		endpoint.HostExternal = externalEndpoint
 
 		internalEndpoint, err := svc.Endpoint(ctx, dagger.ServiceEndpointOpts{
-			Port: port,
+			Port:   port,
+			Scheme: "tcp",
 		})
 		if err != nil {
 			return nil, err

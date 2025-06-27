@@ -412,7 +412,7 @@ var EnvironmentListTool = &Tool{
 
 var EnvironmentRunCmdTool = &Tool{
 	Definition: mcp.NewTool("environment_run_cmd",
-		mcp.WithDescription("Run a terminal command inside the environment."),
+		mcp.WithDescription("Run a terminal command inside a NEW container within the environment."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this command is being run."),
 		),
@@ -482,7 +482,9 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 				return nil, err
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf(`Command started in the background. Endpoints are %s
+			return mcp.NewToolResultText(fmt.Sprintf(`Command started in the background in NEW container. Endpoints are %s
+
+To access from the user's machine: use host_external. To access from other commands in this environment: use environment_internal.
 
 Any changes to the container workdir (%s) WILL NOT be committed to container-use/%s
 
@@ -744,7 +746,7 @@ var EnvironmentAddServiceTool = &Tool{
 			mcp.Description("The command to start the service. If not provided the image default command will be used."),
 		),
 		mcp.WithArray("ports",
-			mcp.Description("Ports to expose. For each port, returns the environment_internal (for use by environments) and external (for use by the user) address."),
+			mcp.Description("Ports to expose. For each port, returns the container_internal (for use by environments) and host_external (for use by the user) address."),
 			mcp.Items(map[string]any{"type": "number"}),
 		),
 		mcp.WithArray("envs",
