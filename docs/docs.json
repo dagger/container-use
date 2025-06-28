@@ -19,7 +19,13 @@
               "introduction",
               "quickstart"
             ]
-          },
+        },
+        {
+          "group": "Guides",
+          "pages": [
+            "managing-environments"
+          ]
+        },
           {
             "group": "Integrations",
             "pages": [
