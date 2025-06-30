@@ -22,3 +22,5 @@ PROJECT STRUCTURE:
 - .dagger/: Dagger module configuration
 
 The project uses Dagger for build automation and includes both unit and integration tests. It's designed to work with MCP-compatible agents like Claude Code and Cursor.
+
+NOTE: CGO is disabled by default for better portability and simpler builds. The project builds fine as a static binary.

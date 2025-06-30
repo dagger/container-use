@@ -7,6 +7,6 @@
     "cd /tmp \u0026\u0026 curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.11 sh \u0026\u0026 cp ./bin/dagger /usr/local/bin/dagger"
   ],
   "env": [
-    "CGO_ENABLED=1"
+    "CGO_ENABLED=0"
   ]
 }
