@@ -177,6 +177,31 @@ Once the MCP server is running, you can optionally update the instructions for c
 curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
 ```
 
+### [Zed](https://zed.dev/)
+
+First add the agent rules file, either as `.rules` in the root of your project or as one of the [other acceptable files/locations](https://zed.dev/docs/ai/rules?highlight=agent.md#rules-files). 
+
+```sh
+curl -o .rules https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+```
+
+Then configure the Container Use MCP server in the Zed `settings.json`. Provide the absolute path to the `cu` executable:
+
+```json
+"context_servers": {
+  "container-use": {
+    "source": "custom",
+    "command": {
+      "path": "/opt/homebrew/bin/cu",
+      "args": ["stdio"],
+      "env": {}
+    }
+  }
+}
+```
+
+Next open the Zed Agent Panel ✨ in the lower right and prompt away!
+
 ### [Cline](https://cline.bot/)
 
 Add the following to your Cline MCP server configuration JSON:
