@@ -1,4 +1,14 @@
 {
   "workdir": "/workdir",
-  "base_image": "ubuntu:24.04"
+  "base_image": "golang:1.24-bullseye",
+  "setup_commands": [
+    "apt-get update \u0026\u0026 apt-get install -y curl git build-essential",
+    "curl -fsSL https://get.docker.com | sh",
+    "cd /tmp \u0026\u0026 curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.11 sh \u0026\u0026 cp ./bin/dagger /usr/local/bin/dagger"
+  ],
+  "env": [
+    "CGO_ENABLED=1",
+    "GOOS=linux",
+    "GOARCH=amd64"
+  ]
 }
