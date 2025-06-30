@@ -46,14 +46,15 @@ func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "cu",
-		Short: "Container Use",
-		Long:  `MCP server to add container superpowers to your AI agent.`,
+		Short: "Containerized environments for coding agents",
+		Long: `Container Use creates isolated development environments for AI agents.
+Each environment runs in its own container with dedicated git branches.`,
 	}
 
 	stdioCmd = &cobra.Command{
 		Use:   "stdio",
-		Short: "Start stdio server",
-		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
+		Short: "Start MCP server for agent integration",
+		Long:  `Start the Model Context Protocol server that enables AI agents to create and manage containerized environments. This is typically used by agents like Claude Code, Cursor, or VSCode.`,
 		RunE: func(app *cobra.Command, _ []string) error {
 			ctx := app.Context()
 

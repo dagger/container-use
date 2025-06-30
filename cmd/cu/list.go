@@ -12,8 +12,9 @@ import (
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List environments",
-	Long:  `List environments filtering the git remotes`,
+	Short: "List all environments",
+	Long: `Display all active environments with their IDs, titles, and timestamps.
+Use -q for environment IDs only, useful for scripting.`,
 	RunE: func(app *cobra.Command, _ []string) error {
 		ctx := app.Context()
 		repo, err := repository.Open(ctx, ".")
