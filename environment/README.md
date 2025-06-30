@@ -17,7 +17,7 @@ Each environment consists of:
 - **Persistence**: All changes automatically committed with full history
 - **Standard Git**:
   - Use `git log` to view source code history
-  - Use `git log --notes=container-use` to view container state history
+  - Use `git log --notes=container-use` to view container operation history
   - Use `git checkout env-branch` to inspect any environment's work - each env branch tracks the upstream container-use/
 - **State Recovery**: Container states stored in Git notes for reconstruction
 
@@ -34,25 +34,27 @@ When an agent runs commands:
 
 1. **Commands execute** inside the isolated container
 2. **File changes get written** back to the container filesystem
-3. **Everything gets committed** to the environment's Git branch automatically
-4. **Container state snapshots** are stored as Git notes for later recovery
+3. **Container state is preserved** in the Dagger container's LLB definition
+4. **Everything gets committed** to the environment's Git branch automatically
+5. **Container state snapshots** are stored as Git notes using `container-use-state` ref
+6. **Operation logs** are stored as Git notes using `container-use` ref
 
-Each environment is just a Git branch that your source repo tracks on the container-use/ remote. You can inspect any environment's work using standard Git commands, and the container state can always be reconstructed from an environment branch's Git history.
+Each environment is just a Git branch that your source repo tracks on the container-use/ remote. You can inspect any environment's work using standard Git commands, and the container state can always be reconstructed from an environment branch's Git history and notes.
 
 ## Architecture
 
 ```
 projectName/ Source Repo            container-use/ Remote
-├── main                   ←──→ ├── main
-├── feature-branch         ←──→ ├── feature-branch
-└── env-name/adverb-animal ←──→ └── env-name/adverb-animal
+├── feature-branch ←──── cu merge ──────────┐
+├── main (current) ── environment_create ──→ adverb-animal
+└── cu-adverb-animal ←──── cu checkout ───────┘
                                        │
                                        │ (host filesystem implementation)
                                        ▼
                     ~/.config/container-use/
                     ├── repos/projectName/ (bare)
-                    └── worktrees/env-name/adverb-animal (only env branches become worktrees)
-                        ├── .git -> ../../repos/projectName/worktrees/env-name/adverb-animal
+                    └── worktrees/adverb-animal (only env branches become worktrees)
+                        ├── .git -> ../../repos/projectName/worktrees/adverb-animal
                         └── (your code)
                             │
                             ▼
@@ -60,7 +62,7 @@ projectName/ Source Repo            container-use/ Remote
                         └── /workdir
 ```
 
-The diagram shows how branches sync between your source repo and the container-use remote. Each environment branch (like `env-name/adverb-animal`) exists in both places and stays synchronized.
+The diagram shows how environment branches sync between your source repo and the container-use remote. When you create an environment, the current branch content gets pushed to the container-use remote as `adverb-animal`. When you checkout an environment, it creates a local tracking branch `cu-adverb-animal` that tracks the remote environment branch. Regular branches like `main` and `feature-branch` stay only in your source repo.
 
 Below the branch level, the system creates a bare Git repository and worktree in `~/.config/container-use/` - this is plumbing to make the Git operations work with minimal modifications to your source repository. The worktree contains a copy of your code that gets mounted into the Docker container at `/workdir`.
 
@@ -68,6 +70,11 @@ So the flow is: **Branch** (the logical environment) → **Worktree** (filesyste
 
 ## Files
 
-- `environment.go` - Core environment management
-- `git.go` - Worktree and Git integration
+- `environment.go` - Core environment management and container operations
+- `config.go` - Configuration management and persistence
+- `state.go` - Container state serialization and legacy migration
+- `service.go` - Service management for multi-container environments
+- `note.go` - Git notes management for operation logging
 - `filesystem.go` - File operations within containers
+- `../repository/git.go` - Worktree and Git integration
+- `../repository/repository.go` - High-level repository operations
