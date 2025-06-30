@@ -33,327 +33,44 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ---
 
-## Install
+## Quick Start
 
-### Homebrew (Recommended for MacOS)
+### Install
 
 ```sh
+# macOS (recommended)
 brew install dagger/tap/container-use
-```
 
-Our tap should install shell completions for you.
-
-### All Platforms (Shell Script)
-
-```sh
+# All platforms
 curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
 ```
 
-This will check for Docker & Git (required), detect your platform, install the latest `cu` binary to your `$PATH`, and provide completion installation instructions.
+### Setup with Your Agent
 
-For building from source, see [CONTRIBUTING.md](CONTRIBUTING.md#building).
+Container Use works with any MCP-compatible agent. The setup is always the same: **add `cu stdio` as an MCP server**.
 
-## Integrate Agents
+**👉 [Complete setup guide for all agents (Cursor, Goose, VSCode, etc.)](https://container-use.com/quickstart)**
 
-Enabling `container-use` requires 2 steps:
-
-1. Adding an MCP configuration for `container-use` corresponding to the repository.
-2. (Optional) Adding a rule so the agent uses containarized environments.
-
-### [Claude Code](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
-
-Add the container-use MCP:
+**Example with Claude Code:**
 
 ```sh
+# Install Claude Code
 npm install -g @anthropic-ai/claude-code
+
+# Add Container Use MCP server
 cd /path/to/repository
-claude mcp add container-use -- <full path to cu command> stdio
-```
+claude mcp add container-use -- cu stdio
 
-Save the CLAUDE.md file at the root of the repository. Alternatively, merge the instructions into your own CLAUDE.md.
-
-```sh
+# Add agent rules (optional)
 curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
 ```
 
-To trust only the Container Use environment tools, invoke Claude Code like this:
+### Try It
 
-```sh
-claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update
-```
+Ask your agent to create something:
+> Create a hello world app in python using flask
 
-### [Amazon Q Developer CLI chat](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-chat.html)
-
-Add this container-use MCP config to `~/.aws/amazonq/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "container-use": {
-      "command": "cu",
-      "args": [
-        "stdio"
-      ],
-      "env": {},
-      "timeout": 60000
-    }
-  }
-}
-```
-
-Save the agent instructions for Container Use to your project root at `./.amazonq/rules/container-use.md`:
-
-```sh
-mkdir -p ./.amazonq/rules && curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md > .amazonq/rules/container-use.md
-```
-
-To trust only the Container Use environment tools, invoke Q chat like this:
-
-```sh
-q chat --trust-tools=container_use___environment_checkpoint,container_use___environment_file_delete,container_use___environment_file_list,container_use___environment_file_read,container_use___environment_file_write,container_use___environment_open,container_use___environment_run_cmd,container_use___environment_update
-```
-
-[Watch video walkthrough.](https://youtu.be/C2g3vdbffOI)
-
-### [Goose](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
-
-
-Add this to `~/.config/goose/config.yaml`:
-
-```yaml
-extensions:
-  container-use:
-    name: container-use
-    type: stdio
-    enabled: true
-    cmd: cu
-    args:
-    - stdio
-    envs: {}
-```
-or use `goose configure` and add a command line extension with `cu stdio` as the command.
-
-For the Goose desktop, paste this into your browser:
-<code>
-goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments"
-</code>
-
-
-### [Cursor](https://docs.cursor.com/context/model-context-protocol)
-
-First, install the MCP server by using the deeplink below (this assumes you have Cursor and Container-use already installed):
-
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY3Ugc3RkaW8ifQ%3D%3D)
-
-Then, add the following rule, either at the root of your project or in your home directory (global).
-
-```sh
-curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc
-```
-
-### [VSCode](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) / [GitHub Copilot](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-chat-with-mcp)
-
-[Watch video walkthrough.](https://youtu.be/Nz2sOef0gW0)
-
-The result of the instructions above will be to update your VSCode settings with something that looks like this:
-
-```json
-    "mcp": {
-        "servers": {
-            "container-use": {
-                "type": "stdio",
-                "command": "cu",
-                "args": [
-                    "stdio"
-                ]
-            }
-        }
-    }
-```
-
-Once the MCP server is running, you can optionally update the instructions for copilot using the following:
-
-```sh
-curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
-```
-
-### [Zed](https://zed.dev/)
-
-First add the agent rules file, either as `.rules` in the root of your project or as one of the [other acceptable files/locations](https://zed.dev/docs/ai/rules?highlight=agent.md#rules-files). 
-
-```sh
-curl -o .rules https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
-```
-
-Then configure the Container Use MCP server in the Zed `settings.json`. Provide the absolute path to the `cu` executable:
-
-```json
-"context_servers": {
-  "container-use": {
-    "source": "custom",
-    "command": {
-      "path": "/opt/homebrew/bin/cu",
-      "args": ["stdio"],
-      "env": {}
-    }
-  }
-}
-```
-
-Next open the Zed Agent Panel ✨ in the lower right and prompt away!
-
-### [Cline](https://cline.bot/)
-
-Add the following to your Cline MCP server configuration JSON:
-
-```json
-{
-  "mcpServers": {
-    "container-use": {
-      "disabled": false,
-      "timeout": 60000,
-      "type": "stdio",
-      "command": "cu",
-      "args": [
-        "stdio"
-      ],
-      "env": {},
-      "autoApprove": []
-    }
-  }
-}
-```
-
-### [Qodo Gen](https://docs.qodo.ai/qodo-documentation/qodo-gen/qodo-gen-chat/agentic-mode/agentic-tools-mcps)
-
-1. Open Qodo Gen chat panel in VSCode or IntelliJ.
-2. Click Connect more tools.
-3. Click + Add new MCP.
-4. Add the following configuration:
-
-```json
-{
-  "mcpServers": {
-      "container-use": {
-          "command": "cu",
-          "args": [
-              "stdio"
-          ]
-      }
-  }
-}
-```
-
-Include the container-use prompt in your Cline rules:
-
-```sh
-curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
-```
-
-### [Kilo Code](https://kilocode.ai/docs/features/mcp/using-mcp-in-kilo-code)
-
-`Kilo Code` allows setting MCP servers at the global or project level.
-
-```json
-{
-  "mcpServers": {
-    "container-use": {
-      "command": "replace with pathname of cu",
-      "args": [
-        "stdio"
-      ],
-      "env": {},
-      "alwaysAllow": [],
-      "disabled": false
-    }
-  }
-}
-```
-
-### [OpenAI Codex](https://github.com/openai/codex)
-
-`Codex` allows setting MCP servers with the new experimental Rust version available [here](https://github.com/openai/codex/tree/main/codex-rs).
-
-In your `~/.codex/config.toml`, add the following:
-
-```toml
-[mcp_servers.container-use]
-command = "cu"
-args = ["stdio"]
-env = {}
-```
-
-### [Warp](https://www.warp.dev/)
-
-`Warp` 2.0 introduces coding agents!
-
-In the Warp sidebar, under `Personal`, select `MCP Servers` and `New`:
-
-```json
-{
-  "container-use": {
-    "command": "cu",
-    "args": ["stdio"],
-    "env": {},
-    "working_directory": null,
-    "start_on_launch": true
-  }
-}
-```
-
-### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
-
-To use container-use with Gemini CLI, add the following JSON to your user settings `~/.gemini/settings.json` or project settings `.gemini/settings.json` file.
-
-Full documentation for the settings file can be found [here](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/configuration.md)
-
-```json
-{
-  "coreTools": [],
-  "mcpServers": {
-    "container-use": {
-      "command": "cu",
-      "args": ["stdio"],
-      "timeout": 60000,
-      "trust": true
-    }
-  }
-}
-```
-
-## Examples
-
-| Example | Description |
-|---------|-------------|
-| [hello_world.md](examples/hello_world.md) | Creates a simple app and runs it, accessible via localhost HTTP URL |
-| [parallel.md](examples/parallel.md) | Creates and serves two variations of a hello world app (Flask and FastAPI) on different URLs |
-| [security.md](examples/security.md) | Security scanning example that checks for updates/vulnerabilities in the repository, applies updates, verifies builds still work, and generates patch file |
-
-### Run with [Claude Code](https://www.anthropic.com/claude-code)
-
-```console
-cat ./examples/hello_world.md | claude --dangerously-skip-permissions
-```
-
-_If you see a "Raw mode is not supported" error then run `claude --dangerously-skip-permissions` directly, accept the terms and try the above command again._
-
-### Run with [Goose](https://block.github.io/goose/)
-
-```console
-goose run -i ./examples/hello_world.md -s
-```
-
-### Run with [Kilo Code](https://kilocode.ai/) in `vscode`
-
-Prompt as in `parallel.md` but add a sentence 'use container-use mcp'
-
-## Watch your agents work
-
-Your agents will automatically commit to a container-use remote on your local filesystem. You can watch the progress of your agents in real time by running:
-
-```console
-cu watch
-```
+Your agent will work in an isolated environment and give you URLs to view the app and explore the code!
 
 ## How it Works
 
