@@ -1,2 +1,9 @@
+---
 blank_issues_enabled: true
-contact_links: []
+contact_links:
+  - name: Discord Community
+    url: https://discord.gg/YXbtwRQv
+    about: Join our Discord for questions and community support
+  - name: Documentation
+    url: https://container-use.com/quickstart
+    about: Check out our setup guide and documentation
