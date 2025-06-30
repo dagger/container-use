@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/dagger/container-use/repository"
+	"github.com/dagger/container-use/cmd/cli"
 	"github.com/spf13/cobra"
 )
 
@@ -16,18 +16,12 @@ var checkoutCmd = &cobra.Command{
 		ctx := app.Context()
 		envID := args[0]
 
-		// Ensure we're in a git repository
-		repo, err := repository.Open(ctx, ".")
-		if err != nil {
-			return err
-		}
-
 		branchName, err := app.Flags().GetString("branch")
 		if err != nil {
 			return err
 		}
 
-		branch, err := repo.Checkout(ctx, envID, branchName)
+		branch, err := cli.CheckoutEnvironment(ctx, ".", envID, branchName)
 		if err != nil {
 			return err
 		}

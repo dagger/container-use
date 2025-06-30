@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"dagger.io/dagger"
+	"github.com/dagger/container-use/cmd/cli"
 	"github.com/dagger/container-use/environment"
 	"github.com/dagger/container-use/repository"
 	"github.com/stretchr/testify/assert"
@@ -333,4 +334,32 @@ func (u *UserActions) GitCommand(args ...string) string {
 	output, err := repository.RunGitCommand(u.ctx, u.repoDir, args...)
 	require.NoError(u.t, err, "Git command failed: %v", args)
 	return output
+}
+
+// CLI operations - these test the actual command implementations
+
+func (u *UserActions) CLIDelete(envID string) error {
+	// TODO: Remove after #157 - context will be set in WithRepository
+	ctx := context.WithValue(u.ctx, "container_use_base_path", u.configDir)
+	return cli.DeleteEnvironments(ctx, u.repoDir, []string{envID})
+}
+
+func (u *UserActions) CLIList() ([]*environment.EnvironmentInfo, error) {
+	// TODO: Remove after #157 - context will be set in WithRepository
+	ctx := context.WithValue(u.ctx, "container_use_base_path", u.configDir)
+	return cli.ListEnvironments(ctx, u.repoDir)
+}
+
+func (u *UserActions) CLICheckout(envID, branchName string) (string, error) {
+	// TODO: Remove after #157 - context will be set in WithRepository
+	ctx := context.WithValue(u.ctx, "container_use_base_path", u.configDir)
+	return cli.CheckoutEnvironment(ctx, u.repoDir, envID, branchName)
+}
+
+func (u *UserActions) CLILog(envID string) (string, error) {
+	return cli.GetEnvironmentLog(u.ctx, u.repoDir, envID)
+}
+
+func (u *UserActions) CLIMerge(envID string) error {
+	return cli.MergeEnvironment(u.ctx, u.repoDir, envID)
 }
