@@ -57,6 +57,13 @@ func dumpStacks() {
 	io.MultiWriter(logWriter, os.Stderr).Write(buf[:n])
 }
 
+func init() {
+	rootCmd.AddCommand(
+		stdioCmd,
+		terminalCmd,
+	)
+}
+
 func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	ctx := cmd.Context()
 

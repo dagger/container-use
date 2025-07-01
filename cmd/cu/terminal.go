@@ -46,6 +46,9 @@ cu terminal backend-api`,
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
 		if err != nil {
+			if isDockerDaemonError(err) {
+				handleDockerDaemonError()
+			}
 			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
@@ -56,8 +59,4 @@ cu terminal backend-api`,
 
 		return env.Terminal(ctx)
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(terminalCmd)
 }
