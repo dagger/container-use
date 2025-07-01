@@ -1,11 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
 	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
+)
+
+var (
+	mergeDelete bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -20,27 +25,48 @@ Your working directory will be automatically stashed and restored.`,
 cu merge fancy-mallard
 
 # Merge after reviewing with diff/log
-cu merge backend-api`,
+cu merge backend-api
+
+# Merge and delete the environment after successful merge
+cu merge -d fancy-mallard
+cu merge --delete backend-api`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 
 		// Ensure we're in a git repository
-		if _, err := repository.Open(ctx, "."); err != nil {
+		repo, err := repository.Open(ctx, ".")
+		if err != nil {
 			return err
 		}
 
 		env := args[0]
-		err := exec.Command("git", "stash", "--include-untracked", "-q").Run()
+		err = exec.Command("git", "stash", "--include-untracked", "-q").Run()
 		if err == nil {
 			defer exec.Command("git", "stash", "pop", "-q").Run()
 		}
 		cmd := exec.CommandContext(ctx, "git", "merge", "-m", "Merge environment "+env, "--", "container-use/"+env)
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout
-		return cmd.Run()
+		err = cmd.Run()
+		if err != nil {
+			return fmt.Errorf("failed to merge environment: %w", err)
+		}
+
+		// Delete the environment if the flag is set and merge was successful
+		if mergeDelete {
+			if err := repo.Delete(ctx, env); err != nil {
+				return fmt.Errorf("merge succeeded but failed to delete environment: %w", err)
+			}
+			fmt.Printf("Environment '%s' merged and deleted successfully.\n", env)
+		} else {
+			fmt.Printf("Environment '%s' merged successfully.\n", env)
+		}
+
+		return nil
 	},
 }
 
 func init() {
+	mergeCmd.Flags().BoolVarP(&mergeDelete, "delete", "d", false, "Delete the environment after successful merge")
 	rootCmd.AddCommand(mergeCmd)
 }
