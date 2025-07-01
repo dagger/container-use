@@ -89,17 +89,21 @@ func (config *EnvironmentConfig) Load(baseDir string) error {
 	configPath := path.Join(baseDir, configDir)
 
 	instructions, err := os.ReadFile(path.Join(configPath, instructionsFile))
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	config.Instructions = string(instructions)
+	if err == nil {
+		config.Instructions = string(instructions)
+	}
 
 	data, err := os.ReadFile(path.Join(configPath, environmentFile))
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if err := json.Unmarshal(data, config); err != nil {
-		return err
+	if err == nil {
+		if err := json.Unmarshal(data, config); err != nil {
+			return err
+		}
 	}
 
 	return nil
