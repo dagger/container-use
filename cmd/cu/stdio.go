@@ -33,3 +33,7 @@ var stdioCmd = &cobra.Command{
 		return mcpserver.RunStdioServer(ctx, dag)
 	},
 }
+
+func init() {
+	rootCmd.AddCommand(stdioCmd)
+}
