@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path"
 	"strings"
 	"sync"
@@ -52,9 +51,7 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, in
 	}
 
 	if err := env.Config.Load(worktree); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	container, err := env.buildBase(ctx, initialSourceDir)
@@ -121,9 +118,7 @@ func LoadInfo(ctx context.Context, id string, state []byte, worktree string) (*E
 		State:    &State{},
 	}
 	if err := envInfo.Config.Load(worktree); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	if err := envInfo.State.Unmarshal(state); err != nil {
