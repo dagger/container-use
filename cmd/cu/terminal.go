@@ -57,3 +57,7 @@ cu terminal backend-api`,
 		return env.Terminal(ctx)
 	},
 }
+
+func init() {
+	rootCmd.AddCommand(terminalCmd)
+}
