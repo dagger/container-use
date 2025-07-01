@@ -40,6 +40,8 @@ cu checkout fancy-mallard -b my-review-branch`,
 			return err
 		}
 
+		fmt.Printf("Switched to branch '%s'\n", branch)
+
 		pushToRemote, err := app.Flags().GetBool("push")
 		if err != nil {
 			return err
@@ -50,9 +52,9 @@ cu checkout fancy-mallard -b my-review-branch`,
 			if err != nil {
 				return err
 			}
+			fmt.Printf("Pushed branch '%s' to origin\n", branch)
 		}
 
-		fmt.Printf("Switched to branch '%s'\n", branch)
 		return nil
 	},
 }
