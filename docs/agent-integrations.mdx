@@ -104,6 +104,32 @@ curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercont
   Documentation](https://docs.cursor.com/context/model-context-protocol)
 </Info>
 
+## Windsurf
+
+### Install MCP Server
+
+In `~/.codeium/windsurf/mcp_config.json`, add the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"],
+      "env": {}
+    }
+  }
+}
+```
+
+### Add Agent Rules
+
+Add the rules file to your project or home directory:
+
+```sh
+curl --create-dirs -o .windsurf/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/windsurf.mdc
+```
+
 ## VSCode / GitHub Copilot
 
 ### Configure MCP Server
