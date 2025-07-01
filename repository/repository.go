@@ -414,3 +414,22 @@ func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
 
 	return cmd.Run()
 }
+
+func (r *Repository) PushBranchOrigin(ctx context.Context, branch string) error {
+	_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "get-url", "origin")
+	if err != nil {
+		return err
+	}
+
+	_, err = RunGitCommand(ctx, r.userRepoPath, "rev-parse", "--verify", branch)
+	if err != nil {
+		return err
+	}
+
+	_, err = RunGitCommand(ctx, r.userRepoPath, "push", "origin", branch)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
