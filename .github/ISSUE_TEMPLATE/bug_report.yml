@@ -27,4 +27,4 @@ body:
       description: Contents of `/tmp/cu.debug.stderr.log` (or `$CU_STDERR_FILE` if set)
       render: text
     validations:
-      required: true
+      required: false
