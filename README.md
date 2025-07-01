@@ -54,9 +54,6 @@ Container Use works with any MCP-compatible agent. The setup is always the same:
 **Example with Claude Code:**
 
 ```sh
-# Install Claude Code
-npm install -g @anthropic-ai/claude-code
-
 # Add Container Use MCP server
 cd /path/to/repository
 claude mcp add container-use -- cu stdio
