@@ -36,20 +36,16 @@ func (s *Environment) FileWrite(ctx context.Context, explanation, targetFile, co
 	if err != nil {
 		return fmt.Errorf("failed applying file write, skipping git propogation: %w", err)
 	}
-
-	s.Notes.Add("Write file %s\n%s\n\n", targetFile, explanation)
-
+	s.Notes.Add("Write %s", targetFile)
 	return nil
 }
 
 func (s *Environment) FileDelete(ctx context.Context, explanation, targetFile string) error {
 	err := s.apply(ctx, s.container().WithoutFile(targetFile))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed applying file delete, skipping git propogation: %w", err)
 	}
-
-	s.Notes.Add("Delete file %s\n%s\n\n", targetFile, explanation)
-
+	s.Notes.Add("Delete %s", targetFile)
 	return nil
 }
 

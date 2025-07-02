@@ -354,7 +354,7 @@ Supported schemas are:
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Update env "+env.ID, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
@@ -456,7 +456,7 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 		shell := request.GetString("shell", "sh")
 
 		updateRepo := func() (*mcp.CallToolResult, error) {
-			if err := repo.Update(ctx, env, "Run "+command, request.GetString("explanation", "")); err != nil {
+			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 				return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
 			}
 			return nil, nil
@@ -639,7 +639,7 @@ var EnvironmentFileWriteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Write "+targetFile, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
@@ -681,7 +681,7 @@ var EnvironmentFileDeleteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to delete file", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Delete "+targetFile, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
 		}
 
@@ -804,7 +804,7 @@ Supported schemas are:
 			return mcp.NewToolResultErrorFromErr("failed to add service", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Add service "+serviceName, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
 		}
 

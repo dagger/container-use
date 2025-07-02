@@ -140,7 +140,7 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 	return worktreePath, nil
 }
 
-func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, name, explanation string) (rerr error) {
+func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, explanation string) (rerr error) {
 	slog.Info("Propagating to worktree...",
 		"environment.id", env.ID,
 		"workdir", env.Config.Workdir,
@@ -157,7 +157,7 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
-	if err := r.commitWorktreeChanges(ctx, env.Worktree, name, explanation); err != nil {
+	if err := r.commitWorktreeChanges(ctx, env.Worktree, explanation); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
@@ -262,7 +262,7 @@ func (r *Repository) revisionRange(ctx context.Context, env *environment.Environ
 	return fmt.Sprintf("%s..%s", mergeBase, envGitRef), nil
 }
 
-func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, name, explanation string) error {
+func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string) error {
 	status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return err
@@ -276,8 +276,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, na
 		return err
 	}
 
-	commitMsg := fmt.Sprintf("%s\n\n%s", name, explanation)
-	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", commitMsg)
+	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", explanation)
 	return err
 }
 
@@ -432,7 +431,7 @@ func (r *Repository) applyUncommittedChanges(ctx context.Context, worktreePath s
 		}
 	}
 
-	return r.commitWorktreeChanges(ctx, worktreePath, "Copy uncommitted changes", "Applied uncommitted changes from local repository")
+	return r.commitWorktreeChanges(ctx, worktreePath, "Apply uncommitted changes from local repository")
 }
 
 func (r *Repository) addFilesFromUntrackedDirectory(ctx context.Context, worktreePath, dirName string) error {

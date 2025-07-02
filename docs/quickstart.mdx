@@ -260,27 +260,11 @@ See exactly what your agent did with `cu log`:
 
 ```sh
 $ cu log fancy-mallard
-commit 9e3a5c9debe3d3acd745c54ecfe0877626b56b7a (container-use/fancy-mallard)
-Author: Your Agent <agent@container-use.dev>
-Date:   Fri Jun 27 15:05:02 2025 -0700
+9e3a5c9d  Write templates/index.html (2 minutes ago)
+$ python app.py &
 
-    Write templates/index.html
-
-    Creating the HTML template with a beautiful blue design
-
-Notes (container-use):
-    $ python app.py &
-
-commit d94b6ab82fe36d48992e1530613c28273017f827
-Author: Your Agent <agent@container-use.dev>
-Date:   Fri Jun 27 15:04:47 2025 -0700
-
-    Write app.py
-
-    Creating the main Flask application file
-
-Notes (container-use):
-    $ mkdir -p templates
+d94b6ab8  Write app.py (3 minutes ago)
+$ mkdir -p templates
 ```
 
 ### Reviewing the Code

@@ -159,7 +159,7 @@ func initializeDaggerOnce(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
+		client, err := dagger.Connect(ctx)
 		if err != nil {
 			daggerErr = err
 			return
@@ -208,7 +208,7 @@ func (u *UserActions) FileWrite(envID, targetFile, contents, explanation string)
 	err = env.FileWrite(u.ctx, explanation, targetFile, contents)
 	require.NoError(u.t, err, "FileWrite should succeed")
 
-	err = u.repo.Update(u.ctx, env, "Write "+targetFile, explanation)
+	err = u.repo.Update(u.ctx, env, explanation)
 	require.NoError(u.t, err, "repo.Update after FileWrite should succeed")
 }
 
@@ -220,7 +220,7 @@ func (u *UserActions) RunCommand(envID, command, explanation string) string {
 	output, err := env.Run(u.ctx, command, "/bin/sh", false)
 	require.NoError(u.t, err, "Run command should succeed")
 
-	err = u.repo.Update(u.ctx, env, "Run "+command, explanation)
+	err = u.repo.Update(u.ctx, env, explanation)
 	require.NoError(u.t, err, "repo.Update after Run should succeed")
 
 	return output
@@ -245,7 +245,7 @@ func (u *UserActions) UpdateEnvironment(envID, title, explanation string, config
 	err = env.UpdateConfig(u.ctx, explanation, config)
 	require.NoError(u.t, err, "UpdateConfig should succeed")
 
-	err = u.repo.Update(u.ctx, env, "Update env "+env.ID, explanation)
+	err = u.repo.Update(u.ctx, env, explanation)
 	require.NoError(u.t, err, "repo.Update after UpdateConfig should succeed")
 }
 
@@ -257,7 +257,7 @@ func (u *UserActions) FileDelete(envID, targetFile, explanation string) {
 	err = env.FileDelete(u.ctx, explanation, targetFile)
 	require.NoError(u.t, err, "FileDelete should succeed")
 
-	err = u.repo.Update(u.ctx, env, "Delete "+targetFile, explanation)
+	err = u.repo.Update(u.ctx, env, explanation)
 	require.NoError(u.t, err, "repo.Update after FileDelete should succeed")
 }
 

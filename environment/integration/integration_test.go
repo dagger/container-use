@@ -42,10 +42,9 @@ func TestGitAuditTrail(t *testing.T) {
 		require.NoError(t, err)
 
 		// Operations that create git-trackable changes should have commits
-		assert.Contains(t, gitLog, "Write config.json")
+		assert.Contains(t, gitLog, "Initial config")
 		// "Run npm install" won't create a commit (npm not installed, would create gitignored files)
-		assert.Contains(t, gitLog, "Write src/app.js")
-		assert.Contains(t, gitLog, "Create env")
+		assert.Contains(t, gitLog, "Add app code")
 
 		// Verify file contents are in git
 		configFromGit, err := repository.RunGitCommand(context.Background(), env.Worktree, "show", "HEAD~1:config.json")
@@ -93,10 +92,8 @@ func TestEnvironmentIsolation(t *testing.T) {
 		devLog, _ := repository.RunGitCommand(context.Background(), dev.Worktree, "log", "--oneline", "-2")
 		stagingLog, _ := repository.RunGitCommand(context.Background(), staging.Worktree, "log", "--oneline", "-2")
 
-		assert.Contains(t, devLog, "Write config.json")
-		assert.Contains(t, devLog, "Create env")
-		assert.Contains(t, stagingLog, "Write config.json")
-		assert.Contains(t, stagingLog, "Create env")
+		assert.Contains(t, devLog, "Dev config")
+		assert.Contains(t, stagingLog, "Staging config")
 
 		// Verify complete isolation - dev files don't exist in staging
 		user.FileReadExpectError(staging.ID, "dev-only.txt")

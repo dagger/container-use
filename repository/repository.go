@@ -177,7 +177,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	if err := r.propagateToWorktree(ctx, env, "Create env "+id, explanation); err != nil {
+	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
 		return nil, err
 	}
 
@@ -278,14 +278,15 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 
 // Update saves the provided environment to the repository.
 // Writes configuration and source code changes to the worktree and history + state to git notes.
-func (r *Repository) Update(ctx context.Context, env *environment.Environment, operation, explanation string) error {
-	note := env.Notes.Pop()
-	if strings.TrimSpace(note) != "" {
-		if err := r.addGitNote(ctx, env, note); err != nil {
-			return err
-		}
+func (r *Repository) Update(ctx context.Context, env *environment.Environment, explanation string) error {
+	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
+		return err
 	}
-	return r.propagateToWorktree(ctx, env, operation, explanation)
+	if note := env.Notes.Pop(); note != "" {
+		return r.addGitNote(ctx, env, note)
+	}
+
+	return nil
 }
 
 // Delete removes an environment from the repository.
@@ -370,6 +371,8 @@ func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer
 
 	if patch {
 		logArgs = append(logArgs, "--patch")
+	} else {
+		logArgs = append(logArgs, "--format=%C(yellow)%h%Creset  %s %Cgreen(%cr)%Creset %+N")
 	}
 
 	revisionRange, err := r.revisionRange(ctx, envInfo)

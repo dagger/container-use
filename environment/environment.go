@@ -186,18 +186,27 @@ func (env *Environment) buildBase(ctx context.Context, baseSourceDir *dagger.Dir
 
 		container = container.WithExec([]string{"sh", "-c", command})
 
-		stdout, err := container.Stdout(ctx)
+		exitCode, err := container.ExitCode(ctx)
 		if err != nil {
 			var exitErr *dagger.ExecError
 			if errors.As(err, &exitErr) {
-				env.Notes.Add("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n", command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
+				env.Notes.AddCommand(command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
 				return nil, fmt.Errorf("setup command failed with exit code %d.\nstdout: %s\nstderr: %s\n%w\n", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr, err)
 			}
 
 			return nil, fmt.Errorf("failed to execute setup command: %w", err)
 		}
+		stdout, err := container.Stdout(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get stdout: %w", err)
+		}
 
-		env.Notes.Add("$ %s\n%s\n\n", command, stdout)
+		stderr, err := container.Stderr(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get stderr: %w", err)
+		}
+
+		env.Notes.AddCommand(command, exitCode, stdout, stderr)
 	}
 
 	env.Services, err = env.startServices(ctx)
@@ -262,7 +271,7 @@ func (env *Environment) Run(ctx context.Context, command, shell string, useEntry
 	}
 
 	// Log the command execution with all details
-	env.Notes.Add("$ %s\nexit %d\nstdout: %s\nstderr: %s\n\n", command, exitCode, stdout, stderr)
+	env.Notes.AddCommand(command, exitCode, stdout, stderr)
 
 	// Always apply the container state (preserving changes even on non-zero exit)
 	if err := env.apply(ctx, newState); err != nil {
@@ -285,6 +294,7 @@ func (env *Environment) RunBackground(ctx context.Context, command, shell string
 	if command != "" {
 		args = []string{shell, "-c", command}
 	}
+	displayCommand := command + " &"
 	serviceState := env.container()
 
 	// Expose ports
@@ -305,15 +315,18 @@ func (env *Environment) RunBackground(ctx context.Context, command, shell string
 	if err != nil {
 		var exitErr *dagger.ExecError
 		if errors.As(err, &exitErr) {
+			env.Notes.AddCommand(displayCommand, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
 			return nil, fmt.Errorf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("service failed to start within %s timeout", serviceStartTimeout)
+			err = fmt.Errorf("service failed to start within %s timeout", serviceStartTimeout)
+			env.Notes.AddCommand(displayCommand, 137, "", err.Error())
+			return nil, err
 		}
 		return nil, err
 	}
 
-	env.Notes.Add("$ %s &\n\n", command)
+	env.Notes.AddCommand(displayCommand, 0, "", "")
 
 	endpoints := EndpointMappings{}
 	for _, port := range ports {
