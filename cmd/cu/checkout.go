@@ -61,7 +61,7 @@ cu checkout fancy-mallard -b my-review-branch`,
 
 func init() {
 	checkoutCmd.Flags().StringP("branch", "b", "", "Local branch name to use")
-	checkoutCmd.Flags().BoolP("push", "p", false, "Push the checked out branch to origin remote")
+	checkoutCmd.Flags().BoolP("push", "p", false, "Push checkout branch to origin")
 
 	rootCmd.AddCommand(checkoutCmd)
 }
