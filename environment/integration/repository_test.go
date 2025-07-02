@@ -196,3 +196,37 @@ func TestRepositoryDiff(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestRepositoryPushBranchToOrigin(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-push", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create an environment and make some changes
+		env := user.CreateEnvironment("Test Push", "Testing repository push")
+
+		// First commit - add a file
+		user.FileWrite(env.ID, "test.txt", "test content", "Add test file")
+
+		// Create a bare "origin" repository
+		originPath := t.TempDir()
+		_, err := repository.RunGitCommand(ctx, originPath, "init", "--bare")
+		require.NoError(t, err)
+
+		// Add it as a remote to the user repo
+		_, err = repository.RunGitCommand(ctx, repo.SourcePath(), "remote", "add", "origin", originPath)
+		require.NoError(t, err)
+
+		// Checkout the environment branch in the source repo
+		branchName, err := repo.Checkout(ctx, env.ID, "")
+		require.NoError(t, err)
+
+		// Push the branch
+		err = repo.PushBranchToOrigin(ctx, branchName)
+		require.NoError(t, err)
+
+		// Test pushing non-existent branch
+		err = repo.PushBranchToOrigin(ctx, "non-existent-branch")
+		assert.Error(t, err)
+	})
+}
