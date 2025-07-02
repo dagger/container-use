@@ -68,22 +68,8 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, in
 	return env, nil
 }
 
-func (env *Environment) Export(ctx context.Context) (rerr error) {
-	_, err := env.container().Directory(env.Config.Workdir).Export(
-		ctx,
-		env.Worktree,
-		dagger.DirectoryExportOpts{Wipe: true},
-	)
-	if err != nil {
-		return err
-	}
-
-	slog.Info("Saving environment")
-	if err := env.Config.Save(env.Worktree); err != nil {
-		return err
-	}
-	return nil
-
+func (env *Environment) Workdir() *dagger.Directory {
+	return env.container().Directory(env.Config.Workdir)
 }
 
 func (env *Environment) container() *dagger.Container {
@@ -229,11 +215,8 @@ func (env *Environment) UpdateConfig(ctx context.Context, explanation string, ne
 
 	env.Config = newConfig
 
-	// Get current working directory from container to preserve changes
-	currentWorkdir := env.container().Directory(env.Config.Workdir)
-
 	// Re-build the base image with the new config
-	container, err := env.buildBase(ctx, currentWorkdir)
+	container, err := env.buildBase(ctx, env.Workdir())
 	if err != nil {
 		return err
 	}
@@ -251,8 +234,9 @@ func (env *Environment) Run(ctx context.Context, command, shell string, useEntry
 		args = []string{shell, "-c", command}
 	}
 	newState := env.container().WithExec(args, dagger.ContainerWithExecOpts{
-		UseEntrypoint: useEntrypoint,
-		Expect:        dagger.ReturnTypeAny, // Don't treat non-zero exit as error
+		UseEntrypoint:                 useEntrypoint,
+		Expect:                        dagger.ReturnTypeAny, // Don't treat non-zero exit as error
+		ExperimentalPrivilegedNesting: true,
 	})
 
 	exitCode, err := newState.ExitCode(ctx)
@@ -392,6 +376,7 @@ func (env *Environment) Terminal(ctx context.Context) error {
 		cmd = []string{"sh"}
 	}
 	if _, err := container.Terminal(dagger.ContainerTerminalOpts{
+		ExperimentalPrivilegedNesting: true,
 		Cmd: cmd,
 	}).Sync(ctx); err != nil {
 		return err

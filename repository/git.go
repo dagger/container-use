@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	"github.com/mitchellh/go-homedir"
 )
@@ -149,7 +150,7 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 			"err", rerr)
 	}()
 
-	if err := env.Export(ctx); err != nil {
+	if err := r.exportEnvironment(ctx, env); err != nil {
 		return err
 	}
 
@@ -170,6 +171,27 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
+	return nil
+}
+
+func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Environment) error {
+	worktreePointer := fmt.Sprintf("gitdir: %s/worktrees/%s", r.forkRepoPath, env.ID)
+
+	_, err := env.Workdir().
+		WithNewFile(".git", worktreePointer).
+		Export(
+			ctx,
+			env.Worktree,
+			dagger.DirectoryExportOpts{Wipe: true},
+		)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Saving environment")
+	if err := env.Config.Save(env.Worktree); err != nil {
+		return err
+	}
 	return nil
 }
 
