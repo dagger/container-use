@@ -190,6 +190,33 @@ Then configure the Container Use MCP server in the Zed `settings.json`. Provide 
 
 Next open the Zed Agent Panel ✨ in the lower right and prompt away!
 
+## Opencode
+
+Configure the Container Use MCP server in a `opencode.json` file. 
+
+> Note: Provide the absolute path to your systems `cu` executable:
+
+```json
+{
+  "$schema": "http://opencode.ai/config.json",
+  "mcp": {
+    "container-use": {
+      "type": "local",
+      "command": ["/path/to/cu", "stdio"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Add the `AGENTS.md` file using this command (this is optional but usually provides the best results):
+
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> AGENTS.md
+```
+
+Run `opencode` and dispatch your agents to complete your tasks!
+
 ## Goose
 
 ### Method 1: Configuration File
