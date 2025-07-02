@@ -41,7 +41,7 @@ cu merge --delete backend-api`,
 		if err == nil {
 			defer exec.Command("git", "stash", "pop", "-q").Run()
 		}
-		cmd := exec.CommandContext(ctx, "git", "merge", "-m", "Merge environment "+env, "--", "container-use/"+env)
+		cmd := exec.CommandContext(ctx, "git", "merge", "-m", fmt.Sprintf("chore(merge): merge environment %s", env), "--", "container-use/"+env)
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout
 		err = cmd.Run()
