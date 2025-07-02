@@ -16,10 +16,10 @@ import (
 // EnvironmentInfo contains basic metadata about an environment
 // without requiring dagger operations
 type EnvironmentInfo struct {
-	Config *EnvironmentConfig
-	State  *State
+	Config *EnvironmentConfig `json:"config,omitempty"`
+	State  *State             `json:"state,omitempty"`
 
-	ID string
+	ID string `json:"id,omitempty"`
 }
 
 type Environment struct {
