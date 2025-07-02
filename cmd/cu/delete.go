@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/dagger/container-use/repository"
+	"github.com/dagger/container-use/cmd/cli"
 	"github.com/spf13/cobra"
 )
 
@@ -21,20 +19,7 @@ cu delete fancy-mallard
 # Delete multiple environments at once
 cu delete env1 env2 env3`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
-
-		for _, envID := range args {
-			repo, err := repository.Open(ctx, ".")
-			if err != nil {
-				return fmt.Errorf("failed to open repository: %w", err)
-			}
-			if err := repo.Delete(ctx, envID); err != nil {
-				return fmt.Errorf("failed to delete environment: %w", err)
-			}
-
-			fmt.Printf("Environment '%s' deleted successfully.\n", envID)
-		}
-		return nil
+		return cli.DeleteEnvironments(cmd.Context(), ".", args)
 	},
 }
 
