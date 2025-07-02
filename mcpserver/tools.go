@@ -121,6 +121,7 @@ func init() {
 type EnvironmentResponse struct {
 	ID              string                 `json:"id"`
 	Title           string                 `json:"title"`
+	Summary         string                 `json:"summary"`
 	BaseImage       string                 `json:"base_image"`
 	SetupCommands   []string               `json:"setup_commands"`
 	Instructions    string                 `json:"instructions"`
@@ -157,6 +158,7 @@ func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error
 	resp := &EnvironmentResponse{
 		ID:              envInfo.ID,
 		Title:           envInfo.State.Title,
+		Summary:         envInfo.State.Summary,
 		Instructions:    envInfo.Config.Instructions,
 		BaseImage:       envInfo.Config.BaseImage,
 		SetupCommands:   envInfo.Config.SetupCommands,
@@ -227,6 +229,10 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			mcp.Description("Short description of the work that is happening in this environment. Keep this title updated using `environment_update`."),
 			mcp.Required(),
 		),
+		mcp.WithString("summary",
+			mcp.Description("Summary of all the changes that happened in this environment. MUST be in the format of Conventional Commits. Add a body with further details if needed. MUST BE kept up to date with `environment_update`."),
+			mcp.Required(),
+		),
 		mcp.WithString("environment_source",
 			mcp.Description("Absolute path to the source git repository for the environment."),
 			mcp.Required(),
@@ -241,13 +247,17 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 		if err != nil {
 			return nil, err
 		}
+		summary, err := request.RequireString("summary")
+		if err != nil {
+			return nil, err
+		}
 
 		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
+		env, err := repo.Create(ctx, dag, title, summary, request.GetString("explanation", ""))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
@@ -278,6 +288,10 @@ var EnvironmentUpdateTool = &Tool{
 		),
 		mcp.WithString("title",
 			mcp.Description("Short description of the work that is happening in this environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("summary",
+			mcp.Description("Summary of all the changes that happened in this environment. This should be formatted like a commit message and always kept up to date `environment_update`."),
 			mcp.Required(),
 		),
 		mcp.WithString("base_image",
@@ -348,6 +362,10 @@ Supported schemas are:
 
 		if title := request.GetString("title", ""); title != "" {
 			env.State.Title = title
+		}
+
+		if summary := request.GetString("summary", ""); summary != "" {
+			env.State.Summary = summary
 		}
 
 		if err := env.UpdateConfig(ctx, request.GetString("explanation", ""), config); err != nil {
@@ -503,7 +521,7 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 			return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote.\nMake sure to update the summary with `environment_update` if necessary. Current summary: %q", stdout, env.Config.Workdir, env.State.Summary)), nil
 	},
 }
 
@@ -643,7 +661,7 @@ var EnvironmentFileWriteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote", targetFile)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote.\nMake sure to update the summary with `environment_update` if necessary. Current summary: %q", targetFile, env.State.Summary)), nil
 	},
 }
 
