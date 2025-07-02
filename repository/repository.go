@@ -163,10 +163,6 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		AsGit().
 		Ref(worktreeHead).
 		Tree(dagger.GitRefTreeOpts{DiscardGitDir: true}).
-		WithNewFile(
-			".git", // make .git point back at the fork repo TODO(braa): ideally we do this on export, but we'd need to move some of that logic into repository
-			fmt.Sprintf("gitdir: %s/worktrees/%s", r.forkRepoPath, id),
-		).
 		Sync(ctx) // don't bust cache when loading from state
 	if err != nil {
 		return nil, fmt.Errorf("failed loading initial source directory: %w", err)

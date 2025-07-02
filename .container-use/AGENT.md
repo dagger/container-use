@@ -10,7 +10,7 @@ AVAILABLE TOOLS:
 - Go 1.24.x (matches go.mod requirements)
 - Docker (for container runtime needed by the tool)
 - Dagger v0.18.11 (matches dagger.json)
-- Git (for version control)
+- Git (for version control) with test user configured
 - Standard build tools
 
 PROJECT STRUCTURE:
