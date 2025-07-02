@@ -252,7 +252,28 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
 
-		return EnvironmentToCallResult(env)
+		out, err := marshalEnvironment(env)
+		if err != nil {
+			return nil, err
+		}
+
+		dirty, status, err := repo.IsDirty(ctx)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to check if environment is dirty", err), nil
+		}
+
+		if !dirty {
+			return mcp.NewToolResultText(out), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf(`%s
+
+CRITICAL: You MUST inform the user that the repository %s has uncommitted changes that are NOT included in this environment. The environment was created from the last committed state only.
+
+Uncommitted changes detected:
+%s
+
+You MUST tell the user: To include these changes in the environment, they need to commit them first using git commands outside the environment.`, out, request.GetString("environment_source", ""), status)), nil
 	},
 }
 

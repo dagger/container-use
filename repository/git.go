@@ -128,10 +128,6 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 		return "", err
 	}
 
-	if err := r.applyUncommittedChanges(ctx, worktreePath); err != nil {
-		return "", fmt.Errorf("failed to apply uncommitted changes: %w", err)
-	}
-
 	_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
 	if err != nil {
 		return "", err
@@ -383,55 +379,17 @@ func (r *Repository) shouldSkipFile(fileName string) bool {
 	return false
 }
 
-func (r *Repository) applyUncommittedChanges(ctx context.Context, worktreePath string) error {
+func (r *Repository) IsDirty(ctx context.Context) (bool, string, error) {
 	status, err := RunGitCommand(ctx, r.userRepoPath, "status", "--porcelain")
 	if err != nil {
-		return err
+		return false, "", err
 	}
 
 	if strings.TrimSpace(status) == "" {
-		return nil
+		return false, "", nil
 	}
 
-	slog.Info("Applying uncommitted changes to worktree", "repository", r.userRepoPath, "worktree", worktreePath)
-
-	trackedFilesPatch, err := RunGitCommand(ctx, r.userRepoPath, "diff", "HEAD")
-	if err != nil {
-		return err
-	}
-
-	if strings.TrimSpace(trackedFilesPatch) != "" {
-		cmd := exec.Command("git", "apply")
-		cmd.Dir = worktreePath
-		cmd.Stdin = strings.NewReader(trackedFilesPatch)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to apply patch: %w", err)
-		}
-	}
-
-	// --exclude-standard excludes .gitignored files. those are more likely to be platform-specific, so we don't copy them.
-	untrackedFiles, err := RunGitCommand(ctx, r.userRepoPath, "ls-files", "--others", "--exclude-standard")
-	if err != nil {
-		return err
-	}
-
-	for file := range strings.SplitSeq(strings.TrimSpace(untrackedFiles), "\n") {
-		if file == "" {
-			continue
-		}
-		srcPath := filepath.Join(r.userRepoPath, file)
-		destPath := filepath.Join(worktreePath, file)
-
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return err
-		}
-
-		if err := exec.Command("cp", "-r", srcPath, destPath).Run(); err != nil {
-			return fmt.Errorf("failed to copy untracked file %s: %w", file, err)
-		}
-	}
-
-	return r.commitWorktreeChanges(ctx, worktreePath, "Apply uncommitted changes from local repository")
+	return true, status, nil
 }
 
 func (r *Repository) addFilesFromUntrackedDirectory(ctx context.Context, worktreePath, dirName string) error {
