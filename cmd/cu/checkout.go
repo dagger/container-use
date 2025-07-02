@@ -48,7 +48,7 @@ cu checkout fancy-mallard -b my-review-branch`,
 		}
 
 		if pushToRemote {
-			err = repo.PushBranchOrigin(ctx, branch)
+			err = repo.PushBranchToOrigin(ctx, branch)
 			if err != nil {
 				return err
 			}
