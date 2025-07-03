@@ -270,7 +270,16 @@ func configureCodex() error {
 	mcpServers["container-use"] = map[string]interface{}{
 		"command": "cu",
 		"args":    []interface{}{"stdio"},
-		"env":     map[string]interface{}{},
+		"auto_approve": []interface{}{
+			"environment_open",
+			"environment_update",
+			"environment_checkpoint",
+			"environment_run_cmd",
+			"environment_file_read",
+			"environment_file_write",
+			"environment_file_list",
+			"environment_file_delete",
+		},
 	}
 
 	// Write config back
