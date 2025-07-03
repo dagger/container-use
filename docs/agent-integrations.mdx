@@ -188,11 +188,60 @@ Then configure the Container Use MCP server in the Zed `settings.json`. Provide 
 }
 ```
 
-Next open the Zed Agent Panel ✨ in the lower right and prompt away!
+### Add Container Use Agent Profile (Optional)
+
+To lock the Zed agent out of your host system, you can create a dedicated agent profile that only enables Container Use tools. Add this to your `settings.json` under the `agent` section:
+
+```json
+"agent": {
+  "profiles": {
+    "container-use": {
+      "name": "Container Use",
+      "tools": {
+        "fetch": true,
+        "thinking": true,
+        "copy_path": false,
+        "find_path": false,
+        "delete_path": false,
+        "create_directory": false,
+        "list_directory": false,
+        "diagnostics": false,
+        "read_file": false,
+        "open": false,
+        "move_path": false,
+        "grep": false,
+        "edit_file": false,
+        "terminal": false
+      },
+      "enable_all_context_servers": false,
+      "context_servers": {
+        "container-use": {
+          "tools": {
+            "environment_create": true,
+            "environment_add_service": true,
+            "environment_update": true,
+            "environment_run_cmd": true,
+            "environment_open": true,
+            "environment_file_write": true,
+            "environment_file_read": true,
+            "environment_file_list": true,
+            "environment_file_delete": true,
+            "environment_checkpoint": true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This profile ensures your agent can only use Container Use tools, preventing it from modifying your local files directly.
+
+Next open the Zed Agent Panel ✨ in the lower right, select the "Container Use" profile from the dropdown to the left of the model dropdown, and prompt away!
 
 ## OpenCode
 
-Configure the Container Use MCP server in a `opencode.json` file. 
+Configure the Container Use MCP server in a `opencode.json` file.
 
 > Note: Provide the absolute path to your systems `cu` executable:
 
