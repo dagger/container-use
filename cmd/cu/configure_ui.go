@@ -156,7 +156,7 @@ func (m AgentSelectorModel) View() string {
 		}
 
 		s.WriteString("\n")
-		
+
 		// Show description for selected item
 		if m.cursor == i {
 			s.WriteString(descriptionStyle.Render(agent.Description))
