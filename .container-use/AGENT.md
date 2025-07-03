@@ -6,6 +6,7 @@ DEVELOPMENT WORKFLOW:
 - Build: Use 'go build -o cu ./cmd/cu' or 'dagger call build --platform=current export --path ./cu'
 - Test: Run 'go test ./...' for all tests, 'go test -short ./...' for unit tests only, or 'go test -count=1 -v ./environment' for integration tests
 - Format: Always run 'go fmt ./...' before committing
+- Lint: Run 'golangci-lint run' to check for linting issues
 - Dependencies: Run 'go mod download' to install dependencies, 'go mod tidy' to clean up
 
 DAGGER MODULE (more details in .dagger/):
@@ -17,6 +18,7 @@ AVAILABLE TOOLS:
 - Docker (for container runtime needed by the tool)
 - Dagger v0.18.11 (matches dagger.json)
 - Git with test user configured (test dependency, NOT for version control)
+- golangci-lint v1.61.0 (Go linter with various checks)
 
 PROJECT STRUCTURE:
 - cmd/cu: Main CLI application entry point

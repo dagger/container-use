@@ -6,6 +6,7 @@
     "curl -fsSL https://get.docker.com | sh",
     "cd /tmp \u0026\u0026 curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.11 sh \u0026\u0026 cp ./bin/dagger /usr/local/bin/dagger",
     "git config --global user.name \"Test User\"",
-    "git config --global user.email \"test@dagger.com\""
+    "git config --global user.email \"test@dagger.com\"",
+    "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.61.0"
   ]
 }
