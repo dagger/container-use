@@ -31,6 +31,7 @@ type EnvironmentConfig struct {
 	Env           []string       `json:"env,omitempty"`
 	Secrets       []string       `json:"secrets,omitempty"`
 	Services      ServiceConfigs `json:"services,omitempty"`
+	Locked        bool
 }
 
 type ServiceConfig struct {
@@ -105,13 +106,9 @@ func (config *EnvironmentConfig) Load(baseDir string) error {
 			return err
 		}
 	}
+	if _, err := os.Stat(path.Join(baseDir, configDir, lockFile)); err == nil {
+		config.Locked = true
+	}
 
 	return nil
-}
-
-func (config *EnvironmentConfig) Locked(baseDir string) bool {
-	if _, err := os.Stat(path.Join(baseDir, configDir, lockFile)); err == nil {
-		return true
-	}
-	return false
 }

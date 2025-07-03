@@ -209,8 +209,8 @@ func (env *Environment) buildBase(ctx context.Context, baseSourceDir *dagger.Dir
 }
 
 func (env *Environment) UpdateConfig(ctx context.Context, explanation string, newConfig *EnvironmentConfig) error {
-	if env.Config.Locked(env.Worktree) {
-		return fmt.Errorf("Environment is locked, no updates allowed. Try to make do with the current environment or ask a human to remove the lock file (%s)", path.Join(env.Worktree, configDir, lockFile))
+	if env.Config.Locked {
+		return fmt.Errorf("Environment is locked, no updates allowed. Try to make do with the current environment or ask a human to remove the lock file (%s)", path.Join(configDir, lockFile))
 	}
 
 	env.Config = newConfig
@@ -377,7 +377,7 @@ func (env *Environment) Terminal(ctx context.Context) error {
 	}
 	if _, err := container.Terminal(dagger.ContainerTerminalOpts{
 		ExperimentalPrivilegedNesting: true,
-		Cmd: cmd,
+		Cmd:                           cmd,
 	}).Sync(ctx); err != nil {
 		return err
 	}
