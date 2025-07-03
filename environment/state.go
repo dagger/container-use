@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"dagger.io/dagger"
 )
 
 type State struct {
@@ -81,6 +79,4 @@ type legacyRevision struct {
 	Output      string    `json:"output,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	State       string    `json:"state"`
-
-	container *dagger.Container `json:"-"`
 }

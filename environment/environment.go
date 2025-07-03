@@ -176,7 +176,7 @@ func (env *Environment) buildBase(ctx context.Context, baseSourceDir *dagger.Dir
 			var exitErr *dagger.ExecError
 			if errors.As(err, &exitErr) {
 				env.Notes.AddCommand(command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-				return nil, fmt.Errorf("setup command failed with exit code %d.\nstdout: %s\nstderr: %s\n%w\n", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr, err)
+				return nil, fmt.Errorf("setup command failed with exit code %d.\nstdout: %s\nstderr: %s\n%w", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr, err)
 			}
 
 			return nil, fmt.Errorf("failed to execute setup command: %w", err)

@@ -368,13 +368,12 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string)
 				if err := r.addFilesFromUntrackedDirectory(ctx, worktreePath, dirName); err != nil {
 					return err
 				}
-			} else {
+			} else if !r.isBinaryFile(worktreePath, fileName) {
 				// Untracked file - add if not binary
-				if !r.isBinaryFile(worktreePath, fileName) {
-					_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
-					if err != nil {
-						return err
-					}
+
+				_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
+				if err != nil {
+					return err
 				}
 			}
 		case indexStatus == 'A':
@@ -517,11 +516,7 @@ func (r *Repository) isBinaryFile(worktreePath, fileName string) bool {
 	}
 
 	buffer = buffer[:n]
-	if slices.Contains(buffer, 0) {
-		return true
-	}
-
-	return false
+	return slices.Contains(buffer, 0)
 }
 
 func (r *Repository) normalizeForkPath(ctx context.Context, repo string) (string, error) {

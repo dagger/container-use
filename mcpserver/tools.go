@@ -15,6 +15,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+type daggerClientKey struct{}
+
 func openRepository(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, error) {
 	source, err := request.RequireString("environment_source")
 	if err != nil {
@@ -93,7 +95,7 @@ func wrapToolWithClient(tool *Tool, dag *dagger.Client) *Tool {
 	return &Tool{
 		Definition: tool.Definition,
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			ctx = context.WithValue(ctx, "dagger_client", dag)
+			ctx = context.WithValue(ctx, daggerClientKey{}, dag)
 			return tool.Handler(ctx, request)
 		},
 	}
@@ -239,7 +241,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
