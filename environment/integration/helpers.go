@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
+	"github.com/dagger/container-use/mcpserver"
 	"github.com/dagger/container-use/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,14 +77,14 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 	require.NoError(t, err, "Failed to open repository")
 
 	// Create UserActions with extended capabilities
-	user := NewUserActions(t, repo, testDaggerClient).WithDirectAccess(repoDir, configDir)
+	user := NewUserActions(ctx, t, repo, testDaggerClient).WithDirectAccess(repoDir, configDir)
 
 	// Cleanup
 	t.Cleanup(func() {
 		// Clean up any environments created during the test
-		envs, _ := repo.List(context.Background())
+		envs, _ := repo.List(ctx)
 		for _, env := range envs {
-			repo.Delete(context.Background(), env.ID)
+			repo.Delete(ctx, env.ID)
 		}
 
 		// Remove directories
@@ -188,10 +190,10 @@ type UserActions struct {
 	configDir string // Container-use config directory
 }
 
-func NewUserActions(t *testing.T, repo *repository.Repository, dag *dagger.Client) *UserActions {
+func NewUserActions(ctx context.Context, t *testing.T, repo *repository.Repository, dag *dagger.Client) *UserActions {
 	return &UserActions{
 		t:    t,
-		ctx:  context.Background(),
+		ctx:  ctx,
 		repo: repo,
 		dag:  dag,
 	}
