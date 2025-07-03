@@ -20,8 +20,6 @@ type EnvironmentInfo struct {
 	State  *State
 
 	ID string
-	//TODO(braa): I think we only need this for Export, now. remove and pass explicitly.
-	Worktree string
 }
 
 type Environment struct {
@@ -36,11 +34,15 @@ type Environment struct {
 }
 
 func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, initialSourceDir *dagger.Directory) (*Environment, error) {
+	config := DefaultConfig()
+	if err := config.Load(worktree); err != nil {
+		return nil, err
+	}
+
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
-			ID:       id,
-			Worktree: worktree,
-			Config:   DefaultConfig(),
+			ID:     id,
+			Config: config,
 			State: &State{
 				Title:     title,
 				CreatedAt: time.Now(),
@@ -48,10 +50,6 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, in
 			},
 		},
 		dag: dag,
-	}
-
-	if err := env.Config.Load(worktree); err != nil {
-		return nil, err
 	}
 
 	container, err := env.buildBase(ctx, initialSourceDir)
@@ -97,14 +95,15 @@ func Load(ctx context.Context, dag *dagger.Client, id string, state []byte, work
 // This is useful for operations that only need access to configuration and state
 // information without the overhead of initializing container operations.
 func LoadInfo(ctx context.Context, id string, state []byte, worktree string) (*EnvironmentInfo, error) {
-	envInfo := &EnvironmentInfo{
-		ID:       id,
-		Worktree: worktree,
-		Config:   DefaultConfig(),
-		State:    &State{},
-	}
-	if err := envInfo.Config.Load(worktree); err != nil {
+	config := DefaultConfig()
+	if err := config.Load(worktree); err != nil {
 		return nil, err
+	}
+
+	envInfo := &EnvironmentInfo{
+		ID:     id,
+		Config: config,
+		State:  &State{},
 	}
 
 	if err := envInfo.State.Unmarshal(state); err != nil {

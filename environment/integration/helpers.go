@@ -303,13 +303,17 @@ func (u *UserActions) WriteSourceFile(path, content string) {
 	require.NoError(u.t, err, "Failed to write source file")
 }
 
+// WorktreePath returns the worktree path for an environment, handling errors
+func (u *UserActions) WorktreePath(envID string) string {
+	worktreePath, err := u.repo.WorktreePath(envID)
+	require.NoError(u.t, err, "Failed to get worktree path for environment %s", envID)
+	return worktreePath
+}
+
 // ReadWorktreeFile reads directly from an environment's worktree
 func (u *UserActions) ReadWorktreeFile(envID, path string) string {
-	// Get fresh environment to get current worktree path
-	env, err := u.repo.Get(u.ctx, u.dag, envID)
-	require.NoError(u.t, err, "Failed to get environment %s", envID)
-
-	fullPath := filepath.Join(env.Worktree, path)
+	worktreePath := u.WorktreePath(envID)
+	fullPath := filepath.Join(worktreePath, path)
 	content, err := os.ReadFile(fullPath)
 	require.NoError(u.t, err, "Failed to read worktree file")
 	return string(content)
@@ -317,13 +321,11 @@ func (u *UserActions) ReadWorktreeFile(envID, path string) string {
 
 // CorruptWorktree simulates worktree corruption for recovery testing
 func (u *UserActions) CorruptWorktree(envID string) {
-	// Get fresh environment to get current worktree path
-	env, err := u.repo.Get(u.ctx, u.dag, envID)
-	require.NoError(u.t, err, "Failed to get environment %s", envID)
+	worktreePath := u.WorktreePath(envID)
 
 	// Remove .git directory to corrupt the worktree
-	gitDir := filepath.Join(env.Worktree, ".git")
-	err = os.RemoveAll(gitDir)
+	gitDir := filepath.Join(worktreePath, ".git")
+	err := os.RemoveAll(gitDir)
 	require.NoError(u.t, err, "Failed to corrupt worktree")
 }
 

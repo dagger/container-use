@@ -67,12 +67,12 @@ func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 	return strings.TrimSpace(cuRemote), nil
 }
 
-func (r *Repository) worktreePath(id string) (string, error) {
+func (r *Repository) WorktreePath(id string) (string, error) {
 	return homedir.Expand(path.Join(r.getWorktreePath(), id))
 }
 
 func (r *Repository) deleteWorktree(id string) error {
-	worktreePath, err := r.worktreePath(id)
+	worktreePath, err := r.WorktreePath(id)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 }
 
 func (r *Repository) initializeWorktree(ctx context.Context, id string) (string, error) {
-	worktreePath, err := r.worktreePath(id)
+	worktreePath, err := r.WorktreePath(id)
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +154,11 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
-	if err := r.commitWorktreeChanges(ctx, env.Worktree, explanation); err != nil {
+	worktreePath, err := r.WorktreePath(env.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get worktree path: %w", err)
+	}
+	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
@@ -177,11 +181,16 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Environment) error {
 	worktreePointer := fmt.Sprintf("gitdir: %s/worktrees/%s", r.forkRepoPath, env.ID)
 
-	_, err := env.Workdir().
+	worktreePath, err := r.WorktreePath(env.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get worktree path: %w", err)
+	}
+
+	_, err = env.Workdir().
 		WithNewFile(".git", worktreePointer).
 		Export(
 			ctx,
-			env.Worktree,
+			worktreePath,
 			dagger.DirectoryExportOpts{Wipe: true},
 		)
 	if err != nil {
@@ -189,7 +198,7 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	}
 
 	slog.Info("Saving environment")
-	if err := env.Config.Save(env.Worktree); err != nil {
+	if err := env.Config.Save(worktreePath); err != nil {
 		return err
 	}
 	return nil
@@ -218,6 +227,11 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 	if err != nil {
 		return err
 	}
+	worktreePath, err := r.WorktreePath(env.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get worktree path: %w", err)
+	}
+
 	f, err := os.CreateTemp(os.TempDir(), ".container-use-git-notes-*")
 	if err != nil {
 		return err
@@ -227,7 +241,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 		return err
 	}
 
-	_, err = RunGitCommand(ctx, env.Worktree, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
+	_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
 	if err != nil {
 		return err
 	}
@@ -246,7 +260,11 @@ func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte
 }
 
 func (r *Repository) addGitNote(ctx context.Context, env *environment.Environment, note string) error {
-	_, err := RunGitCommand(ctx, env.Worktree, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
+	worktreePath, err := r.WorktreePath(env.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get worktree path: %w", err)
+	}
+	_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
 	if err != nil {
 		return err
 	}
