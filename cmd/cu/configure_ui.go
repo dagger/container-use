@@ -72,7 +72,7 @@ func (m AgentSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "q", "esc":
 			m.quit = true
 			return m, tea.Quit
 		case "up", "k":
@@ -103,13 +103,13 @@ func (m AgentSelectorModel) View() string {
 		Foreground(lipgloss.Color("#FAFAFA")).
 		Background(lipgloss.Color("#7D56F4")).
 		Padding(0, 1).
+		Margin(1, 0).
 		Bold(true)
 
 	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#F25D94")).
-		Padding(0, 1).
-		Bold(true)
+		Foreground(lipgloss.Color("#7D56F4")).
+		Bold(true).
+		Margin(1, 0, 0, 0)
 
 	selectedStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FAFAFA")).
@@ -118,47 +118,57 @@ func (m AgentSelectorModel) View() string {
 		Bold(true)
 
 	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FAFAFA")).
+		Foreground(lipgloss.Color("#04B575")).
 		Padding(0, 1)
 
 	descriptionStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#626262")).
-		Padding(0, 1)
+		Padding(0, 1, 0, 3).
+		Italic(true)
+
+	footerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#626262")).
+		Margin(1, 0, 0, 0)
+
+	// Build the view
+	var s strings.Builder
+
+	// Title
+	s.WriteString(titleStyle.Render("🛠️  Container Use Configuration"))
+	s.WriteString("\n")
 
 	// Header
-	s := titleStyle.Render("🛠️  Container Use Configuration")
-	s += "\n\n"
-	s += headerStyle.Render("Select an agent to configure:")
-	s += "\n\n"
+	s.WriteString(headerStyle.Render("Select an agent to configure:"))
+	s.WriteString("\n\n")
 
 	// Agent list
 	for i, agent := range agents {
-		cursor := " " // not selected
+		cursor := "  " // not selected
 		if m.cursor == i {
-			cursor = "▶" // selected
+			cursor = "▶ " // selected
 		}
 
-		agentLine := fmt.Sprintf("%s %s %s", cursor, agent.Icon, agent.Name)
+		agentLine := fmt.Sprintf("%s%s %s", cursor, agent.Icon, agent.Name)
 		if m.cursor == i {
-			s += selectedStyle.Render(agentLine)
+			s.WriteString(selectedStyle.Render(agentLine))
 		} else {
-			s += normalStyle.Render(agentLine)
+			s.WriteString(normalStyle.Render(agentLine))
 		}
 
-		s += "\n"
+		s.WriteString("\n")
 		
 		// Show description for selected item
 		if m.cursor == i {
-			s += descriptionStyle.Render(fmt.Sprintf("   %s", agent.Description))
-			s += "\n"
+			s.WriteString(descriptionStyle.Render(agent.Description))
+			s.WriteString("\n")
 		}
 	}
 
 	// Footer
-	s += "\n"
-	s += descriptionStyle.Render("Use ↑/↓ or j/k to navigate, Enter/Space to select, q to quit")
+	s.WriteString("\n")
+	s.WriteString(footerStyle.Render("Use ↑/↓ or j/k to navigate • Enter/Space to select • q/Ctrl+C/Esc to quit"))
 
-	return s
+	return s.String()
 }
 
 // RunAgentSelector runs the interactive agent selector and returns the selected agent key
