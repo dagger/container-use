@@ -8,8 +8,8 @@ import (
 )
 
 var diffCmd = &cobra.Command{
-	Use:               "diff <env>",
-	Short:             "Show what files an agent changed",
+	Use:   "diff <env>",
+	Short: "Show what files an agent changed",
 	Long: `Display the code changes made by an agent in an environment.
 Shows a git diff between the environment's state and your current branch.`,
 	Args:              cobra.ExactArgs(1),

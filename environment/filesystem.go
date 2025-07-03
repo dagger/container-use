@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func (s *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {
+func (s *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexedInclusive int, endLineOneIndexedInclusive int) (string, error) {
 	file, err := s.container().File(targetFile).Contents(ctx)
 	if err != nil {
 		return "", err
@@ -16,18 +16,23 @@ func (s *Environment) FileRead(ctx context.Context, targetFile string, shouldRea
 	}
 
 	lines := strings.Split(string(file), "\n")
-	start := startLineOneIndexed - 1
-	start = max(start, 0)
+	start := startLineOneIndexedInclusive - 1
+
 	if start >= len(lines) {
 		start = len(lines) - 1
 	}
+	if start < 0 {
+		return "", fmt.Errorf("error reading file: start_line_one_indexed_inclusive (%d) cannot be less than 1", startLineOneIndexedInclusive)
+	}
 	end := endLineOneIndexedInclusive
+
 	if end >= len(lines) {
 		end = len(lines) - 1
 	}
-	if end < 0 {
-		end = 0
+	if end < start {
+		return "", fmt.Errorf("error reading file: end_line_one_indexed_inclusive (%d) must be greater than start_line_one_indexed_inclusive (%d)", endLineOneIndexedInclusive, startLineOneIndexedInclusive)
 	}
+
 	return strings.Join(lines[start:end], "\n"), nil
 }
 

@@ -8,8 +8,8 @@ import (
 )
 
 var checkoutCmd = &cobra.Command{
-	Use:               "checkout <env>",
-	Short:             "Switch to an environment's branch locally",
+	Use:   "checkout <env>",
+	Short: "Switch to an environment's branch locally",
 	Long: `Bring an environment's work into your local git workspace.
 This creates a local branch from the environment's state so you can
 explore files in your IDE, make changes, or continue development.`,
