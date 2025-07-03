@@ -89,30 +89,28 @@ var configureCmd = &cobra.Command{
 }
 
 func interactiveConfiguration() error {
-	fmt.Println("Select an agent to configure:")
-	fmt.Println("1. Claude Code")
-	fmt.Println("2. Goose")
-	fmt.Println("3. Cursor")
-	fmt.Println("4. OpenAI Codex")
-	fmt.Println("5. Amazon Q Developer")
-	fmt.Println("Enter number (1-5):")
+	selectedAgent, err := RunAgentSelector()
+	if err != nil {
+		// If the user quits, it's not an error, just exit gracefully.
+		if err.Error() == "no agent selected" {
+			return nil
+		}
+		return fmt.Errorf("failed to select agent: %w", err)
+	}
 
-	var choice string
-	fmt.Scanln(&choice)
-
-	switch choice {
-	case "1":
+	switch selectedAgent {
+	case "claude":
 		return configureClaude()
-	case "2":
+	case "goose":
 		return configureGoose()
-	case "3":
+	case "cursor":
 		return configureCursor()
-	case "4":
+	case "codex":
 		return configureCodex()
-	case "5":
+	case "amazonq":
 		return configureAmazonQ()
 	default:
-		return fmt.Errorf("invalid selection: %s", choice)
+		return fmt.Errorf("unknown agent: %s", selectedAgent)
 	}
 }
 
