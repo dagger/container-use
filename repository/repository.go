@@ -400,7 +400,7 @@ func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, diffArgs...)
 }
 
-func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
+func (r *Repository) Merge(ctx context.Context, id string, w io.Writer, squash bool) error {
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
@@ -415,5 +415,8 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 		}
 	}
 
+	if squash {
+		return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--squash", "--", "container-use/"+envInfo.ID)
+	}
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
