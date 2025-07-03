@@ -208,14 +208,8 @@ func (u *UserActions) WithDirectAccess(repoDir, configDir string) *UserActions {
 
 // FileWrite mirrors environment_file_write MCP tool behavior
 func (u *UserActions) FileWrite(envID, targetFile, contents, explanation string) {
-	env, err := u.repo.Get(u.ctx, u.dag, envID)
-	require.NoError(u.t, err, "Failed to get environment %s", envID)
-
-	err = env.FileWrite(u.ctx, explanation, targetFile, contents)
+	err := mcpserver.WriteEnvironmentFile(u.ctx, u.dag, u.repoDir, envID, targetFile, contents, explanation)
 	require.NoError(u.t, err, "FileWrite should succeed")
-
-	err = u.repo.Update(u.ctx, env, explanation)
-	require.NoError(u.t, err, "repo.Update after FileWrite should succeed")
 }
 
 // RunCommand mirrors environment_run_cmd MCP tool behavior

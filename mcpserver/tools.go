@@ -636,11 +636,14 @@ var EnvironmentFileWriteTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, env, err := openEnvironment(ctx, request)
+		source, err := request.RequireString("environment_source")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
-
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
 		targetFile, err := request.RequireString("target_file")
 		if err != nil {
 			return nil, err
@@ -650,16 +653,42 @@ var EnvironmentFileWriteTool = &Tool{
 			return nil, err
 		}
 
-		if err := env.FileWrite(ctx, request.GetString("explanation", ""), targetFile, contents); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+		if err := WriteEnvironmentFile(ctx, dag, source, envID, targetFile, contents, request.GetString("explanation", "")); err != nil {
+			// Preserve original error messages for compatibility
+			// TODO: Consider using custom error types instead
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote", targetFile)), nil
 	},
+}
+
+// WriteEnvironmentFile writes a file to an environment
+func WriteEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envID, targetFile, contents, explanation string) error {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return err
+	}
+	
+	env, err := repo.Get(ctx, dag, envID)
+	if err != nil {
+		return err
+	}
+	
+	if err := env.FileWrite(ctx, explanation, targetFile, contents); err != nil {
+		return err
+	}
+	
+	if err := repo.Update(ctx, env, explanation); err != nil {
+		return err
+	}
+	
+	return nil
 }
 
 var EnvironmentFileDeleteTool = &Tool{
