@@ -5,7 +5,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"log"
 	"log/slog"
+	"os"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
@@ -66,7 +68,11 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
 	}
 
 	slog.Info("starting server")
-	return server.ServeStdio(s)
+
+	stdioSrv := server.NewStdioServer(s)
+	stdioSrv.SetErrorLogger(log.Default()) // this should re-use our `slog` handler
+
+	return stdioSrv.Listen(ctx, os.Stdin, os.Stdout)
 }
 
 var tools = []*Tool{}
