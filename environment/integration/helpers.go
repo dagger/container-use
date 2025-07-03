@@ -251,14 +251,8 @@ func (u *UserActions) UpdateEnvironment(envID, title, explanation string, config
 
 // FileDelete mirrors environment_file_delete MCP tool behavior
 func (u *UserActions) FileDelete(envID, targetFile, explanation string) {
-	env, err := u.repo.Get(u.ctx, u.dag, envID)
-	require.NoError(u.t, err, "Failed to get environment %s", envID)
-
-	err = env.FileDelete(u.ctx, explanation, targetFile)
+	err := mcpserver.DeleteEnvironmentFile(u.ctx, u.dag, u.repoDir, envID, targetFile, explanation)
 	require.NoError(u.t, err, "FileDelete should succeed")
-
-	err = u.repo.Update(u.ctx, env, explanation)
-	require.NoError(u.t, err, "repo.Update after FileDelete should succeed")
 }
 
 // FileRead mirrors environment_file_read MCP tool behavior (read-only, no update)
