@@ -417,3 +417,87 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
+
+func (r *Repository) MergeSquash(ctx context.Context, id string, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	output, err := RunGitCommand(ctx, r.userRepoPath, "stash", "save", "--include-untracked", "container-use: stash before merging "+envInfo.ID)
+	if err == nil {
+		if !strings.Contains(output, "No local changes to save") {
+			defer func() {
+				_ = RunInteractiveGitCommand(ctx, r.userRepoPath, w, "stash", "pop", "-q")
+			}()
+		}
+	}
+
+	// Check if we can safely use theirs strategy
+	canUseTheirs, err := r.canUseTheirsStrategy(ctx, envInfo)
+	if err != nil {
+		return err
+	}
+
+	// Perform squash merge with appropriate strategy
+	var mergeArgs []string
+	if canUseTheirs {
+		mergeArgs = []string{"merge", "--squash", "-Xtheirs", "--", "container-use/" + envInfo.ID}
+	} else {
+		mergeArgs = []string{"merge", "--squash", "--", "container-use/" + envInfo.ID}
+	}
+
+	err = RunInteractiveGitCommand(ctx, r.userRepoPath, w, mergeArgs...)
+	if err != nil {
+		return err
+	}
+
+	// Commit the squashed changes using the environment title with squash merge suffix
+	commitMessage := ""
+	if envInfo.State != nil && envInfo.State.Title != "" {
+		commitMessage = envInfo.State.Title + "\n\nSquash merge environment " + envInfo.ID
+	} else {
+		commitMessage = "Squash merge environment " + envInfo.ID
+	}
+
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "commit", "-m", commitMessage)
+}
+
+// canUseTheirsStrategy checks if all commits between the common parent and current HEAD
+// are container-use squash merge commits, making it safe to use -Xtheirs strategy
+func (r *Repository) canUseTheirsStrategy(ctx context.Context, envInfo *environment.EnvironmentInfo) (bool, error) {
+	// Get merge base between current branch and environment branch
+	mergeBase, err := r.mergeBase(ctx, envInfo)
+	if err != nil {
+		return false, err
+	}
+
+	// Get all commits from merge base to current HEAD
+	commits, err := RunGitCommand(ctx, r.userRepoPath, "rev-list", "--pretty=format:%B", mergeBase+"..HEAD")
+	if err != nil {
+		return false, err
+	}
+
+	// If no commits between merge base and HEAD, it's safe to use theirs
+	commits = strings.TrimSpace(commits)
+	if commits == "" {
+		return true, nil
+	}
+
+	// Parse commit messages and check if they're all squash merge commits
+	// Split by "commit " to get individual commit blocks
+	commitBlocks := strings.Split(commits, "commit ")
+	for _, commitBlock := range commitBlocks {
+		commitBlock = strings.TrimSpace(commitBlock)
+		// Skip empty blocks
+		if commitBlock == "" {
+			continue
+		}
+
+		// Check if this commit's full message contains "Squash merge environment"
+		if !strings.Contains(commitBlock, "Squash merge environment") {
+			return false, nil
+		}
+	}
+	return true, nil
+}
