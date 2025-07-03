@@ -20,12 +20,12 @@ var agents = []Agent{
 	{
 		Key:         "claude",
 		Name:        "Claude Code",
-		Description: "Anthropic's Claude Code with MCP support",
+		Description: "Anthropic's Claude Code",
 	},
 	{
 		Key:         "goose",
 		Name:        "Goose",
-		Description: "AI coding assistant with extension support",
+		Description: "an open source, extensible AI agent that goes beyond code suggestions",
 	},
 	{
 		Key:         "cursor",
@@ -35,12 +35,12 @@ var agents = []Agent{
 	{
 		Key:         "codex",
 		Name:        "OpenAI Codex",
-		Description: "OpenAI's code generation model",
+		Description: "OpenAI's lightweight coding agent that runs in your terminal",
 	},
 	{
 		Key:         "amazonq",
 		Name:        "Amazon Q Developer",
-		Description: "Amazon's AI coding assistant",
+		Description: "Amazon's agentic chat experience in your terminal",
 	},
 }
 
