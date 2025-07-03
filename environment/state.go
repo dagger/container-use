@@ -11,6 +11,7 @@ import (
 type State struct {
 	Container string    `json:"container,omitempty"`
 	Title     string    `json:"title,omitempty"`
+	Summary   string    `json:"summary,omitempty"`
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }

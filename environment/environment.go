@@ -35,7 +35,7 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, initialSourceDir *dagger.Directory) (*Environment, error) {
+func New(ctx context.Context, dag *dagger.Client, id, title, summary, worktree string, initialSourceDir *dagger.Directory) (*Environment, error) {
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
 			ID:       id,
@@ -43,6 +43,7 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, in
 			Config:   DefaultConfig(),
 			State: &State{
 				Title:     title,
+				Summary:   summary,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			},
