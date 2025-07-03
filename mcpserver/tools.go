@@ -132,29 +132,8 @@ type EnvironmentResponse struct {
 	Services        []*environment.Service `json:"services,omitempty"`
 }
 
-func marshalEnvironment(env *environment.Environment) (string, error) {
-	resp := &EnvironmentResponse{
-		ID:              env.ID,
-		Title:           env.State.Title,
-		Instructions:    env.Config.Instructions,
-		BaseImage:       env.Config.BaseImage,
-		SetupCommands:   env.Config.SetupCommands,
-		Workdir:         env.Config.Workdir,
-		RemoteRef:       fmt.Sprintf("container-use/%s", env.ID),
-		CheckoutCommand: fmt.Sprintf("cu checkout %s", env.ID),
-		LogCommand:      fmt.Sprintf("cu log %s", env.ID),
-		DiffCommand:     fmt.Sprintf("cu diff %s", env.ID),
-		Services:        env.Services,
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal response: %w", err)
-	}
-	return string(out), nil
-}
-
-func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error) {
-	resp := &EnvironmentResponse{
+func environmentResponseFromEnvInfo(envInfo *environment.EnvironmentInfo) *EnvironmentResponse {
+	return &EnvironmentResponse{
 		ID:              envInfo.ID,
 		Title:           envInfo.State.Title,
 		Instructions:    envInfo.Config.Instructions,
@@ -164,9 +143,27 @@ func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error
 		RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
 		CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
 		LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
+		DiffCommand:     fmt.Sprintf("cu diff %s", envInfo.ID),
 		Services:        nil, // EnvironmentInfo doesn't have "active" services, specifically useful for EndpointMappings
 	}
-	out, err := json.Marshal(resp)
+}
+
+func environmentResponseFromEnv(env *environment.Environment) *EnvironmentResponse {
+	resp := environmentResponseFromEnvInfo(env.EnvironmentInfo)
+	resp.Services = env.Services
+	return resp
+}
+
+func marshalEnvironment(env *environment.Environment) (string, error) {
+	out, err := json.Marshal(environmentResponseFromEnv(env))
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return string(out), nil
+}
+
+func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error) {
+	out, err := json.Marshal(environmentResponseFromEnvInfo(envInfo))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -390,18 +387,7 @@ var EnvironmentListTool = &Tool{
 		// Convert EnvironmentInfo slice to EnvironmentResponse slice
 		responses := make([]EnvironmentResponse, len(envInfos))
 		for i, envInfo := range envInfos {
-			responses[i] = EnvironmentResponse{
-				ID:              envInfo.ID,
-				Title:           envInfo.State.Title,
-				Instructions:    envInfo.Config.Instructions,
-				BaseImage:       envInfo.Config.BaseImage,
-				SetupCommands:   envInfo.Config.SetupCommands,
-				Workdir:         envInfo.Config.Workdir,
-				RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
-				CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
-				LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
-				Services:        nil, // EnvironmentInfo doesn't have services
-			}
+			responses[i] = *environmentResponseFromEnvInfo(envInfo)
 		}
 
 		out, err := json.Marshal(responses)
