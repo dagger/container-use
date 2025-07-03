@@ -357,7 +357,10 @@ func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, e
 	return branch, err
 }
 
-func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer) error {
+// Log displays the development history for an environment.
+// If branch is provided, shows log since merge-base with that branch.
+// Otherwise, shows log from environment creation.
+func (r *Repository) Log(ctx context.Context, id string, patch bool, branch string, w io.Writer) error {
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
@@ -375,7 +378,7 @@ func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer
 		logArgs = append(logArgs, "--format=%C(yellow)%h%Creset  %s %Cgreen(%cr)%Creset %+N")
 	}
 
-	revisionRange, err := r.revisionRange(ctx, envInfo)
+	revisionRange, err := r.revisionRange(ctx, envInfo, branch)
 	if err != nil {
 		return err
 	}
@@ -391,7 +394,10 @@ func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer
 	return cmd.Run()
 }
 
-func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
+// Diff shows changes made in an environment.
+// If branch is provided, shows diff since merge-base with that branch.
+// Otherwise, shows diff from environment creation.
+func (r *Repository) Diff(ctx context.Context, id string, branch string, w io.Writer) error {
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
@@ -402,7 +408,7 @@ func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
 		"diff",
 	}
 
-	revisionRange, err := r.revisionRange(ctx, envInfo)
+	revisionRange, err := r.revisionRange(ctx, envInfo, branch)
 	if err != nil {
 		return err
 	}

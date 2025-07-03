@@ -239,26 +239,41 @@ func (r *Repository) currentUserBranch(ctx context.Context) (string, error) {
 	return RunGitCommand(ctx, r.userRepoPath, "branch", "--show-current")
 }
 
-func (r *Repository) mergeBase(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
-	currentBranch, err := r.currentUserBranch(ctx)
-	if err != nil {
-		return "", err
-	}
-	currentBranch = strings.TrimSpace(currentBranch)
+func (r *Repository) mergeBase(ctx context.Context, env *environment.EnvironmentInfo, branch string) (string, error) {
 	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
-	mergeBase, err := RunGitCommand(ctx, r.userRepoPath, "merge-base", currentBranch, envGitRef)
+	mergeBase, err := RunGitCommand(ctx, r.userRepoPath, "merge-base", branch, envGitRef)
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(mergeBase), nil
 }
 
-func (r *Repository) revisionRange(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
-	mergeBase, err := r.mergeBase(ctx, env)
+// revisionRange determines the git revision range for log/diff operations.
+// If branch is provided, uses merge-base with that branch.
+// Otherwise, uses merge-base with the current user branch.
+func (r *Repository) revisionRange(ctx context.Context, env *environment.EnvironmentInfo, branch string) (string, error) {
+	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
+
+	if branch != "" {
+		// Use merge-base with specified branch
+		mergeBase, err := r.mergeBase(ctx, env, branch)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s..%s", mergeBase, envGitRef), nil
+	}
+
+	// Use merge-base with current user branch (original behavior)
+	currentBranch, err := r.currentUserBranch(ctx)
 	if err != nil {
 		return "", err
 	}
-	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
+	currentBranch = strings.TrimSpace(currentBranch)
+	
+	mergeBase, err := r.mergeBase(ctx, env, currentBranch)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("%s..%s", mergeBase, envGitRef), nil
 }
 

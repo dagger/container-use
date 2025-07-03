@@ -142,7 +142,7 @@ func TestRepositoryLog(t *testing.T) {
 
 		// Get commit log without patches
 		var logBuf bytes.Buffer
-		err := repo.Log(ctx, env.ID, false, &logBuf)
+		err := repo.Log(ctx, env.ID, false, "", &logBuf)
 		logOutput := logBuf.String()
 		require.NoError(t, err, logOutput)
 
@@ -153,7 +153,7 @@ func TestRepositoryLog(t *testing.T) {
 
 		// Get commit log with patches
 		logBuf.Reset()
-		err = repo.Log(ctx, env.ID, true, &logBuf)
+		err = repo.Log(ctx, env.ID, true, "", &logBuf)
 		logWithPatchOutput := logBuf.String()
 		require.NoError(t, err, logWithPatchOutput)
 
@@ -162,7 +162,7 @@ func TestRepositoryLog(t *testing.T) {
 		assert.Contains(t, logWithPatchOutput, "+updated content")
 
 		// Test log for non-existent environment
-		err = repo.Log(ctx, "non-existent-env", false, &logBuf)
+		err = repo.Log(ctx, "non-existent-env", false, "", &logBuf)
 		assert.Error(t, err)
 	})
 }
@@ -184,7 +184,7 @@ func TestRepositoryDiff(t *testing.T) {
 
 		// Get diff output
 		var diffBuf bytes.Buffer
-		err := repo.Diff(ctx, env.ID, &diffBuf)
+		err := repo.Diff(ctx, env.ID, "", &diffBuf)
 		diffOutput := diffBuf.String()
 		require.NoError(t, err, diffOutput)
 
@@ -192,7 +192,7 @@ func TestRepositoryDiff(t *testing.T) {
 		assert.Contains(t, diffOutput, "+updated content")
 
 		// Test diff with non-existent environment
-		err = repo.Diff(ctx, "non-existent-env", &diffBuf)
+		err = repo.Diff(ctx, "non-existent-env", "", &diffBuf)
 		assert.Error(t, err)
 	})
 }
