@@ -8,8 +8,8 @@ import (
 )
 
 var logCmd = &cobra.Command{
-	Use:               "log <env>",
-	Short:             "View what an agent did step-by-step",
+	Use:   "log <env>",
+	Short: "View what an agent did step-by-step",
 	Long: `Display the complete development history for an environment.
 Shows all commits made by the agent plus command execution notes.
 Use -p to include code patches in the output.`,

@@ -8,8 +8,8 @@ import (
 )
 
 var deleteCmd = &cobra.Command{
-	Use:               "delete [<env>...]",
-	Short:             "Delete environments and start fresh",
+	Use:   "delete [<env>...]",
+	Short: "Delete environments and start fresh",
 	Long: `Delete one or more environments and their associated resources.
 This permanently removes the environment's branch and container state.
 Use this when starting over with a different approach.

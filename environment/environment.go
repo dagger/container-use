@@ -377,7 +377,7 @@ func (env *Environment) Terminal(ctx context.Context) error {
 	}
 	if _, err := container.Terminal(dagger.ContainerTerminalOpts{
 		ExperimentalPrivilegedNesting: true,
-		Cmd: cmd,
+		Cmd:                           cmd,
 	}).Sync(ctx); err != nil {
 		return err
 	}
