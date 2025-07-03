@@ -551,26 +551,55 @@ var EnvironmentFileReadTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		_, env, err := openEnvironment(ctx, request)
+		source, err := request.RequireString("environment_source")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
-
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
 		targetFile, err := request.RequireString("target_file")
 		if err != nil {
 			return nil, err
 		}
+		
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+		}
+		
 		shouldReadEntireFile := request.GetBool("should_read_entire_file", false)
 		startLineOneIndexed := request.GetInt("start_line_one_indexed", 0)
 		endLineOneIndexedInclusive := request.GetInt("end_line_one_indexed_inclusive", 0)
 
-		fileContents, err := env.FileRead(ctx, targetFile, shouldReadEntireFile, startLineOneIndexed, endLineOneIndexedInclusive)
+		fileContents, err := ReadEnvironmentFile(ctx, dag, source, envID, targetFile, shouldReadEntireFile, startLineOneIndexed, endLineOneIndexedInclusive)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to read file", err), nil
+			return mcp.NewToolResultErrorFromErr(err.Error(), err), nil
 		}
 
 		return mcp.NewToolResultText(fileContents), nil
 	},
+}
+
+// ReadEnvironmentFile reads a file from an environment
+func ReadEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envID, targetFile string, shouldReadEntireFile bool, startLineOneIndexed, endLineOneIndexedInclusive int) (string, error) {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return "", err
+	}
+	
+	env, err := repo.Get(ctx, dag, envID)
+	if err != nil {
+		return "", err
+	}
+	
+	fileContents, err := env.FileRead(ctx, targetFile, shouldReadEntireFile, startLineOneIndexed, endLineOneIndexedInclusive)
+	if err != nil {
+		return "", err
+	}
+	
+	return fileContents, nil
 }
 
 var EnvironmentFileListTool = &Tool{

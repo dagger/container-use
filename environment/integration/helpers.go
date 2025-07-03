@@ -257,10 +257,7 @@ func (u *UserActions) FileDelete(envID, targetFile, explanation string) {
 
 // FileRead mirrors environment_file_read MCP tool behavior (read-only, no update)
 func (u *UserActions) FileRead(envID, targetFile string) string {
-	env, err := u.repo.Get(u.ctx, u.dag, envID)
-	require.NoError(u.t, err, "Failed to get environment %s", envID)
-
-	content, err := env.FileRead(u.ctx, targetFile, true, 0, 0)
+	content, err := mcpserver.ReadEnvironmentFile(u.ctx, u.dag, u.repoDir, envID, targetFile, true, 0, 0)
 	require.NoError(u.t, err, "FileRead should succeed")
 	return content
 }
