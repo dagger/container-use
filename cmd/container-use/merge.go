@@ -10,6 +10,7 @@ import (
 
 var (
 	mergeDelete bool
+	mergeSquash bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -37,7 +38,7 @@ container-use merge --delete backend-api`,
 
 		env := args[0]
 
-		if err := repo.Merge(ctx, env, os.Stdout); err != nil {
+		if err := repo.Merge(ctx, env, os.Stdout, mergeSquash); err != nil {
 			return fmt.Errorf("failed to merge environment: %w", err)
 		}
 
@@ -57,6 +58,7 @@ container-use merge --delete backend-api`,
 
 func init() {
 	mergeCmd.Flags().BoolVarP(&mergeDelete, "delete", "d", false, "Delete the environment after successful merge")
+	mergeCmd.Flags().BoolVar(&mergeSquash, "squash", false, "Produce the working tree and index state as if a real merge happened (except for the merge information), but do not actually make a commit")
 
 	rootCmd.AddCommand(mergeCmd)
 }

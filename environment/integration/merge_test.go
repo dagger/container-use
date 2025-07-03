@@ -61,6 +61,53 @@ func TestRepositoryMerge(t *testing.T) {
 	})
 }
 
+// TestRepositoryMergeSquash tests merging an environment with --squash flag
+func TestRepositoryMergeSquash(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-merge-squash", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create an environment and add content with multiple commits
+		env := user.CreateEnvironment("Test Merge Squash", "Testing repository merge with squash")
+		user.FileWrite(env.ID, "squash-test.txt", "first version", "First commit")
+		user.FileWrite(env.ID, "squash-test.txt", "updated version", "Second commit")
+		user.FileWrite(env.ID, "another-file.txt", "another file", "Third commit")
+
+		// Get initial branch
+		initialBranch, err := repository.RunGitCommand(ctx, repo.SourcePath(), "branch", "--show-current")
+		require.NoError(t, err)
+		initialBranch = strings.TrimSpace(initialBranch)
+
+		// Merge with squash
+		var mergeOutput bytes.Buffer
+		err = repo.Merge(ctx, env.ID, &mergeOutput, true)
+		require.NoError(t, err, "Squash merge should succeed: %s", mergeOutput.String())
+
+		// Verify we're still on the initial branch
+		currentBranch, err := repository.RunGitCommand(ctx, repo.SourcePath(), "branch", "--show-current")
+		require.NoError(t, err)
+		assert.Equal(t, initialBranch, strings.TrimSpace(currentBranch))
+
+		// Verify the files were merged into working directory
+		squashTestPath := filepath.Join(repo.SourcePath(), "squash-test.txt")
+		content, err := os.ReadFile(squashTestPath)
+		require.NoError(t, err)
+		assert.Equal(t, "updated version", string(content))
+
+		anotherFilePath := filepath.Join(repo.SourcePath(), "another-file.txt")
+		anotherContent, err := os.ReadFile(anotherFilePath)
+		require.NoError(t, err)
+		assert.Equal(t, "another file", string(anotherContent))
+
+		// With squash merge, changes should be staged but not committed yet
+		status, err := repository.RunGitCommand(ctx, repo.SourcePath(), "status", "--porcelain")
+		require.NoError(t, err)
+		// Files should be staged (prefixed with A or M)
+		assert.Contains(t, status, "squash-test.txt")
+		assert.Contains(t, status, "another-file.txt")
+	})
+}
+
 // TestRepositoryMergeNonExistent tests merging a non-existent environment
 func TestRepositoryMergeNonExistent(t *testing.T) {
 	t.Parallel()
