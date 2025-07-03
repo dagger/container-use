@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -115,6 +116,8 @@ func init() {
 		EnvironmentAddServiceTool,
 
 		EnvironmentCheckpointTool,
+		EnvironmentLogTool,
+		EnvironmentDiffTool,
 	)
 }
 
@@ -814,5 +817,82 @@ Supported schemas are:
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
+	},
+}
+
+var EnvironmentLogTool = &Tool{
+	Definition: mcp.NewTool("environment_log",
+		mcp.WithDescription("View the development history of an environment, showing all commits made by the agent plus command execution notes."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this environment log is being viewed."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment to view the log for."),
+			mcp.Required(),
+		),
+		mcp.WithBoolean("patch",
+			mcp.Description("Include code patches in the output (default: false)."),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := openRepository(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
+		}
+
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
+
+		patch := request.GetBool("patch", false)
+
+		var buf bytes.Buffer
+		// MCP tools always show full history (no branch comparison)
+		if err := repo.Log(ctx, envID, patch, "", &buf); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to get environment log", err), nil
+		}
+
+		return mcp.NewToolResultText(buf.String()), nil
+	},
+}
+
+var EnvironmentDiffTool = &Tool{
+	Definition: mcp.NewTool("environment_diff",
+		mcp.WithDescription("View the cumulative changes made in an environment from its creation point, showing all code modifications as a unified diff."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this environment diff is being viewed."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment to view the diff for."),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := openRepository(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
+		}
+
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
+
+		var buf bytes.Buffer
+		// MCP tools always show full diff (no branch comparison)
+		if err := repo.Diff(ctx, envID, "", &buf); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to get environment diff", err), nil
+		}
+
+		return mcp.NewToolResultText(buf.String()), nil
 	},
 }
