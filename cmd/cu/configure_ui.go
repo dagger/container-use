@@ -13,7 +13,6 @@ type Agent struct {
 	Key         string
 	Name        string
 	Description string
-	Icon        string
 }
 
 // Available agents
@@ -22,31 +21,26 @@ var agents = []Agent{
 		Key:         "claude",
 		Name:        "Claude Code",
 		Description: "Anthropic's Claude Code with MCP support",
-		Icon:        "🤖",
 	},
 	{
 		Key:         "goose",
 		Name:        "Goose",
 		Description: "AI coding assistant with extension support",
-		Icon:        "🪿",
 	},
 	{
 		Key:         "cursor",
 		Name:        "Cursor",
 		Description: "AI-powered code editor",
-		Icon:        "⚡",
 	},
 	{
 		Key:         "codex",
 		Name:        "OpenAI Codex",
 		Description: "OpenAI's code generation model",
-		Icon:        "🧠",
 	},
 	{
 		Key:         "amazonq",
 		Name:        "Amazon Q Developer",
 		Description: "Amazon's AI coding assistant",
-		Icon:        "🌟",
 	},
 }
 
@@ -148,7 +142,7 @@ func (m AgentSelectorModel) View() string {
 			cursor = "▶ " // selected
 		}
 
-		agentLine := fmt.Sprintf("%s%s %s", cursor, agent.Icon, agent.Name)
+		agentLine := fmt.Sprintf("%s%s", cursor, agent.Name)
 		if m.cursor == i {
 			s.WriteString(selectedStyle.Render(agentLine))
 		} else {
