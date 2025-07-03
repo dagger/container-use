@@ -433,21 +433,15 @@ func (r *Repository) MergeSquash(ctx context.Context, id string, w io.Writer) er
 		}
 	}
 
-	// Check if we can safely use theirs strategy
-	canUseTheirs, err := r.canUseTheirsStrategy(ctx, envInfo)
+	// Find the base point for creating the patch
+	basePoint, err := r.findSquashMergeBase(ctx, envInfo)
 	if err != nil {
 		return err
 	}
 
-	// Perform squash merge with appropriate strategy
-	var mergeArgs []string
-	if canUseTheirs {
-		mergeArgs = []string{"merge", "--squash", "-Xtheirs", "--", "container-use/" + envInfo.ID}
-	} else {
-		mergeArgs = []string{"merge", "--squash", "--", "container-use/" + envInfo.ID}
-	}
-
-	err = RunInteractiveGitCommand(ctx, r.userRepoPath, w, mergeArgs...)
+	// Create and apply patch from base point to environment branch tip
+	envBranchRef := fmt.Sprintf("%s/%s", containerUseRemote, envInfo.ID)
+	err = r.applyEnvironmentPatch(ctx, basePoint, envBranchRef, w)
 	if err != nil {
 		return err
 	}
@@ -463,41 +457,39 @@ func (r *Repository) MergeSquash(ctx context.Context, id string, w io.Writer) er
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "commit", "-m", commitMessage)
 }
 
-// canUseTheirsStrategy checks if all commits between the common parent and current HEAD
-// are container-use squash merge commits, making it safe to use -Xtheirs strategy
-func (r *Repository) canUseTheirsStrategy(ctx context.Context, envInfo *environment.EnvironmentInfo) (bool, error) {
-	// Get merge base between current branch and environment branch
-	mergeBase, err := r.mergeBase(ctx, envInfo)
+// findSquashMergeBase finds the most recent squash merge commit for this environment
+// or falls back to the merge base if none exists
+func (r *Repository) findSquashMergeBase(ctx context.Context, envInfo *environment.EnvironmentInfo) (string, error) {
+	// First, try to find the most recent squash merge commit for this environment
+	log, err := RunGitCommand(ctx, r.userRepoPath, "log", "--oneline", "--grep=Squash merge environment "+envInfo.ID, "-1", "--pretty=format:%H")
+	if err == nil && strings.TrimSpace(log) != "" {
+		return strings.TrimSpace(log), nil
+	}
+
+	// If no previous squash merge found, use the merge base
+	return r.mergeBase(ctx, envInfo)
+}
+
+// applyEnvironmentPatch creates a patch between basePoint and envBranchRef and applies it to the working directory
+func (r *Repository) applyEnvironmentPatch(ctx context.Context, basePoint, envBranchRef string, w io.Writer) error {
+	// Create patch from basePoint to environment branch tip
+	patch, err := RunGitCommand(ctx, r.userRepoPath, "diff", basePoint, envBranchRef)
 	if err != nil {
-		return false, err
+		return fmt.Errorf("failed to create patch: %w", err)
 	}
 
-	// Get all commits from merge base to current HEAD
-	commits, err := RunGitCommand(ctx, r.userRepoPath, "rev-list", "--pretty=format:%B", mergeBase+"..HEAD")
-	if err != nil {
-		return false, err
+	// If no changes, nothing to apply
+	if strings.TrimSpace(patch) == "" {
+		return nil
 	}
 
-	// If no commits between merge base and HEAD, it's safe to use theirs
-	commits = strings.TrimSpace(commits)
-	if commits == "" {
-		return true, nil
-	}
+	// Apply the patch to the working directory
+	// Use git apply with 3-way merge to surface conflicts naturally
+	cmd := exec.CommandContext(ctx, "git", "apply", "--3way", "--index")
+	cmd.Dir = r.userRepoPath
+	cmd.Stdin = strings.NewReader(patch)
+	cmd.Stdout = w
+	cmd.Stderr = w
 
-	// Parse commit messages and check if they're all squash merge commits
-	// Split by "commit " to get individual commit blocks
-	commitBlocks := strings.Split(commits, "commit ")
-	for _, commitBlock := range commitBlocks {
-		commitBlock = strings.TrimSpace(commitBlock)
-		// Skip empty blocks
-		if commitBlock == "" {
-			continue
-		}
-
-		// Check if this commit's full message contains "Squash merge environment"
-		if !strings.Contains(commitBlock, "Squash merge environment") {
-			return false, nil
-		}
-	}
-	return true, nil
+	return cmd.Run()
 }

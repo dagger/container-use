@@ -334,3 +334,61 @@ func TestRepositoryMergeSquashConflictResolution(t *testing.T) {
 		assert.Contains(t, log, "Initial commit")
 	})
 }
+
+// TestRepositoryMergeSquashWithUserCommits tests that the patch-based approach properly surfaces conflicts
+// when users have committed their own content between squash merges
+func TestRepositoryMergeSquashWithUserCommits(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-merge-squash-user-commits", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create an environment and add initial content
+		env := user.CreateEnvironment("Test User Commits", "Testing patch-based approach with user commits")
+		user.FileWrite(env.ID, "shared-file.txt", "environment version 1", "Add initial file from environment")
+
+		// First squash merge
+		var mergeOutput1 bytes.Buffer
+		err := repo.MergeSquash(ctx, env.ID, &mergeOutput1)
+		require.NoError(t, err, "First squash merge should succeed: %s", mergeOutput1.String())
+
+		// Verify first squash merge content
+		filePath := filepath.Join(repo.SourcePath(), "shared-file.txt")
+		content, err := os.ReadFile(filePath)
+		require.NoError(t, err)
+		assert.Equal(t, "environment version 1", string(content))
+
+		// User commits their own changes to the main branch
+		err = os.WriteFile(filePath, []byte("user modified content"), 0644)
+		require.NoError(t, err)
+
+		_, err = repository.RunGitCommand(ctx, repo.SourcePath(), "add", "shared-file.txt")
+		require.NoError(t, err)
+		_, err = repository.RunGitCommand(ctx, repo.SourcePath(), "commit", "-m", "User modifies file in main branch")
+		require.NoError(t, err)
+
+		// Update the environment with conflicting changes
+		user.FileWrite(env.ID, "shared-file.txt", "environment version 2", "Update file from environment")
+
+		// Second squash merge - should surface conflict due to user's commit
+		var mergeOutput2 bytes.Buffer
+		err = repo.MergeSquash(ctx, env.ID, &mergeOutput2)
+
+		// This should fail due to conflict between user's changes and environment changes
+		assert.Error(t, err, "Second squash merge should fail due to conflict")
+		outputStr := mergeOutput2.String()
+		assert.Contains(t, outputStr, "conflict", "Merge output should mention conflict: %s", outputStr)
+
+		// Verify the working directory is in a conflicted state
+		status, err := repository.RunGitCommand(ctx, repo.SourcePath(), "status", "--porcelain")
+		require.NoError(t, err)
+		assert.Contains(t, status, "UU shared-file.txt", "File should be in unmerged (conflicted) state")
+
+		// Verify the file actually contains conflict markers
+		conflictedContent, err := os.ReadFile(filePath)
+		require.NoError(t, err)
+		contentStr := string(conflictedContent)
+		assert.Contains(t, contentStr, "<<<<<<<", "File should contain conflict markers")
+		assert.Contains(t, contentStr, "=======", "File should contain conflict markers")
+		assert.Contains(t, contentStr, ">>>>>>>", "File should contain conflict markers")
+	})
+}
