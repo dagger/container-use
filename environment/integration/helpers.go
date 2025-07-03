@@ -48,6 +48,10 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 	configDir, err := os.MkdirTemp("", "cu-test-config-"+name+"-*")
 	require.NoError(t, err, "Failed to create config dir")
 
+	// Override the global config path for this test
+	cleanup := repository.SetTestConfigPath(configDir)
+	t.Cleanup(cleanup)
+
 	// Initialize git repo
 	cmds := [][]string{
 		{"init"},
@@ -66,8 +70,8 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 		setup(t, repoDir)
 	}
 
-	// Open repository with isolated base path
-	repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
+	// Open repository - it will use the isolated base path from context
+	repo, err := repository.Open(ctx, repoDir)
 	require.NoError(t, err, "Failed to open repository")
 
 	// Create UserActions with extended capabilities
