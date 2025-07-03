@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -50,6 +51,21 @@ func RunGitCommand(ctx context.Context, dir string, args ...string) (out string,
 	}
 
 	return string(output), nil
+}
+
+// RunInteractiveGitCommand executes a git command in the specified directory in interactive mode.
+func RunInteractiveGitCommand(ctx context.Context, dir string, w io.Writer, args ...string) (rerr error) {
+	slog.Info(fmt.Sprintf("[%s] $ git %s", dir, strings.Join(args, " ")))
+	defer func() {
+		slog.Info(fmt.Sprintf("[%s] $ git %s (DONE)", dir, strings.Join(args, " ")), "err", rerr)
+	}()
+
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	return cmd.Run()
 }
 
 func getContainerUseRemote(ctx context.Context, repo string) (string, error) {

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
@@ -37,15 +36,8 @@ cu merge --delete backend-api`,
 		}
 
 		env := args[0]
-		err = exec.Command("git", "stash", "--include-untracked", "-q").Run()
-		if err == nil {
-			defer exec.Command("git", "stash", "pop", "-q").Run()
-		}
-		cmd := exec.CommandContext(ctx, "git", "merge", "-m", "Merge environment "+env, "--", "container-use/"+env)
-		cmd.Stderr = os.Stderr
-		cmd.Stdout = os.Stdout
-		err = cmd.Run()
-		if err != nil {
+
+		if err := repo.Merge(ctx, env, os.Stdout); err != nil {
 			return fmt.Errorf("failed to merge environment: %w", err)
 		}
 
@@ -65,5 +57,6 @@ cu merge --delete backend-api`,
 
 func init() {
 	mergeCmd.Flags().BoolVarP(&mergeDelete, "delete", "d", false, "Delete the environment after successful merge")
+
 	rootCmd.AddCommand(mergeCmd)
 }

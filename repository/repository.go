@@ -360,7 +360,6 @@ func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer
 	}
 
 	logArgs := []string{
-		"git",
 		"log",
 		fmt.Sprintf("--notes=%s", gitNotesLogRef),
 	}
@@ -378,13 +377,7 @@ func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer
 
 	logArgs = append(logArgs, revisionRange)
 
-	cmd := exec.CommandContext(ctx, "git")
-	cmd.Dir = r.userRepoPath
-	cmd.Args = logArgs
-	cmd.Stdout = w
-	cmd.Stderr = w
-
-	return cmd.Run()
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, logArgs...)
 }
 
 func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
@@ -394,7 +387,6 @@ func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
 	}
 
 	diffArgs := []string{
-		"git",
 		"diff",
 	}
 
@@ -405,11 +397,23 @@ func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
 
 	diffArgs = append(diffArgs, revisionRange)
 
-	cmd := exec.CommandContext(ctx, "git")
-	cmd.Dir = r.userRepoPath
-	cmd.Args = diffArgs
-	cmd.Stdout = w
-	cmd.Stderr = w
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, diffArgs...)
+}
 
-	return cmd.Run()
+func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	output, err := RunGitCommand(ctx, r.userRepoPath, "stash", "save", "--include-untracked", "container-use: stash before merging "+envInfo.ID)
+	if err == nil {
+		if !strings.Contains(output, "No local changes to save") {
+			defer func() {
+				_ = RunInteractiveGitCommand(ctx, r.userRepoPath, w, "stash", "pop", "-q")
+			}()
+		}
+	}
+
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
