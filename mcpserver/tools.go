@@ -69,6 +69,16 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
 
 var tools = []*Tool{}
 
+// GetToolByName finds a tool by its name
+func GetToolByName(name string) *Tool {
+	for _, t := range tools {
+		if t.Definition.Name == name {
+			return t
+		}
+	}
+	return nil
+}
+
 func registerTool(tool ...*Tool) {
 	for _, t := range tool {
 		tools = append(tools, wrapTool(t))

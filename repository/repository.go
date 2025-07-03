@@ -43,7 +43,12 @@ func (r *Repository) getWorktreePath() string {
 }
 
 func Open(ctx context.Context, repo string) (*Repository, error) {
-	return OpenWithBasePath(ctx, repo, cuGlobalConfigPath)
+	basePath := cuGlobalConfigPath
+	// Check if a test base path is provided in context
+	if testBasePath, ok := ctx.Value("container_use_base_path").(string); ok {
+		basePath = testBasePath
+	}
+	return OpenWithBasePath(ctx, repo, basePath)
 }
 
 // OpenWithBasePath opens a repository with a custom base path for container-use data.
@@ -130,6 +135,11 @@ func (r *Repository) ensureUserRemote(ctx context.Context) error {
 
 func (r *Repository) SourcePath() string {
 	return r.userRepoPath
+}
+
+// GetForkRepoPath returns the path to the fork repository (useful for testing)
+func (r *Repository) GetForkRepoPath() string {
+	return r.forkRepoPath
 }
 
 func (r *Repository) exists(ctx context.Context, id string) error {
