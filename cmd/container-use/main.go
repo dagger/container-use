@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/charmbracelet/fang"
 	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
 )
@@ -24,20 +25,33 @@ Each environment runs in its own container with dedicated git branches.`,
 )
 
 func main() {
+	ctx := context.Background()
 	sigusrCh := make(chan os.Signal, 1)
 	signal.Notify(sigusrCh, syscall.SIGUSR1)
-
 	go handleSIGUSR(sigusrCh)
-
-	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	if err := setupLogger(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to setup logger: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+	// FIXME(aluzzardi): `fang` misbehaves with the `stdio` command.
+	// It hangs on Ctrl-C. Traced the hang back to `lipgloss.HasDarkBackground(os.Stdin, os.Stdout)`
+	// I'm assuming it's not playing nice the mcpserver listening on stdio.
+	if len(os.Args) > 1 && os.Args[1] == "stdio" {
+		if err := rootCmd.ExecuteContext(ctx); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
+	if err := fang.Execute(
+		ctx,
+		rootCmd,
+		fang.WithVersion(version),
+		fang.WithCommit(commit),
+		fang.WithNotifySignal(os.Interrupt, os.Kill, syscall.SIGTERM),
+	); err != nil {
 		os.Exit(1)
 	}
 }

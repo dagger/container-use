@@ -13,29 +13,26 @@ var (
 	date    = "unknown"
 )
 
+func init() {
+	if version == "dev" {
+		if buildCommit, buildTime := getBuildInfoFromBinary(); buildCommit != "unknown" {
+			commit = buildCommit
+			date = buildTime
+		}
+	}
+}
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Long:  `Print the version, commit hash, and build date of the container-use binary.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		currentVersion := version
-		currentCommit := commit
-		currentDate := date
-
-		// For dev builds, try to extract build info from the binary
-		if version == "dev" {
-			if buildCommit, buildTime := getBuildInfoFromBinary(); buildCommit != "unknown" {
-				currentCommit = buildCommit
-				currentDate = buildTime
-			}
+		fmt.Printf("container-use version %s\n", version)
+		if commit != "unknown" {
+			fmt.Printf("commit: %s\n", commit)
 		}
-
-		fmt.Printf("container-use version %s\n", currentVersion)
-		if currentCommit != "unknown" {
-			fmt.Printf("commit: %s\n", currentCommit)
-		}
-		if currentDate != "unknown" {
-			fmt.Printf("built: %s\n", currentDate)
+		if date != "unknown" {
+			fmt.Printf("built: %s\n", date)
 		}
 	},
 }

@@ -4,10 +4,13 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
@@ -72,7 +75,14 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
 	stdioSrv := server.NewStdioServer(s)
 	stdioSrv.SetErrorLogger(log.Default()) // this should re-use our `slog` handler
 
-	return stdioSrv.Listen(ctx, os.Stdin, os.Stdout)
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill, syscall.SIGTERM)
+	defer cancel()
+
+	err := stdioSrv.Listen(ctx, os.Stdin, os.Stdout)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
 }
 
 var tools = []*Tool{}
