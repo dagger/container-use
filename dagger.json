@@ -1,6 +1,6 @@
 {
   "name": "container-use",
-  "engineVersion": "v0.18.11",
+  "engineVersion": "v0.18.12",
   "sdk": {
     "source": "go"
   },
@@ -9,6 +9,11 @@
       "name": "go",
       "source": "github.com/dagger/dagger/modules/go",
       "pin": "ccb4c2d98bce247d22c6b281126eac0ed7c41071"
+    },
+    {
+      "name": "golangci",
+      "source": "github.com/dagger/dagger/modules/golangci",
+      "pin": "a569ec610a25df6c94cfe4bb55be02a8ade11f32"
     },
     {
       "name": "goreleaser",

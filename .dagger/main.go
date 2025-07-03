@@ -86,3 +86,11 @@ func (m *ContainerUse) Test(ctx context.Context,
 		WithExec(args, dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true}).
 		Stdout(ctx)
 }
+
+// Test runs the linter
+func (m *ContainerUse) Lint(ctx context.Context) error {
+	return dag.
+		Golangci().
+		Lint(m.Source, dagger.GolangciLintOpts{}).
+		Assert(ctx)
+}
