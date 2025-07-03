@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -30,22 +32,14 @@ type Repository struct {
 	basePath     string // defaults to ~/.config/container-use if empty
 }
 
-// getBasePath returns the base path for container-use data, using the default if not set
-func (r *Repository) getBasePath() string {
-	if r.basePath != "" {
-		return r.basePath
-	}
-	return cuGlobalConfigPath
-}
-
 // getRepoPath returns the path for storing repository data
 func (r *Repository) getRepoPath() string {
-	return r.getBasePath() + "/repos"
+	return filepath.Join(r.basePath, "repos")
 }
 
 // getWorktreePath returns the path for storing worktrees
 func (r *Repository) getWorktreePath() string {
-	return r.getBasePath() + "/worktrees"
+	return filepath.Join(r.basePath, "worktrees")
 }
 
 func Open(ctx context.Context, repo string) (*Repository, error) {
@@ -157,12 +151,29 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	env, err := environment.New(ctx, dag, id, description, worktree)
+	worktreeHead, err := RunGitCommand(ctx, worktree, "rev-parse", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	worktreeHead = strings.TrimSpace(worktreeHead)
+
+	baseSourceDir, err := dag.
+		Host().
+		Directory(r.forkRepoPath, dagger.HostDirectoryOpts{NoCache: true}). // bust cache for each Create call
+		AsGit().
+		Ref(worktreeHead).
+		Tree(dagger.GitRefTreeOpts{DiscardGitDir: true}).
+		Sync(ctx) // don't bust cache when loading from state
+	if err != nil {
+		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
+	}
+
+	env, err := environment.New(ctx, dag, id, description, worktree, baseSourceDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := r.propagateToWorktree(ctx, env, "Create env "+id, explanation); err != nil {
+	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
 		return nil, err
 	}
 
@@ -263,14 +274,15 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 
 // Update saves the provided environment to the repository.
 // Writes configuration and source code changes to the worktree and history + state to git notes.
-func (r *Repository) Update(ctx context.Context, env *environment.Environment, operation, explanation string) error {
-	note := env.Notes.Pop()
-	if strings.TrimSpace(note) != "" {
-		if err := r.addGitNote(ctx, env, note); err != nil {
-			return err
-		}
+func (r *Repository) Update(ctx context.Context, env *environment.Environment, explanation string) error {
+	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
+		return err
 	}
-	return r.propagateToWorktree(ctx, env, operation, explanation)
+	if note := env.Notes.Pop(); note != "" {
+		return r.addGitNote(ctx, env, note)
+	}
+
+	return nil
 }
 
 // Delete removes an environment from the repository.
@@ -290,12 +302,14 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 
 // Checkout changes the user's current branch to that of the identified environment.
 // It attempts to get the most recent commit from the environment without discarding any user changes.
-func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
+func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, error) {
 	if err := r.exists(ctx, id); err != nil {
 		return "", err
 	}
 
-	branch := "cu-" + id
+	if branch == "" {
+		branch = "cu-" + id
+	}
 
 	// set up remote tracking branch if it's not already there
 	_, err := RunGitCommand(ctx, r.userRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))
@@ -307,7 +321,7 @@ func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 		}
 	}
 
-	_, err = RunGitCommand(ctx, r.userRepoPath, "checkout", id)
+	_, err = RunGitCommand(ctx, r.userRepoPath, "checkout", branch)
 	if err != nil {
 		return "", err
 	}
@@ -337,4 +351,69 @@ func (r *Repository) Checkout(ctx context.Context, id string) (string, error) {
 	}
 
 	return branch, err
+}
+
+func (r *Repository) Log(ctx context.Context, id string, patch bool, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	logArgs := []string{
+		"log",
+		fmt.Sprintf("--notes=%s", gitNotesLogRef),
+	}
+
+	if patch {
+		logArgs = append(logArgs, "--patch")
+	} else {
+		logArgs = append(logArgs, "--format=%C(yellow)%h%Creset  %s %Cgreen(%cr)%Creset %+N")
+	}
+
+	revisionRange, err := r.revisionRange(ctx, envInfo)
+	if err != nil {
+		return err
+	}
+
+	logArgs = append(logArgs, revisionRange)
+
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, logArgs...)
+}
+
+func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	diffArgs := []string{
+		"diff",
+	}
+
+	revisionRange, err := r.revisionRange(ctx, envInfo)
+	if err != nil {
+		return err
+	}
+
+	diffArgs = append(diffArgs, revisionRange)
+
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, diffArgs...)
+}
+
+func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	output, err := RunGitCommand(ctx, r.userRepoPath, "stash", "save", "--include-untracked", "container-use: stash before merging "+envInfo.ID)
+	if err == nil {
+		if !strings.Contains(output, "No local changes to save") {
+			defer func() {
+				_ = RunInteractiveGitCommand(ctx, r.userRepoPath, w, "stash", "pop", "-q")
+			}()
+		}
+	}
+
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }

@@ -6,6 +6,7 @@ project_name: container-use
 before:
   hooks:
     - go mod tidy
+    - ./scripts/completions.sh
 
 builds:
   - id: cu
@@ -34,6 +35,7 @@ archives:
     files:
       - README.md
       - LICENSE
+      - completions/*
 
 homebrew_casks:
   - repository:
@@ -53,9 +55,14 @@ homebrew_casks:
       template: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     homepage: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use"
     description: "Containerized environments for coding agents"
+    completions:
+      bash: "completions/cu.bash"
+      zsh: "completions/cu.zsh"
+      fish: "completions/cu.fish"
     hooks:
       post:
         install: |
+          # remove quarantine xattr (note we don't do anything with signatures yet)
           if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cu"]
           end

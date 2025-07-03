@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	"github.com/mitchellh/go-homedir"
 )
@@ -49,6 +51,21 @@ func RunGitCommand(ctx context.Context, dir string, args ...string) (out string,
 	}
 
 	return string(output), nil
+}
+
+// RunInteractiveGitCommand executes a git command in the specified directory in interactive mode.
+func RunInteractiveGitCommand(ctx context.Context, dir string, w io.Writer, args ...string) (rerr error) {
+	slog.Info(fmt.Sprintf("[%s] $ git %s", dir, strings.Join(args, " ")))
+	defer func() {
+		slog.Info(fmt.Sprintf("[%s] $ git %s (DONE)", dir, strings.Join(args, " ")), "err", rerr)
+	}()
+
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	return cmd.Run()
 }
 
 func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
@@ -128,10 +145,6 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 		return "", err
 	}
 
-	if err := r.applyUncommittedChanges(ctx, worktreePath); err != nil {
-		return "", fmt.Errorf("failed to apply uncommitted changes: %w", err)
-	}
-
 	_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
 	if err != nil {
 		return "", err
@@ -140,7 +153,7 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 	return worktreePath, nil
 }
 
-func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, name, explanation string) (rerr error) {
+func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, explanation string) (rerr error) {
 	slog.Info("Propagating to worktree...",
 		"environment.id", env.ID,
 		"workdir", env.Config.Workdir,
@@ -153,11 +166,11 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 			"err", rerr)
 	}()
 
-	if err := env.Export(ctx); err != nil {
+	if err := r.exportEnvironment(ctx, env); err != nil {
 		return err
 	}
 
-	if err := r.commitWorktreeChanges(ctx, env.Worktree, name, explanation); err != nil {
+	if err := r.commitWorktreeChanges(ctx, env.Worktree, explanation); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
@@ -174,6 +187,27 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
+	return nil
+}
+
+func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Environment) error {
+	worktreePointer := fmt.Sprintf("gitdir: %s/worktrees/%s", r.forkRepoPath, env.ID)
+
+	_, err := env.Workdir().
+		WithNewFile(".git", worktreePointer).
+		Export(
+			ctx,
+			env.Worktree,
+			dagger.DirectoryExportOpts{Wipe: true},
+		)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Saving environment")
+	if err := env.Config.Save(env.Worktree); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -235,7 +269,34 @@ func (r *Repository) addGitNote(ctx context.Context, env *environment.Environmen
 	return r.propagateGitNotes(ctx, gitNotesLogRef)
 }
 
-func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, name, explanation string) error {
+func (r *Repository) currentUserBranch(ctx context.Context) (string, error) {
+	return RunGitCommand(ctx, r.userRepoPath, "branch", "--show-current")
+}
+
+func (r *Repository) mergeBase(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
+	currentBranch, err := r.currentUserBranch(ctx)
+	if err != nil {
+		return "", err
+	}
+	currentBranch = strings.TrimSpace(currentBranch)
+	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
+	mergeBase, err := RunGitCommand(ctx, r.userRepoPath, "merge-base", currentBranch, envGitRef)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(mergeBase), nil
+}
+
+func (r *Repository) revisionRange(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
+	mergeBase, err := r.mergeBase(ctx, env)
+	if err != nil {
+		return "", err
+	}
+	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
+	return fmt.Sprintf("%s..%s", mergeBase, envGitRef), nil
+}
+
+func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string) error {
 	status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return err
@@ -249,8 +310,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, na
 		return err
 	}
 
-	commitMsg := fmt.Sprintf("%s\n\n%s", name, explanation)
-	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", commitMsg)
+	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", explanation)
 	return err
 }
 
@@ -357,55 +417,17 @@ func (r *Repository) shouldSkipFile(fileName string) bool {
 	return false
 }
 
-func (r *Repository) applyUncommittedChanges(ctx context.Context, worktreePath string) error {
+func (r *Repository) IsDirty(ctx context.Context) (bool, string, error) {
 	status, err := RunGitCommand(ctx, r.userRepoPath, "status", "--porcelain")
 	if err != nil {
-		return err
+		return false, "", err
 	}
 
 	if strings.TrimSpace(status) == "" {
-		return nil
+		return false, "", nil
 	}
 
-	slog.Info("Applying uncommitted changes to worktree", "repository", r.userRepoPath, "worktree", worktreePath)
-
-	trackedFilesPatch, err := RunGitCommand(ctx, r.userRepoPath, "diff", "HEAD")
-	if err != nil {
-		return err
-	}
-
-	if strings.TrimSpace(trackedFilesPatch) != "" {
-		cmd := exec.Command("git", "apply")
-		cmd.Dir = worktreePath
-		cmd.Stdin = strings.NewReader(trackedFilesPatch)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to apply patch: %w", err)
-		}
-	}
-
-	// --exclude-standard excludes .gitignored files. those are more likely to be platform-specific, so we don't copy them.
-	untrackedFiles, err := RunGitCommand(ctx, r.userRepoPath, "ls-files", "--others", "--exclude-standard")
-	if err != nil {
-		return err
-	}
-
-	for file := range strings.SplitSeq(strings.TrimSpace(untrackedFiles), "\n") {
-		if file == "" {
-			continue
-		}
-		srcPath := filepath.Join(r.userRepoPath, file)
-		destPath := filepath.Join(worktreePath, file)
-
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return err
-		}
-
-		if err := exec.Command("cp", "-r", srcPath, destPath).Run(); err != nil {
-			return fmt.Errorf("failed to copy untracked file %s: %w", file, err)
-		}
-	}
-
-	return r.commitWorktreeChanges(ctx, worktreePath, "Copy uncommitted changes", "Applied uncommitted changes from local repository")
+	return true, status, nil
 }
 
 func (r *Repository) addFilesFromUntrackedDirectory(ctx context.Context, worktreePath, dirName string) error {

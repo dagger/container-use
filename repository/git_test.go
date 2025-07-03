@@ -83,11 +83,11 @@ func TestSelectiveFileStaging(t *testing.T) {
 			// Create a test git repository
 			dir := t.TempDir()
 			ctx := context.Background()
-			
+
 			// Initialize git repo
 			_, err := RunGitCommand(ctx, dir, "init")
 			require.NoError(t, err)
-			
+
 			// Set git config to avoid errors
 			_, err = RunGitCommand(ctx, dir, "config", "user.email", "test@example.com")
 			require.NoError(t, err)
@@ -129,41 +129,41 @@ func TestSelectiveFileStaging(t *testing.T) {
 func TestCommitWorktreeChanges(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	
+
 	// Initialize git repo
 	_, err := RunGitCommand(ctx, dir, "init")
 	require.NoError(t, err)
-	
+
 	// Set git config
 	_, err = RunGitCommand(ctx, dir, "config", "user.email", "test@example.com")
 	require.NoError(t, err)
 	_, err = RunGitCommand(ctx, dir, "config", "user.name", "Test User")
 	require.NoError(t, err)
-	
+
 	repo := &Repository{}
-	
+
 	t.Run("empty_directory_handling", func(t *testing.T) {
 		// Create empty directories (git doesn't track these)
 		createDir(t, dir, "empty1")
 		createDir(t, dir, "empty2/nested")
-		
+
 		// This verifies that commitWorktreeChanges handles empty directories gracefully
 		// It should return nil (success) when there's nothing to commit
-		err := repo.commitWorktreeChanges(ctx, dir, "Test", "Empty dirs")
+		err := repo.commitWorktreeChanges(ctx, dir, "Empty dirs")
 		assert.NoError(t, err, "commitWorktreeChanges should handle empty dirs gracefully")
 	})
-	
+
 	t.Run("commits_changes", func(t *testing.T) {
 		// Create a file to commit
 		writeFile(t, dir, "test.txt", "hello world")
-		
-		err := repo.commitWorktreeChanges(ctx, dir, "Add test file", "Testing commit functionality")
+
+		err := repo.commitWorktreeChanges(ctx, dir, "Testing commit functionality")
 		require.NoError(t, err)
-		
+
 		// Verify commit was created
 		log, err := RunGitCommand(ctx, dir, "log", "--oneline")
 		require.NoError(t, err)
-		assert.Contains(t, log, "Add test file")
+		assert.Contains(t, log, "Testing commit functionality")
 	})
 }
 
@@ -180,13 +180,13 @@ func writeBinaryFile(t *testing.T, dir, name string, size int) {
 	t.Helper()
 	path := filepath.Join(dir, name)
 	os.MkdirAll(filepath.Dir(path), 0755)
-	
+
 	// Create binary content
 	data := make([]byte, size)
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	
+
 	err := os.WriteFile(path, data, 0644)
 	require.NoError(t, err)
 }

@@ -14,10 +14,15 @@ import (
 
 var terminalCmd = &cobra.Command{
 	Use:               "terminal <env>",
-	Short:             "Drop a terminal into an environment",
-	Long:              `Create a container with the same state as the agent for a given branch or commmit.`,
+	Short:             "Get a shell inside an environment's container",
+	Long:              `Open an interactive terminal in the exact container environment the agent used. Perfect for debugging, testing, or hands-on exploration.`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: suggestEnvironments,
+	Example: `# Drop into environment's container
+cu terminal fancy-mallard
+
+# Debug agent's work interactively
+cu terminal backend-api`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 
@@ -41,6 +46,9 @@ var terminalCmd = &cobra.Command{
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
 		if err != nil {
+			if isDockerDaemonError(err) {
+				handleDockerDaemonError()
+			}
 			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
@@ -51,4 +59,8 @@ var terminalCmd = &cobra.Command{
 
 		return env.Terminal(ctx)
 	},
+}
+
+func init() {
+	rootCmd.AddCommand(terminalCmd)
 }

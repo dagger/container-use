@@ -54,21 +54,25 @@ func (m *ContainerUse) Release(ctx context.Context,
 // Test runs the test suite
 func (m *ContainerUse) Test(ctx context.Context,
 	//+optional
-	//+default="."
+	//+default="./..."
 	// Package to test
 	pkg string,
 	//+optional
 	// Run tests with verbose output
 	verboseOutput bool,
 	//+optional
+	//+default=true
 	// Run tests including integration tests
 	integration bool,
 ) (string, error) {
 	ctr := dag.Go(m.Source).
 		Base().
 		WithMountedDirectory("/src", m.Source).
-		WithWorkdir("/src")
-	
+		WithWorkdir("/src").
+		// Configure git for tests
+		WithExec([]string{"git", "config", "--global", "user.email", "test@example.com"}).
+		WithExec([]string{"git", "config", "--global", "user.name", "Test User"})
+
 	args := []string{"go", "test"}
 	if verboseOutput {
 		args = append(args, "-v")
@@ -77,20 +81,8 @@ func (m *ContainerUse) Test(ctx context.Context,
 		args = append(args, "-short")
 	}
 	args = append(args, pkg)
-	
-	return ctr.
-		WithExec(args).
-		Stdout(ctx)
-}
 
-// TestEnvironment runs the environment package tests specifically
-func (m *ContainerUse) TestEnvironment(ctx context.Context,
-	//+optional
-	// Run tests with verbose output
-	verboseOutput bool,
-	//+optional
-	// Include integration tests
-	integration bool,
-) (string, error) {
-	return m.Test(ctx, "./environment", verboseOutput, integration)
+	return ctr.
+		WithExec(args, dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true}).
+		Stdout(ctx)
 }

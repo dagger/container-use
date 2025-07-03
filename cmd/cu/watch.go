@@ -10,8 +10,15 @@ import (
 
 var watchCmd = &cobra.Command{
 	Use:   "watch",
-	Short: "Watch git log output",
-	Long:  `Watch the following git log command every second: 'git log --color=always --remotes=container-use --oneline --graph --decorate'.`,
+	Short: "Watch environment activity in real-time",
+	Long: `Continuously display environment activity as agents work.
+Shows new commits and environment changes updated every second.
+Press Ctrl+C to stop watching.`,
+	Example: `# Watch all environment activity
+cu watch
+
+# Monitor agents while they work
+cu watch`,
 	RunE: func(app *cobra.Command, _ []string) error {
 		ctx := app.Context()
 

@@ -128,6 +128,7 @@ type EnvironmentResponse struct {
 	RemoteRef       string                 `json:"remote_ref"`
 	CheckoutCommand string                 `json:"checkout_command_to_share_with_user"`
 	LogCommand      string                 `json:"log_command_to_share_with_user"`
+	DiffCommand     string                 `json:"diff_command_to_share_with_user"`
 	Services        []*environment.Service `json:"services,omitempty"`
 }
 
@@ -142,6 +143,7 @@ func marshalEnvironment(env *environment.Environment) (string, error) {
 		RemoteRef:       fmt.Sprintf("container-use/%s", env.ID),
 		CheckoutCommand: fmt.Sprintf("cu checkout %s", env.ID),
 		LogCommand:      fmt.Sprintf("cu log %s", env.ID),
+		DiffCommand:     fmt.Sprintf("cu diff %s", env.ID),
 		Services:        env.Services,
 	}
 	out, err := json.Marshal(resp)
@@ -250,7 +252,28 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
 
-		return EnvironmentToCallResult(env)
+		out, err := marshalEnvironment(env)
+		if err != nil {
+			return nil, err
+		}
+
+		dirty, status, err := repo.IsDirty(ctx)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to check if environment is dirty", err), nil
+		}
+
+		if !dirty {
+			return mcp.NewToolResultText(out), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf(`%s
+
+CRITICAL: You MUST inform the user that the repository %s has uncommitted changes that are NOT included in this environment. The environment was created from the last committed state only.
+
+Uncommitted changes detected:
+%s
+
+You MUST tell the user: To include these changes in the environment, they need to commit them first using git commands outside the environment.`, out, request.GetString("environment_source", ""), status)), nil
 	},
 }
 
@@ -352,7 +375,7 @@ Supported schemas are:
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Update env "+env.ID, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
@@ -412,7 +435,7 @@ var EnvironmentListTool = &Tool{
 
 var EnvironmentRunCmdTool = &Tool{
 	Definition: mcp.NewTool("environment_run_cmd",
-		mcp.WithDescription("Run a command on behalf of the user in the terminal."),
+		mcp.WithDescription("Run a terminal command inside a NEW container within the environment."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this command is being run."),
 		),
@@ -440,7 +463,7 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 			mcp.Description("Use the image entrypoint, if present, by prepending it to the args."),
 		),
 		mcp.WithArray("ports",
-			mcp.Description("Ports to expose. Only works with background environments. For each port, returns the internal (for use by other environments) and external (for use by the user) address."),
+			mcp.Description("Ports to expose. Only works with background environments. For each port, returns the environment_internal (for use inside environments) and host_external (for use by the user) addresses."),
 			mcp.Items(map[string]any{"type": "number"}),
 		),
 	),
@@ -454,7 +477,7 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 		shell := request.GetString("shell", "sh")
 
 		updateRepo := func() (*mcp.CallToolResult, error) {
-			if err := repo.Update(ctx, env, "Run "+command, request.GetString("explanation", "")); err != nil {
+			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 				return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
 			}
 			return nil, nil
@@ -468,13 +491,13 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 					ports = append(ports, int(port.(float64)))
 				}
 			}
-			endpoints, runErr := env.RunBackground(ctx, request.GetString("explanation", ""), command, shell, ports, request.GetBool("use_entrypoint", false))
+			endpoints, runErr := env.RunBackground(ctx, command, shell, ports, request.GetBool("use_entrypoint", false))
 			// We want to update the repository even if the command failed.
 			if resp, err := updateRepo(); err != nil {
 				return resp, nil
 			}
 			if runErr != nil {
-				return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
+				return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
 			}
 
 			out, err := json.Marshal(endpoints)
@@ -482,7 +505,9 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 				return nil, err
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf(`Command started in the background. Endpoints are %s
+			return mcp.NewToolResultText(fmt.Sprintf(`Command started in the background in NEW container. Endpoints are %s
+
+To access from the user's machine: use host_external. To access from other commands in this environment: use environment_internal.
 
 Any changes to the container workdir (%s) WILL NOT be committed to container-use/%s
 
@@ -490,13 +515,13 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 				string(out), env.Config.Workdir, env.ID)), nil
 		}
 
-		stdout, runErr := env.Run(ctx, request.GetString("explanation", ""), command, shell, request.GetBool("use_entrypoint", false))
+		stdout, runErr := env.Run(ctx, command, shell, request.GetBool("use_entrypoint", false))
 		// We want to update the repository even if the command failed.
 		if resp, err := updateRepo(); err != nil {
 			return resp, nil
 		}
 		if runErr != nil {
-			return mcp.NewToolResultErrorFromErr("failed to run command", err), nil
+			return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir)), nil
@@ -635,7 +660,7 @@ var EnvironmentFileWriteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Write "+targetFile, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
@@ -677,7 +702,7 @@ var EnvironmentFileDeleteTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to delete file", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Delete "+targetFile, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
 		}
 
@@ -744,7 +769,7 @@ var EnvironmentAddServiceTool = &Tool{
 			mcp.Description("The command to start the service. If not provided the image default command will be used."),
 		),
 		mcp.WithArray("ports",
-			mcp.Description("Ports to expose. For each port, returns the internal (for use by other environments) and external (for use by the user) address."),
+			mcp.Description("Ports to expose. For each port, returns the container_internal (for use by environments) and host_external (for use by the user) address."),
 			mcp.Items(map[string]any{"type": "number"}),
 		),
 		mcp.WithArray("envs",
@@ -800,7 +825,7 @@ Supported schemas are:
 			return mcp.NewToolResultErrorFromErr("failed to add service", err), nil
 		}
 
-		if err := repo.Update(ctx, env, "Add service "+serviceName, request.GetString("explanation", "")); err != nil {
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
 		}
 

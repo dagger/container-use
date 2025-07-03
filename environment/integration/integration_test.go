@@ -42,10 +42,9 @@ func TestGitAuditTrail(t *testing.T) {
 		require.NoError(t, err)
 
 		// Operations that create git-trackable changes should have commits
-		assert.Contains(t, gitLog, "Write config.json")
+		assert.Contains(t, gitLog, "Initial config")
 		// "Run npm install" won't create a commit (npm not installed, would create gitignored files)
-		assert.Contains(t, gitLog, "Write src/app.js")
-		assert.Contains(t, gitLog, "Create env")
+		assert.Contains(t, gitLog, "Add app code")
 
 		// Verify file contents are in git
 		configFromGit, err := repository.RunGitCommand(context.Background(), env.Worktree, "show", "HEAD~1:config.json")
@@ -93,10 +92,8 @@ func TestEnvironmentIsolation(t *testing.T) {
 		devLog, _ := repository.RunGitCommand(context.Background(), dev.Worktree, "log", "--oneline", "-2")
 		stagingLog, _ := repository.RunGitCommand(context.Background(), staging.Worktree, "log", "--oneline", "-2")
 
-		assert.Contains(t, devLog, "Write config.json")
-		assert.Contains(t, devLog, "Create env")
-		assert.Contains(t, stagingLog, "Write config.json")
-		assert.Contains(t, stagingLog, "Create env")
+		assert.Contains(t, devLog, "Dev config")
+		assert.Contains(t, stagingLog, "Staging config")
 
 		// Verify complete isolation - dev files don't exist in staging
 		user.FileReadExpectError(staging.ID, "dev-only.txt")
@@ -155,6 +152,10 @@ func TestSystemHandlesProblematicFiles(t *testing.T) {
 
 			// Should still handle text files
 			user.FileWrite(env.ID, "notes.txt", "System should handle binary directories gracefully", "Add text file")
+
+			// Verify the text file was written and can be read
+			content := user.FileRead(env.ID, "notes.txt")
+			assert.Equal(t, "System should handle binary directories gracefully", content)
 		})
 	})
 
@@ -395,7 +396,6 @@ func TestWeirdUserScenarios(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, jsContent, "repo1", "Environment should still access its original repo")
 	})
-
 }
 
 // TestEnvironmentConfigurationPersists verifies configuration persistence
@@ -467,44 +467,106 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 		})
 	})
 
-	t.Run("EnvironmentVariableLimitations", func(t *testing.T) {
-		t.Skip("Skipping - demonstrates unfixed limitation with environment variable persistence")
+	t.Run("EnvironmentVariable", func(t *testing.T) {
+		t.Run("Persistence", func(t *testing.T) {
+			WithRepository(t, "envvar_persistence", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+				// User: "Create a Node.js development environment"
+				env := user.CreateEnvironment("Node.js Dev", "Setting up Node.js development environment")
+				envID := env.ID // LLM only keeps the ID, not the whole object
 
-		WithRepository(t, "envvar_test", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-			newEnv := user.CreateEnvironment("Test env vars", "Creating environment for env var testing")
+				// User: "I need to set environment variables for my API"
+				// LLM has to provide ALL required fields because the tool requires them
+				user.UpdateEnvironment(envID, "Node.js Dev", "Configure API environment variables", &environment.EnvironmentConfig{
+					Instructions:  "Node.js development environment with API configuration",
+					BaseImage:     "ubuntu:24.04",
+					SetupCommands: []string{},
+					Workdir:       "/workdir",
+					Env: []string{
+						"API_URL=https://api.example.com",
+						"NODE_ENV=production",
+						"PORT=3000",
+					},
+					Secrets: []string{},
+				})
 
-			// Set environment variables
-			vars := []string{
-				"API_URL=https://api.example.com",
-				"NODE_ENV=production",
-				"PORT=3000",
-			}
+				// User: "Check if my environment variables are set"
+				output := user.RunCommand(envID, "echo API_URL=$API_URL NODE_ENV=$NODE_ENV PORT=$PORT", "Verify env vars")
+				assert.Contains(t, output, "API_URL=https://api.example.com")
+				assert.Contains(t, output, "NODE_ENV=production")
+				assert.Contains(t, output, "PORT=3000")
 
-			// Update config with environment variables
-			updatedConfig := newEnv.Config.Copy()
-			updatedConfig.Env = vars
+				// User: "Add a simple setup command"
+				// Again, LLM must provide ALL fields, potentially losing env vars if not careful
+				user.UpdateEnvironment(envID, "Node.js Dev", "Add setup command", &environment.EnvironmentConfig{
+					Instructions: "Node.js development environment with API configuration",
+					BaseImage:    "ubuntu:24.04",
+					SetupCommands: []string{
+						"echo 'Setup complete' > /tmp/setup.log",
+					},
+					Workdir: "/workdir",
+					Env: []string{
+						"API_URL=https://api.example.com",
+						"NODE_ENV=production",
+						"PORT=3000",
+					},
+					Secrets: []string{},
+				})
 
-			user.UpdateEnvironment(newEnv.ID, "Test env vars", "Configure app", updatedConfig)
+				// User: "Are my environment variables still there?"
+				output = user.RunCommand(envID, "echo API_URL=$API_URL", "Check API_URL after rebuild")
+				assert.Contains(t, output, "API_URL=https://api.example.com")
 
-			// Variables work in current session
-			output := user.RunCommand(newEnv.ID, "echo API_URL=$API_URL NODE_ENV=$NODE_ENV PORT=$PORT", "Check env vars")
-			assert.Contains(t, output, "API_URL=https://api.example.com")
-			assert.Contains(t, output, "NODE_ENV=production")
-			assert.Contains(t, output, "PORT=3000")
+				output = user.RunCommand(envID, "echo NODE_ENV=$NODE_ENV", "Check NODE_ENV after rebuild")
+				assert.Contains(t, output, "NODE_ENV=production")
 
-			// Rebuild container
-			rebuildConfig := newEnv.Config.Copy()
-			user.UpdateEnvironment(newEnv.ID, "Test env vars", "Rebuild container", rebuildConfig)
+				output = user.RunCommand(envID, "echo PORT=$PORT", "Check PORT after rebuild")
+				assert.Contains(t, output, "PORT=3000")
+			})
+		})
 
-			// Env vars should persist through rebuilds (but don't)
-			output = user.RunCommand(newEnv.ID, "echo API_URL=$API_URL", "Check API_URL after rebuild")
-			assert.Contains(t, output, "API_URL=https://api.example.com")
+		t.Run("Loss", func(t *testing.T) {
+			// This test shows what happens when an LLM forgets to include env vars
+			WithRepository(t, "envvar_loss", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+				// User: "Create a Node.js environment with env vars"
+				env := user.CreateEnvironment("Node.js API", "Create Node.js API environment")
+				envID := env.ID
 
-			output = user.RunCommand(newEnv.ID, "echo NODE_ENV=$NODE_ENV", "Check NODE_ENV after rebuild")
-			assert.Contains(t, output, "NODE_ENV=production")
+				// User: "Set up my API environment variables"
+				user.UpdateEnvironment(envID, "Node.js API", "Configure environment", &environment.EnvironmentConfig{
+					Instructions:  "Node.js API with environment variables",
+					BaseImage:     "ubuntu:24.04",
+					SetupCommands: []string{},
+					Workdir:       "/workdir",
+					Env: []string{
+						"DATABASE_URL=postgres://localhost:5432/mydb",
+						"REDIS_URL=redis://localhost:6379",
+						"API_KEY=secret123",
+					},
+					Secrets: []string{},
+				})
 
-			output = user.RunCommand(newEnv.ID, "echo PORT=$PORT", "Check PORT after rebuild")
-			assert.Contains(t, output, "PORT=3000")
+				// Verify env vars are set
+				output := user.RunCommand(envID, "echo DATABASE_URL=$DATABASE_URL", "Check database URL")
+				assert.Contains(t, output, "DATABASE_URL=postgres://localhost:5432/mydb")
+
+				// User: "Add a marker file"
+				// LLM forgets to include the env vars when updating!
+				user.UpdateEnvironment(envID, "Node.js API", "Add marker file", &environment.EnvironmentConfig{
+					Instructions: "Node.js API with Redis support",
+					BaseImage:    "ubuntu:24.04",
+					SetupCommands: []string{
+						"touch /tmp/marker.txt",
+					},
+					Workdir: "/workdir",
+					Env:     []string{}, // Oops! LLM forgot to include existing env vars
+					Secrets: []string{},
+				})
+
+				// Check if env vars are lost
+				output = user.RunCommand(envID, "echo DATABASE_URL=$DATABASE_URL", "Check if database URL survived")
+				assert.NotContains(t, output, "postgres://localhost:5432/mydb", "Environment variables were lost!")
+				assert.Equal(t, "DATABASE_URL=\n", output, "DATABASE_URL should be empty")
+			})
 		})
 	})
 

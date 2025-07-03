@@ -1,0 +1,265 @@
+---
+title: Managing Environments
+description: "Master the workflow of creating, observing, and managing containerized environments. Learn when to merge work, iterate on prompts, or start fresh."
+icon: gear
+---
+
+## What are Environments?
+
+Each environment in Container Use is an **isolated workspace** that combines:
+
+- **🌳 Git Branch**: Dedicated branch tracking all changes and history
+- **📦 Container**: Isolated runtime with your code and dependencies  
+- **📝 Complete History**: Every command, file change, and container state automatically tracked
+
+Think of environments as **disposable sandboxes** where agents can work safely without affecting your main codebase.
+
+## The Core Workflow
+
+Container Use follows a simple but powerful pattern:
+
+<Steps>
+  <Step title="Agent Creates Fresh Environment">
+    Every agent session starts with a brand new environment from your current branch state.
+  </Step>
+  <Step title="Agent Works in Isolation">
+    The agent makes changes, runs commands, and builds features completely isolated from your work.
+  </Step>
+  <Step title="You Observe the Work">
+    Use Container Use commands to see what the agent did without disrupting your local setup.
+  </Step>
+  <Step title="Make a Decision">
+    Merge good work, iterate with refined prompts, or discard failed attempts.
+  </Step>
+</Steps>
+
+## Observing Agent Work
+
+You have two modes for inspecting what an agent accomplished:
+
+### Quick Assessment (Non-Interactive)
+
+Perfect for getting the gist and deciding next steps:
+
+```bash
+# See all environments at a glance
+cu list
+
+# View exactly what the agent did
+cu log fancy-mallard
+
+# See code changes without checking out
+cu diff fancy-mallard
+```
+
+<Card title="When to use" icon="eye">
+  Use quick assessment when you want to rapidly understand if the agent is on the right track, see what files changed, or review the approach before diving deeper.
+</Card>
+
+### Deep Exploration (Interactive)
+
+When you need hands-on understanding:
+
+```bash
+# Drop into the live container environment
+cu terminal fancy-mallard
+
+# Bring changes into your local workspace/IDE
+cu checkout fancy-mallard
+```
+
+<Card title="When to use" icon="magnifying-glass">
+  Use deep exploration when you need to test functionality, debug issues, understand complex changes, or review code thoroughly in your IDE.
+</Card>
+
+## Making Decisions
+
+After observing the agent's work, you have three paths forward:
+
+<Tabs>
+  <Tab title="✅ Accept Work">
+    When the agent succeeded and you're happy with the results:
+
+    ```bash
+    # Merge the environment into your current branch
+    cu merge fancy-mallard
+    
+    # Clean up (optional)
+    cu delete fancy-mallard
+    ```
+
+    The work becomes part of your Git history and you can continue from this new state.
+
+  </Tab>
+
+  <Tab title="🔄 Iterate & Refine">
+    When the agent is close but needs refinement:
+
+    ```bash
+    # A. Continue the existing chat
+    # Prompt: "[refined instructions]"
+    # B. Start a new chat and continue working in the same environment.
+    # Prompt: "Work in the fancy-mallard environment and [refined instructions]"
+    ```
+
+    The agent will resume in the existing environment with all previous work intact. Perfect for:
+    - Adding missing features
+    - Fixing bugs the agent introduced
+    - Adjusting styling or behavior
+    - Building on partial progress
+
+  </Tab>
+
+  <Tab title="🗑️ Start Fresh">
+    When the agent went down the wrong path:
+
+    ```bash
+    # Discard the environment
+    cu delete fancy-mallard
+    
+    # Start over with a new prompt
+    # The agent will create a fresh environment from your current branch
+    ```
+
+    You're back to your last known good state (your current branch) and can try a different approach.
+
+  </Tab>
+</Tabs>
+
+## Resuming Work in Environments
+
+To have a new chat continue work in an existing environment, simply mention the environment ID in your prompt:
+
+<CodeGroup>
+```text Good Resume Prompts
+"Work in the fancy-mallard environment and add user authentication"
+
+"Continue in environment fancy-mallard - the tests are failing, please fix them"
+
+"Using the fancy-mallard environment, add CSS styling to make it look modern"
+```
+
+```text What Happens
+The agent will:
+✅ Reuse the existing container state
+✅ Have access to all previous work
+✅ Continue from where it left off
+✅ Maintain the same dependencies and setup
+```
+</CodeGroup>
+
+## Practical Examples
+
+### Example 1: Happy Path Workflow
+
+```bash
+# 1. Agent creates environment and builds feature
+$ cu list
+ID            TITLE                    CREATED       UPDATED
+fancy-mallard Flask App with Login     2 mins ago    30 secs ago
+
+# 2. Quick check - looks good!
+$ cu diff fancy-mallard
++def login():
++    # Authentication logic
++    pass
+
+# 3. Accept the work
+$ cu merge fancy-mallard
+Updating abc123..def456
+Fast-forward
+ app.py | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+```
+
+### Example 2: Iteration Workflow
+
+```bash
+# 1. Check what agent built
+$ cu log fancy-mallard
+def4567a2  Add basic login form (30 minutes ago)
+$ flask run
+
+# 2. Needs improvement - continue in same environment
+# Prompt: "Work in fancy-mallard environment and add password validation"
+
+# 3. Check again after agent works
+$ cu diff fancy-mallard
+# Now shows both original work + new validation
+```
+
+### Example 3: Recovery Workflow
+
+```bash
+# 1. Agent's approach isn't working
+$ cu log problematic-env
+# Shows agent went down wrong path with complex dependency issues
+
+# 2. Cut losses and start fresh  
+$ cu delete problematic-env
+
+# 3. Try different approach
+# New prompt: "Create a simple REST API using FastAPI instead of Flask"
+# Agent creates fresh environment from clean state
+```
+
+## Managing Multiple Environments
+
+You can have multiple agents working simultaneously:
+
+```bash
+$ cu list
+ID              TITLE                     CREATED       UPDATED
+frontend-work   React UI Components       5 mins ago    1 min ago
+backend-api     FastAPI User Service      3 mins ago    2 mins ago  
+data-pipeline   ETL Processing Script     1 min ago     30 secs ago
+```
+
+Each environment is completely isolated - no conflicts, no interference.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Start with Quick Assessment">
+    Always use `cu diff` and `cu log` first. Most of the time, this gives you enough information to decide next steps without the overhead of checking out or entering containers.
+  </Accordion>
+
+  <Accordion title="Merge Early and Often">
+    When an agent produces good work, merge it quickly. This creates safe checkpoints you can return to. Better to have many small merges than one large risky change.
+  </Accordion>
+
+  <Accordion title="Don't Be Afraid to Delete">
+    Environments are disposable by design. If an agent gets stuck or goes down the wrong path, it's often faster to delete and start fresh than to try to fix problematic work.
+  </Accordion>
+
+  <Accordion title="Use Specific Resume Prompts">
+    When resuming work, be specific about what you want. Instead of "continue working", say "work in ENV-ID and add error handling to the upload function".
+  </Accordion>
+
+  <Accordion title="Keep Your Branch Clean">
+    Your main working branch should only contain merged, tested work. Use environments for all experimental and agent-driven development.
+  </Accordion>
+</AccordionGroup>
+
+## Essential Commands Reference
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `cu list` | See all environments | Check status of agent work |
+| `cu log <env-id>` | View commit history + commands | Understand what agent did |  
+| `cu diff <env-id>` | See code changes | Quick assessment of changes |
+| `cu terminal <env-id>` | Enter live container | Debug, test, hands-on exploration |
+| `cu checkout <env-id>` | Bring changes to local IDE | Detailed code review |
+| `cu merge <env-id>` | Accept work into current branch | When agent succeeded |
+| `cu delete <env-id>` | Discard environment | When starting over |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Try Multiple Agents" icon="users">
+    Experiment with running multiple agents in parallel environments
+  </Card>
+  <Card title="Join Community" icon="discord" href="https://discord.gg/YXbtwRQv">
+    Share your environment management strategies in #container-use
+  </Card>
+</CardGroup>
