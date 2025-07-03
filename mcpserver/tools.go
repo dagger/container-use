@@ -38,7 +38,7 @@ func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*reposit
 	if err != nil {
 		return nil, nil, err
 	}
-	dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+	dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 	if !ok {
 		return nil, nil, fmt.Errorf("dagger client not found in context")
 	}
