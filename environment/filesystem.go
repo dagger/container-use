@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func (s *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {
+func (s *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexedInclusive int, endLineOneIndexedInclusive int) (string, error) {
 	file, err := s.container().File(targetFile).Contents(ctx)
 	if err != nil {
 		return "", err
@@ -16,7 +16,7 @@ func (s *Environment) FileRead(ctx context.Context, targetFile string, shouldRea
 	}
 
 	lines := strings.Split(string(file), "\n")
-	start := startLineOneIndexed - 1
+	start := startLineOneIndexedInclusive - 1
 	start = max(start, 0)
 	if start >= len(lines) {
 		start = len(lines) - 1

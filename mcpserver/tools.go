@@ -549,7 +549,7 @@ var EnvironmentFileReadTool = &Tool{
 		mcp.WithBoolean("should_read_entire_file",
 			mcp.Description("Whether to read the entire file. Defaults to false."),
 		),
-		mcp.WithNumber("start_line_one_indexed",
+		mcp.WithNumber("start_line_one_indexed_inclusive",
 			mcp.Description("The one-indexed line number to start reading from (inclusive)."),
 		),
 		mcp.WithNumber("end_line_one_indexed_inclusive",
@@ -567,10 +567,10 @@ var EnvironmentFileReadTool = &Tool{
 			return nil, err
 		}
 		shouldReadEntireFile := request.GetBool("should_read_entire_file", false)
-		startLineOneIndexed := request.GetInt("start_line_one_indexed", 0)
+		startLineOneIndexedInclusive := request.GetInt("start_line_one_indexed_inclusive", 0)
 		endLineOneIndexedInclusive := request.GetInt("end_line_one_indexed_inclusive", 0)
 
-		fileContents, err := env.FileRead(ctx, targetFile, shouldReadEntireFile, startLineOneIndexed, endLineOneIndexedInclusive)
+		fileContents, err := env.FileRead(ctx, targetFile, shouldReadEntireFile, startLineOneIndexedInclusive, endLineOneIndexedInclusive)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to read file", err), nil
 		}
