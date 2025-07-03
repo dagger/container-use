@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -49,6 +50,17 @@ type VSCodeMCPServer struct {
 	Type    string   `json:"type"`
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
+}
+
+// TOML structures for Codex configuration
+type CodexConfig struct {
+	MCPServers map[string]CodexMCPServer `toml:"mcp_servers"`
+}
+
+type CodexMCPServer struct {
+	Command string            `toml:"command"`
+	Args    []string          `toml:"args"`
+	Env     map[string]string `toml:"env"`
 }
 
 var configureCmd = &cobra.Command{
@@ -221,13 +233,57 @@ func configureCursor() error {
 
 func configureCodex() error {
 	fmt.Println("Configuring OpenAI Codex...")
-	fmt.Println("Please add the following to your ~/.codex/config.toml:")
-	fmt.Println()
-	fmt.Println("[mcp_servers.container-use]")
-	fmt.Println("command = \"cu\"")
-	fmt.Println("args = [\"stdio\"]")
-	fmt.Println("env = {}")
-	fmt.Println()
+
+	configPath := filepath.Join(os.Getenv("HOME"), ".codex", "config.toml")
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Read existing config or create new
+	var config map[string]interface{}
+	if data, err := os.ReadFile(configPath); err == nil {
+		if err := toml.Unmarshal(data, &config); err != nil {
+			return fmt.Errorf("failed to parse existing config: %w", err)
+		}
+	} else {
+		config = make(map[string]interface{})
+	}
+
+	// Get mcp_servers map
+	var mcpServers map[string]interface{}
+	if servers, ok := config["mcp_servers"]; ok {
+		mcpServers = servers.(map[string]interface{})
+	} else {
+		mcpServers = make(map[string]interface{})
+		config["mcp_servers"] = mcpServers
+	}
+
+	// Check if container-use already exists
+	if _, exists := mcpServers["container-use"]; exists {
+		fmt.Println("✓ container-use already configured in Codex")
+		return nil
+	}
+
+	// Add container-use server
+	mcpServers["container-use"] = map[string]interface{}{
+		"command": "cu",
+		"args":    []interface{}{"stdio"},
+		"env":     map[string]interface{}{},
+	}
+
+	// Write config back
+	data, err := toml.Marshal(&config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	fmt.Printf("✓ Added container-use server to %s\n", configPath)
 	fmt.Println("OpenAI Codex configuration complete!")
 	return nil
 }
