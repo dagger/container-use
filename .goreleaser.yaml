@@ -7,6 +7,7 @@ before:
   hooks:
     - go mod tidy
     - ./scripts/completions.sh
+    - ./scripts/man.sh
 
 builds:
   - id: container-use
@@ -36,6 +37,7 @@ archives:
       - README.md
       - LICENSE
       - completions/*
+      - man/*
 
 homebrew_casks:
   - repository:
@@ -55,6 +57,7 @@ homebrew_casks:
       template: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     homepage: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use"
     description: "Containerized environments for coding agents"
+    manpage: man/container-use.1
     completions:
       bash: "completions/container-use.bash"
       zsh: "completions/container-use.zsh"
