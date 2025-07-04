@@ -31,6 +31,11 @@ cu terminal backend-api`,
 			return err
 		}
 
+		envID, err := envOrDefault(ctx, firstOrEmpty(args), repo)
+		if err != nil {
+			return err
+		}
+
 		// FIXME(aluzzardi): This is a hack to make sure we're wrapped in `dagger run` since `Terminal()` only works with the CLI.
 		// If not, it will auto-wrap this command in a `dagger run`.
 		if _, ok := os.LookupEnv("DAGGER_SESSION_TOKEN"); !ok {
@@ -52,7 +57,7 @@ cu terminal backend-api`,
 			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
-		env, err := repo.Get(ctx, dag, args[0])
+		env, err := repo.Get(ctx, dag, envID)
 		if err != nil {
 			return err
 		}
