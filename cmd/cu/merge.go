@@ -18,7 +18,7 @@ var mergeCmd = &cobra.Command{
 	Long: `Merge an environment's changes into your current git branch.
 This makes the agent's work permanent in your repository.
 Your working directory will be automatically stashed and restored.`,
-	Args:              cobra.ExactArgs(1),
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Accept agent's work into current branch
 cu merge backend-api
@@ -35,7 +35,10 @@ cu merge --delete backend-api`,
 			return err
 		}
 
-		env := args[0]
+		env, err := envOrDefault(ctx, firstOrEmpty(args), repo)
+		if err != nil {
+			return err
+		}
 
 		if err := repo.Merge(ctx, env, os.Stdout); err != nil {
 			return fmt.Errorf("failed to merge environment: %w", err)

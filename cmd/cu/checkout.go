@@ -13,7 +13,7 @@ var checkoutCmd = &cobra.Command{
 	Long: `Bring an environment's work into your local git workspace.
 This creates a local branch from the environment's state so you can
 explore files in your IDE, make changes, or continue development.`,
-	Args:              cobra.ExactArgs(1),
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Switch to environment's branch locally
 cu checkout fancy-mallard
@@ -22,10 +22,14 @@ cu checkout fancy-mallard
 cu checkout fancy-mallard -b my-review-branch`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
-		envID := args[0]
 
 		// Ensure we're in a git repository
 		repo, err := repository.Open(ctx, ".")
+		if err != nil {
+			return err
+		}
+
+		envID, err := envOrDefault(ctx, firstOrEmpty(args), repo)
 		if err != nil {
 			return err
 		}

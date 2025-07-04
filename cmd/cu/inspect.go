@@ -22,7 +22,12 @@ var inspectCmd = &cobra.Command{
 			return err
 		}
 
-		envInfo, err := repo.Info(ctx, args[0])
+		envID, err := envOrDefault(ctx, firstOrEmpty(args), repo)
+		if err != nil {
+			return err
+		}
+
+		envInfo, err := repo.Info(ctx, envID)
 		if err != nil {
 			return err
 		}
