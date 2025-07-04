@@ -417,3 +417,79 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
+
+func (r *Repository) MergeSquash(ctx context.Context, id string, w io.Writer) error {
+	envInfo, err := r.Info(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	output, err := RunGitCommand(ctx, r.userRepoPath, "stash", "save", "--include-untracked", "container-use: stash before merging "+envInfo.ID)
+	if err == nil {
+		if !strings.Contains(output, "No local changes to save") {
+			defer func() {
+				_ = RunInteractiveGitCommand(ctx, r.userRepoPath, w, "stash", "pop", "-q")
+			}()
+		}
+	}
+
+	// Find the base point for creating the patch
+	basePoint, err := r.findSquashMergeBase(ctx, envInfo)
+	if err != nil {
+		return err
+	}
+
+	// Create and apply patch from base point to environment branch tip
+	envBranchRef := fmt.Sprintf("%s/%s", containerUseRemote, envInfo.ID)
+	err = r.applyEnvironmentPatch(ctx, basePoint, envBranchRef, w)
+	if err != nil {
+		return err
+	}
+
+	// Commit the squashed changes using the environment title with squash merge suffix
+	commitMessage := ""
+	if envInfo.State != nil && envInfo.State.Title != "" {
+		commitMessage = envInfo.State.Title + "\n\nSquash merge environment " + envInfo.ID
+	} else {
+		commitMessage = "Squash merge environment " + envInfo.ID
+	}
+
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "commit", "-m", commitMessage)
+}
+
+// findSquashMergeBase finds the most recent squash merge commit for this environment
+// or falls back to the merge base if none exists
+func (r *Repository) findSquashMergeBase(ctx context.Context, envInfo *environment.EnvironmentInfo) (string, error) {
+	// First, try to find the most recent squash merge commit for this environment
+	log, err := RunGitCommand(ctx, r.userRepoPath, "log", "--oneline", "--grep=Squash merge environment "+envInfo.ID, "-1", "--pretty=format:%H")
+	if err == nil && strings.TrimSpace(log) != "" {
+		return strings.TrimSpace(log), nil
+	}
+
+	// If no previous squash merge found, use the merge base
+	return r.mergeBase(ctx, envInfo)
+}
+
+// applyEnvironmentPatch creates a patch between basePoint and envBranchRef and applies it to the working directory
+func (r *Repository) applyEnvironmentPatch(ctx context.Context, basePoint, envBranchRef string, w io.Writer) error {
+	// Create patch from basePoint to environment branch tip
+	patch, err := RunGitCommand(ctx, r.userRepoPath, "diff", basePoint, envBranchRef)
+	if err != nil {
+		return fmt.Errorf("failed to create patch: %w", err)
+	}
+
+	// If no changes, nothing to apply
+	if strings.TrimSpace(patch) == "" {
+		return nil
+	}
+
+	// Apply the patch to the working directory
+	// Use git apply with 3-way merge to surface conflicts naturally
+	cmd := exec.CommandContext(ctx, "git", "apply", "--3way", "--index")
+	cmd.Dir = r.userRepoPath
+	cmd.Stdin = strings.NewReader(patch)
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	return cmd.Run()
+}
