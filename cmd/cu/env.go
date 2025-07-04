@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dagger/container-use/repository"
+	"github.com/dagger/container-use/environment"
 )
 
-func envOrDefault(ctx context.Context, arg string, repo *repository.Repository) (string, error) {
+type repoLister interface {
+	List(ctx context.Context) ([]*environment.EnvironmentInfo, error)
+}
+
+func envOrDefault(ctx context.Context, arg string, repo repoLister) (string, error) {
 	if arg != "" {
 		return arg, nil
 	}
