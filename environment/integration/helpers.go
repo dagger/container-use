@@ -234,18 +234,8 @@ func (u *UserActions) CreateEnvironment(title, explanation string) *environment.
 
 // UpdateEnvironment mirrors environment_update MCP tool behavior
 func (u *UserActions) UpdateEnvironment(envID, title, explanation string, config *environment.EnvironmentConfig) {
-	env, err := u.repo.Get(u.ctx, u.dag, envID)
-	require.NoError(u.t, err, "Failed to get environment %s", envID)
-
-	if title != "" {
-		env.State.Title = title
-	}
-
-	err = env.UpdateConfig(u.ctx, explanation, config)
-	require.NoError(u.t, err, "UpdateConfig should succeed")
-
-	err = u.repo.Update(u.ctx, env, explanation)
-	require.NoError(u.t, err, "repo.Update after UpdateConfig should succeed")
+	_, err := mcpserver.UpdateEnvironment(u.ctx, u.dag, u.repoDir, envID, title, config.Instructions, config.BaseImage, explanation, config.SetupCommands, config.Env, config.Secrets)
+	require.NoError(u.t, err, "UpdateEnvironment should succeed")
 }
 
 // FileDelete mirrors environment_file_delete MCP tool behavior

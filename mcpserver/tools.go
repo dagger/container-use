@@ -350,52 +350,43 @@ Supported schemas are:
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, env, err := openEnvironment(ctx, request)
+		source, err := request.RequireString("environment_source")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
-
-		config := env.Config.Copy()
-
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
 		instructions, err := request.RequireString("instructions")
 		if err != nil {
 			return nil, err
 		}
-		config.Instructions = instructions
-
 		baseImage, err := request.RequireString("base_image")
 		if err != nil {
 			return nil, err
 		}
-		config.BaseImage = baseImage
-
 		setupCommands, err := request.RequireStringSlice("setup_commands")
 		if err != nil {
 			return nil, err
 		}
-		config.SetupCommands = setupCommands
-
 		envs, err := request.RequireStringSlice("envs")
 		if err != nil {
 			return nil, err
 		}
-		config.Env = envs
-
 		secrets, err := request.RequireStringSlice("secrets")
 		if err != nil {
 			return nil, err
 		}
-		config.Secrets = secrets
-
-		if title := request.GetString("title", ""); title != "" {
-			env.State.Title = title
+		
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		if err := env.UpdateConfig(ctx, request.GetString("explanation", ""), config); err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
-		}
-
-		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+		env, err := UpdateEnvironment(ctx, dag, source, envID, request.GetString("title", ""), instructions, baseImage, 
+			request.GetString("explanation", ""), setupCommands, envs, secrets)
+		if err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
@@ -405,6 +396,40 @@ Supported schemas are:
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Environment %s updated successfully. Environment has been restarted, all previous commands have been lost.\n%s", env.ID, out)), nil
 	},
+}
+
+// UpdateEnvironment updates an environment with new configuration
+func UpdateEnvironment(ctx context.Context, dag *dagger.Client, source, envID, title, instructions, baseImage, explanation string, setupCommands, envs, secrets []string) (*environment.Environment, error) {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	
+	env, err := repo.Get(ctx, dag, envID)
+	if err != nil {
+		return nil, err
+	}
+	
+	config := env.Config.Copy()
+	config.Instructions = instructions
+	config.BaseImage = baseImage
+	config.SetupCommands = setupCommands
+	config.Env = envs
+	config.Secrets = secrets
+	
+	if title != "" {
+		env.State.Title = title
+	}
+	
+	if err := env.UpdateConfig(ctx, explanation, config); err != nil {
+		return nil, err
+	}
+	
+	if err := repo.Update(ctx, env, explanation); err != nil {
+		return nil, err
+	}
+	
+	return env, nil
 }
 
 var EnvironmentListTool = &Tool{
