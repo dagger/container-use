@@ -283,6 +283,14 @@ func (u *UserActions) OpenEnvironment(envID string) *environment.Environment {
 	return env
 }
 
+// AddService mirrors environment_add_service MCP tool behavior
+func (u *UserActions) AddService(envID, name, image, command, explanation string, ports []int, envs []string, secrets []string) *environment.Service {
+	service, err := mcpserver.AddEnvironmentService(u.ctx, u.dag, u.repoDir, envID, name, image, command, explanation, ports, envs, secrets)
+	require.NoError(u.t, err, "AddService should succeed")
+	require.NotNil(u.t, service, "AddService should return a service")
+	return service
+}
+
 // --- Direct manipulation methods for edge case testing ---
 
 // WriteSourceFile writes directly to the source repository

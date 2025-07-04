@@ -933,6 +933,10 @@ var EnvironmentCheckpointTool = &Tool{
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this checkpoint is being created."),
 		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
 		mcp.WithString("environment_id",
 			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
 			mcp.Required(),
@@ -959,6 +963,7 @@ var EnvironmentCheckpointTool = &Tool{
 		return mcp.NewToolResultText(fmt.Sprintf("Checkpoint pushed to %q. You MUST use the full content addressed (@sha256:...) reference in `docker` commands. The entrypoint is set to `sh`, keep that in mind when giving commands to the container.", endpoint)), nil
 	},
 }
+
 
 var EnvironmentAddServiceTool = &Tool{
 	Definition: mcp.NewTool("environment_add_service",
@@ -1007,9 +1012,13 @@ Supported schemas are:
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, env, err := openEnvironment(ctx, request)
+		source, err := request.RequireString("environment_source")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
+		}
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
 		}
 		serviceName, err := request.RequireString("name")
 		if err != nil {
@@ -1030,19 +1039,14 @@ Supported schemas are:
 		envs := request.GetStringSlice("envs", []string{})
 		secrets := request.GetStringSlice("secrets", []string{})
 
-		service, err := env.AddService(ctx, request.GetString("explanation", ""), &environment.ServiceConfig{
-			Name:         serviceName,
-			Image:        image,
-			Command:      command,
-			ExposedPorts: ports,
-			Env:          envs,
-			Secrets:      secrets,
-		})
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to add service", err), nil
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+		service, err := AddEnvironmentService(ctx, dag, source, envID, serviceName, image, command, 
+			request.GetString("explanation", ""), ports, envs, secrets)
+		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
 		}
 
@@ -1053,4 +1057,35 @@ Supported schemas are:
 
 		return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
 	},
+}
+
+// AddEnvironmentService adds a service to the environment
+func AddEnvironmentService(ctx context.Context, dag *dagger.Client, source, envID, serviceName, image, command, explanation string, ports []int, envs, secrets []string) (*environment.Service, error) {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	
+	env, err := repo.Get(ctx, dag, envID)
+	if err != nil {
+		return nil, err
+	}
+	
+	service, err := env.AddService(ctx, explanation, &environment.ServiceConfig{
+		Name:         serviceName,
+		Image:        image,
+		Command:      command,
+		ExposedPorts: ports,
+		Env:          envs,
+		Secrets:      secrets,
+	})
+	if err != nil {
+		return nil, err
+	}
+	
+	if err := repo.Update(ctx, env, explanation); err != nil {
+		return nil, err
+	}
+	
+	return service, nil
 }
