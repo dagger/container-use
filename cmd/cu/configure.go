@@ -188,7 +188,7 @@ func configureClaude() error {
 	}
 
 	// Add container-use tools to allow
-	tools := tools("mcp__container-use")
+	tools := tools("mcp__container-use__")
 	for _, tool := range tools {
 		allows = append(allows, tool)
 	}
