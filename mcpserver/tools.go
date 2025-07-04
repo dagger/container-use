@@ -462,43 +462,46 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, env, err := openEnvironment(ctx, request)
+		source, err := request.RequireString("environment_source")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
+		}
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
 		}
 
 		command := request.GetString("command", "")
 		shell := request.GetString("shell", "sh")
+		background := request.GetBool("background", false)
+		useEntrypoint := request.GetBool("use_entrypoint", false)
+		explanation := request.GetString("explanation", "")
 
-		updateRepo := func() (*mcp.CallToolResult, error) {
-			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
-			}
-			return nil, nil
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		background := request.GetBool("background", false)
-		if background {
-			ports := []int{}
-			if portList, ok := request.GetArguments()["ports"].([]any); ok {
-				for _, port := range portList {
-					ports = append(ports, int(port.(float64)))
-				}
+		ports := []int{}
+		if portList, ok := request.GetArguments()["ports"].([]any); ok {
+			for _, port := range portList {
+				ports = append(ports, int(port.(float64)))
 			}
-			endpoints, runErr := env.RunBackground(ctx, command, shell, ports, request.GetBool("use_entrypoint", false))
-			// We want to update the repository even if the command failed.
-			if resp, err := updateRepo(); err != nil {
-				return resp, nil
-			}
-			if runErr != nil {
-				return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
-			}
+		}
 
-			out, err := json.Marshal(endpoints)
+		result, err := RunEnvironmentCommand(ctx, dag, source, envID, command, shell, explanation, background, useEntrypoint, ports)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr(err.Error(), err), nil
+		}
+
+		if background {
+			out, err := json.Marshal(result)
 			if err != nil {
 				return nil, err
 			}
-
+			// Get the env to access workdir info for the message
+			repo, _ := repository.Open(ctx, source)
+			env, _ := repo.Get(ctx, dag, envID)
 			return mcp.NewToolResultText(fmt.Sprintf(`Command started in the background in NEW container. Endpoints are %s
 
 To access from the user's machine: use host_external. To access from other commands in this environment: use environment_internal.
@@ -509,17 +512,54 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 				string(out), env.Config.Workdir, env.ID)), nil
 		}
 
-		stdout, runErr := env.Run(ctx, command, shell, request.GetBool("use_entrypoint", false))
+		// Get the env to access workdir info for the message
+		repo, _ := repository.Open(ctx, source)
+		env, _ := repo.Get(ctx, dag, envID)
+		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", result.(string), env.Config.Workdir)), nil
+	},
+}
+
+// RunEnvironmentCommand runs a command in an environment
+func RunEnvironmentCommand(ctx context.Context, dag *dagger.Client, source, envID, command, shell, explanation string, background bool, useEntrypoint bool, ports []int) (any, error) {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	
+	env, err := repo.Get(ctx, dag, envID)
+	if err != nil {
+		return nil, err
+	}
+	
+	updateRepo := func() error {
+		if err := repo.Update(ctx, env, explanation); err != nil {
+			return err
+		}
+		return nil
+	}
+	
+	if background {
+		endpoints, runErr := env.RunBackground(ctx, command, shell, ports, useEntrypoint)
 		// We want to update the repository even if the command failed.
-		if resp, err := updateRepo(); err != nil {
-			return resp, nil
+		if updateErr := updateRepo(); updateErr != nil {
+			return nil, updateErr
 		}
 		if runErr != nil {
-			return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
+			return nil, runErr
 		}
-
-		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir)), nil
-	},
+		return endpoints, nil
+	}
+	
+	stdout, runErr := env.Run(ctx, command, shell, useEntrypoint)
+	// We want to update the repository even if the command failed.
+	if updateErr := updateRepo(); updateErr != nil {
+		return nil, updateErr
+	}
+	if runErr != nil {
+		return nil, runErr
+	}
+	
+	return stdout, nil
 }
 
 var EnvironmentFileReadTool = &Tool{

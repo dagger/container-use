@@ -214,15 +214,13 @@ func (u *UserActions) FileWrite(envID, targetFile, contents, explanation string)
 
 // RunCommand mirrors environment_run_cmd MCP tool behavior
 func (u *UserActions) RunCommand(envID, command, explanation string) string {
-	env, err := u.repo.Get(u.ctx, u.dag, envID)
-	require.NoError(u.t, err, "Failed to get environment %s", envID)
-
-	output, err := env.Run(u.ctx, command, "/bin/sh", false)
+	result, err := mcpserver.RunEnvironmentCommand(u.ctx, u.dag, u.repoDir, envID, command, "/bin/sh", explanation, false, false, nil)
 	require.NoError(u.t, err, "Run command should succeed")
-
-	err = u.repo.Update(u.ctx, env, explanation)
-	require.NoError(u.t, err, "repo.Update after Run should succeed")
-
+	require.NotNil(u.t, result, "Run command should return a result")
+	
+	// For non-background commands, result is a string
+	output, ok := result.(string)
+	require.True(u.t, ok, "Run command should return string output")
 	return output
 }
 
