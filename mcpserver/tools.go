@@ -238,9 +238,9 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, err := openRepository(ctx, request)
+		source, err := request.RequireString("environment_source")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
+			return nil, err
 		}
 		title, err := request.RequireString("title")
 		if err != nil {
@@ -252,7 +252,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
+		env, err := CreateEnvironment(ctx, dag, source, title, request.GetString("explanation", ""))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
@@ -280,6 +280,21 @@ Uncommitted changes detected:
 
 You MUST tell the user: To include these changes in the environment, they need to commit them first using git commands outside the environment.`, out, request.GetString("environment_source", ""), status)), nil
 	},
+}
+
+// CreateEnvironment creates a new development environment
+func CreateEnvironment(ctx context.Context, dag *dagger.Client, source, title, explanation string) (*environment.Environment, error) {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	
+	env, err := repo.Create(ctx, dag, title, explanation)
+	if err != nil {
+		return nil, err
+	}
+	
+	return env, nil
 }
 
 var EnvironmentUpdateTool = &Tool{

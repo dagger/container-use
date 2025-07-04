@@ -226,8 +226,9 @@ func (u *UserActions) RunCommand(envID, command, explanation string) string {
 
 // CreateEnvironment mirrors environment_create MCP tool behavior
 func (u *UserActions) CreateEnvironment(title, explanation string) *environment.Environment {
-	env, err := u.repo.Create(u.ctx, u.dag, title, explanation)
+	env, err := mcpserver.CreateEnvironment(u.ctx, u.dag, u.repoDir, title, explanation)
 	require.NoError(u.t, err, "Create environment should succeed")
+	require.NotNil(u.t, env, "Create environment should return an environment")
 	return env
 }
 
