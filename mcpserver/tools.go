@@ -210,12 +210,42 @@ var EnvironmentOpenTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		_, env, err := openEnvironment(ctx, request)
+		source, err := request.RequireString("environment_source")
+		if err != nil {
+			return nil, err
+		}
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
+
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+		}
+
+		env, err := GetEnvironmentFromSource(ctx, dag, source, envID)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 		return EnvironmentToCallResult(env)
 	},
+}
+
+// GetEnvironmentFromSource opens an existing environment from a given source repository
+// This is the public API used by test helpers to mirror MCP tool behavior
+func GetEnvironmentFromSource(ctx context.Context, dag *dagger.Client, source, envID string) (*environment.Environment, error) {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+
+	env, err := repo.Get(ctx, dag, envID)
+	if err != nil {
+		return nil, err
+	}
+
+	return env, nil
 }
 
 var EnvironmentCreateTool = &Tool{
@@ -288,12 +318,12 @@ func CreateEnvironment(ctx context.Context, dag *dagger.Client, source, title, e
 	if err != nil {
 		return nil, err
 	}
-	
+
 	env, err := repo.Create(ctx, dag, title, explanation)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return env, nil
 }
 
@@ -378,13 +408,13 @@ Supported schemas are:
 		if err != nil {
 			return nil, err
 		}
-		
+
 		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		env, err := UpdateEnvironment(ctx, dag, source, envID, request.GetString("title", ""), instructions, baseImage, 
+		env, err := UpdateEnvironment(ctx, dag, source, envID, request.GetString("title", ""), instructions, baseImage,
 			request.GetString("explanation", ""), setupCommands, envs, secrets)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
@@ -404,31 +434,31 @@ func UpdateEnvironment(ctx context.Context, dag *dagger.Client, source, envID, t
 	if err != nil {
 		return nil, err
 	}
-	
+
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	config := env.Config.Copy()
 	config.Instructions = instructions
 	config.BaseImage = baseImage
 	config.SetupCommands = setupCommands
 	config.Env = envs
 	config.Secrets = secrets
-	
+
 	if title != "" {
 		env.State.Title = title
 	}
-	
+
 	if err := env.UpdateConfig(ctx, explanation, config); err != nil {
 		return nil, err
 	}
-	
+
 	if err := repo.Update(ctx, env, explanation); err != nil {
 		return nil, err
 	}
-	
+
 	return env, nil
 }
 
@@ -565,19 +595,19 @@ func RunEnvironmentCommand(ctx context.Context, dag *dagger.Client, source, envI
 	if err != nil {
 		return nil, err
 	}
-	
+
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	updateRepo := func() error {
 		if err := repo.Update(ctx, env, explanation); err != nil {
 			return err
 		}
 		return nil
 	}
-	
+
 	if background {
 		endpoints, runErr := env.RunBackground(ctx, command, shell, ports, useEntrypoint)
 		// We want to update the repository even if the command failed.
@@ -589,7 +619,7 @@ func RunEnvironmentCommand(ctx context.Context, dag *dagger.Client, source, envI
 		}
 		return endpoints, nil
 	}
-	
+
 	stdout, runErr := env.Run(ctx, command, shell, useEntrypoint)
 	// We want to update the repository even if the command failed.
 	if updateErr := updateRepo(); updateErr != nil {
@@ -598,7 +628,7 @@ func RunEnvironmentCommand(ctx context.Context, dag *dagger.Client, source, envI
 	if runErr != nil {
 		return nil, runErr
 	}
-	
+
 	return stdout, nil
 }
 
@@ -643,12 +673,12 @@ var EnvironmentFileReadTool = &Tool{
 		if err != nil {
 			return nil, err
 		}
-		
+
 		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
-		
+
 		shouldReadEntireFile := request.GetBool("should_read_entire_file", false)
 		startLineOneIndexed := request.GetInt("start_line_one_indexed", 0)
 		endLineOneIndexedInclusive := request.GetInt("end_line_one_indexed_inclusive", 0)
@@ -668,17 +698,17 @@ func ReadEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envID,
 	if err != nil {
 		return "", err
 	}
-	
+
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return "", err
 	}
-	
+
 	fileContents, err := env.FileRead(ctx, targetFile, shouldReadEntireFile, startLineOneIndexed, endLineOneIndexedInclusive)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return fileContents, nil
 }
 
@@ -735,17 +765,17 @@ func ListEnvironmentFiles(ctx context.Context, dag *dagger.Client, source, envID
 	if err != nil {
 		return "", err
 	}
-	
+
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return "", err
 	}
-	
+
 	out, err := env.FileList(ctx, path)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return out, nil
 }
 
@@ -811,20 +841,20 @@ func WriteEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envID
 	if err != nil {
 		return err
 	}
-	
+
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return err
 	}
-	
+
 	if err := env.FileWrite(ctx, explanation, targetFile, contents); err != nil {
 		return err
 	}
-	
+
 	if err := repo.Update(ctx, env, explanation); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -880,20 +910,20 @@ func DeleteEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envI
 	if err != nil {
 		return err
 	}
-	
+
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return err
 	}
-	
+
 	if err := env.FileDelete(ctx, explanation, targetFile); err != nil {
 		return err
 	}
-	
+
 	if err := repo.Update(ctx, env, explanation); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 

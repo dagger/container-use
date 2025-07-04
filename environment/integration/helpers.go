@@ -275,6 +275,14 @@ func (u *UserActions) GetEnvironment(envID string) *environment.Environment {
 	return env
 }
 
+// OpenEnvironment mirrors environment_open MCP tool behavior
+func (u *UserActions) OpenEnvironment(envID string) *environment.Environment {
+	env, err := mcpserver.GetEnvironmentFromSource(u.ctx, u.dag, u.repoDir, envID)
+	require.NoError(u.t, err, "OpenEnvironment should succeed")
+	require.NotNil(u.t, env, "OpenEnvironment should return an environment")
+	return env
+}
+
 // --- Direct manipulation methods for edge case testing ---
 
 // WriteSourceFile writes directly to the source repository
