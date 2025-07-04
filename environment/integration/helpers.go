@@ -260,6 +260,13 @@ func (u *UserActions) FileReadExpectError(envID, targetFile string) {
 	assert.Error(u.t, err, "FileRead should fail for %s", targetFile)
 }
 
+// FileList mirrors environment_file_list MCP tool behavior
+func (u *UserActions) FileList(envID, path string) string {
+	content, err := mcpserver.ListEnvironmentFiles(u.ctx, u.dag, u.repoDir, envID, path)
+	require.NoError(u.t, err, "FileList should succeed")
+	return content
+}
+
 // GetEnvironment retrieves an environment by ID - mirrors how MCP tools work
 // Each MCP tool call starts fresh by getting the environment from the repository
 func (u *UserActions) GetEnvironment(envID string) *environment.Environment {

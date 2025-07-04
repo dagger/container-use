@@ -702,23 +702,51 @@ var EnvironmentFileListTool = &Tool{
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		_, env, err := openEnvironment(ctx, request)
+		source, err := request.RequireString("environment_source")
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
-
+		envID, err := request.RequireString("environment_id")
+		if err != nil {
+			return nil, err
+		}
 		path, err := request.RequireString("path")
 		if err != nil {
 			return nil, err
 		}
 
-		out, err := env.FileList(ctx, path)
+		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+		}
+
+		out, err := ListEnvironmentFiles(ctx, dag, source, envID, path)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to list directory", err), nil
 		}
 
 		return mcp.NewToolResultText(out), nil
 	},
+}
+
+// ListEnvironmentFiles lists the contents of a directory in an environment
+func ListEnvironmentFiles(ctx context.Context, dag *dagger.Client, source, envID, path string) (string, error) {
+	repo, err := repository.Open(ctx, source)
+	if err != nil {
+		return "", err
+	}
+	
+	env, err := repo.Get(ctx, dag, envID)
+	if err != nil {
+		return "", err
+	}
+	
+	out, err := env.FileList(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	
+	return out, nil
 }
 
 var EnvironmentFileWriteTool = &Tool{
