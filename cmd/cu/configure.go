@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/dagger/container-use/mcpserver"
 	"github.com/dagger/container-use/rules"
@@ -39,6 +40,16 @@ type MCPServer struct {
 	AlwaysAllow   []string          `json:"alwaysAllow,omitempty"`
 	WorkingDir    *string           `json:"working_directory,omitempty"`
 	StartOnLaunch *bool             `json:"start_on_launch,omitempty"`
+}
+
+type ClaudeSettingsLocal struct {
+	Permissions *ClaudePermissions `json:"permissions,omitempty"`
+	Env         map[string]string  `json:"env,omitempty"`
+}
+
+type ClaudePermissions struct {
+	Allow []string `json:"allow,omitempty"`
+	Deny  []string `json:"deny,omitempty"`
 }
 
 type VSCodeSettings struct {
@@ -133,11 +144,10 @@ func configureClaude() error {
 		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
 
-	// Add MCP server TODO add to .claude/settings.local.json
+	// Add MCP server
 	cmd := exec.Command("claude", "mcp", "add", "container-use", "--", cuPath, "stdio")
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Warning: Could not automatically add MCP server: %v\n", err)
-		fmt.Printf("Please run manually: claude mcp add container-use -- %s stdio\n", cuPath)
+		return fmt.Errorf("could not automatically add MCP server: %v\n", err)
 	} else {
 		fmt.Println("✓ Added container-use MCP server to Claude")
 	}
@@ -149,9 +159,54 @@ func configureClaude() error {
 		fmt.Println("✓ Added agent rules to CLAUDE.md")
 	}
 
+	configPath := filepath.Join(".claude", "settings.local.json")
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Read existing config or create new
+	var config ClaudeSettingsLocal
+	if data, err := os.ReadFile(configPath); err == nil {
+		if err := json.Unmarshal(data, &config); err != nil {
+			return fmt.Errorf("failed to parse existing config: %w", err)
+		}
+	}
+
+	// Initialize permissions map if nil
+	if config.Permissions == nil {
+		config.Permissions = &ClaudePermissions{Allow: []string{}}
+	}
+
+	// remove save non-container-use items from allow
+	allows := []string{}
+	for _, tool := range config.Permissions.Allow {
+		if !strings.HasPrefix(tool, "mcp__container-use") {
+			allows = append(allows, tool)
+		}
+	}
+
+	// Add container-use tools to allow
+	tools := tools("mcp__container-use")
+	for _, tool := range tools {
+		allows = append(allows, tool)
+	}
+	config.Permissions.Allow = allows
+
+	// Write config back
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	fmt.Printf("✓ Added container-use allow list to %s\n", configPath)
+
 	fmt.Println("\nClaude Code configuration complete!")
-	fmt.Println("To use with trusted tools only:") // TODO generate from the real list of tools
-	fmt.Println("claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update")
 	return nil
 }
 
