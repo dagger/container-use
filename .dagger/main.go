@@ -24,7 +24,7 @@ func (m *ContainerUse) Build(ctx context.Context,
 	//+optional
 	platform dagger.Platform,
 ) *dagger.File {
-	return dag.Go(m.Source).Binary("./cmd/cu", dagger.GoBinaryOpts{
+	return dag.Go(m.Source).Binary("./cmd/container-use", dagger.GoBinaryOpts{
 		Platform: platform,
 	})
 }

@@ -9,9 +9,9 @@ before:
     - ./scripts/completions.sh
 
 builds:
-  - id: cu
-    binary: cu
-    main: ./cmd/cu
+  - id: container-use
+    binary: container-use
+    main: ./cmd/container-use
     env:
       - CGO_ENABLED=0
     goos:
@@ -28,9 +28,9 @@ builds:
       - -X main.date={{.Date}}
 
 archives:
-  - id: cu-archive
+  - id: container-use-archive
     ids:
-      - cu
+      - container-use
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
@@ -46,7 +46,7 @@ homebrew_casks:
       pull_request:
         enabled: true
     name: container-use
-    binary: cu
+    binary: container-use
     skip_upload: auto # if the version is like v0.0.0-rc1, don't make the tap PR.
     commit_author:
       name: container-use-bot
@@ -56,15 +56,37 @@ homebrew_casks:
     homepage: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use"
     description: "Containerized environments for coding agents"
     completions:
-      bash: "completions/cu.bash"
-      zsh: "completions/cu.zsh"
-      fish: "completions/cu.fish"
+      bash: "completions/container-use.bash"
+      zsh: "completions/container-use.zsh"
+      fish: "completions/container-use.fish"
     hooks:
       post:
         install: |
           # remove quarantine xattr (note we don't do anything with signatures yet)
           if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cu"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/container-use"]
+          end
+          # Create cu symlink for backward compatibility
+          system_command "/bin/ln", args: ["-sf", "container-use", "#{staged_path}/cu"]
+
+          # Install cu completions for backward compatibility
+          bash_completion = "#{HOMEBREW_PREFIX}/etc/bash_completion.d"
+          zsh_completion = "#{HOMEBREW_PREFIX}/share/zsh/site-functions"
+          fish_completion = "#{HOMEBREW_PREFIX}/share/fish/vendor_completions.d"
+
+          if File.exist?("#{staged_path}/completions/cu.bash")
+            system_command "/bin/mkdir", args: ["-p", bash_completion]
+            system_command "/bin/cp", args: ["#{staged_path}/completions/cu.bash", "#{bash_completion}/cu"]
+          end
+
+          if File.exist?("#{staged_path}/completions/cu.zsh")
+            system_command "/bin/mkdir", args: ["-p", zsh_completion]
+            system_command "/bin/cp", args: ["#{staged_path}/completions/cu.zsh", "#{zsh_completion}/_cu"]
+          end
+
+          if File.exist?("#{staged_path}/completions/cu.fish")
+            system_command "/bin/mkdir", args: ["-p", fish_completion]
+            system_command "/bin/cp", args: ["#{staged_path}/completions/cu.fish", "#{fish_completion}/cu.fish"]
           end
 
 checksum:

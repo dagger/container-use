@@ -16,10 +16,10 @@ explore files in your IDE, make changes, or continue development.`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Switch to environment's branch locally
-cu checkout fancy-mallard
+container-use checkout fancy-mallard
 
 # Create custom branch name
-cu checkout fancy-mallard -b my-review-branch`,
+container-use checkout fancy-mallard -b my-review-branch`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 		envID := args[0]

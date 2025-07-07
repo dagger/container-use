@@ -26,7 +26,7 @@ To build the `cu` binary without installing it to your `$PATH`, you can use eith
 ### Using Go
 
 ```bash
-go build -o cu ./cmd/cu
+go build -o container-use ./cmd/container-use
 ```
 
 ### Using Dagger

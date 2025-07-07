@@ -19,10 +19,10 @@ var terminalCmd = &cobra.Command{
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Drop into environment's container
-cu terminal fancy-mallard
+container-use terminal fancy-mallard
 
 # Debug agent's work interactively
-cu terminal backend-api`,
+container-use terminal backend-api`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 

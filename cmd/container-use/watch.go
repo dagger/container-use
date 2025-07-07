@@ -15,10 +15,10 @@ var watchCmd = &cobra.Command{
 Shows new commits and environment changes updated every second.
 Press Ctrl+C to stop watching.`,
 	Example: `# Watch all environment activity
-cu watch
+container-use watch
 
 # Monitor agents while they work
-cu watch`,
+container-use watch`,
 	RunE: func(app *cobra.Command, _ []string) error {
 		ctx := app.Context()
 

@@ -15,10 +15,10 @@ Shows a git diff between the environment's state and your current branch.`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# See what changes the agent made
-cu diff fancy-mallard
+container-use diff fancy-mallard
 
 # Quick assessment before merging
-cu diff backend-api`,
+container-use diff backend-api`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 

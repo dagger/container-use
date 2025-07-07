@@ -3,7 +3,7 @@ This is a development environment for container-use, a CLI tool that provides co
 container-use is designed to work with MCP-compatible agents like Claude Code and Cursor.
 
 DEVELOPMENT WORKFLOW:
-- Build: Use 'go build -o cu ./cmd/cu' or 'dagger call build --platform=current export --path ./cu'
+- Build: Use 'go build -o container-use ./cmd/container-use' or 'dagger call build --platform=current export --path ./container-use'
 - Test: Run 'go test ./...' for all tests, 'go test -short ./...' for unit tests only, or 'go test -count=1 -v ./environment' for integration tests
 - Format: Always run 'go fmt ./...' before committing
 - Lint: Run 'golangci-lint run' to check for linting issues

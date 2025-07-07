@@ -45,9 +45,9 @@ Each environment is just a Git branch that your source repo tracks on the contai
 
 ```
 projectName/ Source Repo            container-use/ Remote
-├── feature-branch ←──── cu merge ──────────┐
-├── main (current) ── environment_create ──→ adverb-animal
-└── cu-adverb-animal ←──── cu checkout ───────┘
+├── feature-branch ←──── container-use merge ──────────┐
+├── main (current) ───────── environment_create ──→ adverb-animal
+└── cu-adverb-animal ←──── container-use checkout ───────┘
                                        │
                                        │ (host filesystem implementation)
                                        ▼
