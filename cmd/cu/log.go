@@ -13,7 +13,7 @@ var logCmd = &cobra.Command{
 	Long: `Display the complete development history for an environment.
 Shows all commits made by the agent plus command execution notes.
 Use -p to include code patches in the output.`,
-	Args:              cobra.ExactArgs(1),
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# See what agent did
 cu log fancy-mallard
@@ -29,9 +29,14 @@ cu log fancy-mallard -p`,
 			return err
 		}
 
+		envID, err := envOrDefault(ctx, firstOrEmpty(args), repo)
+		if err != nil {
+			return err
+		}
+
 		patch, _ := app.Flags().GetBool("patch")
 
-		return repo.Log(ctx, args[0], patch, os.Stdout)
+		return repo.Log(ctx, envID, patch, os.Stdout)
 	},
 }
 

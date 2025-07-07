@@ -12,7 +12,7 @@ var diffCmd = &cobra.Command{
 	Short: "Show what files an agent changed",
 	Long: `Display the code changes made by an agent in an environment.
 Shows a git diff between the environment's state and your current branch.`,
-	Args:              cobra.ExactArgs(1),
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# See what changes the agent made
 cu diff fancy-mallard
@@ -28,7 +28,12 @@ cu diff backend-api`,
 			return err
 		}
 
-		return repo.Diff(ctx, args[0], os.Stdout)
+		envID, err := envOrDefault(ctx, firstOrEmpty(args), repo)
+		if err != nil {
+			return err
+		}
+
+		return repo.Diff(ctx, envID, os.Stdout)
 	},
 }
 
