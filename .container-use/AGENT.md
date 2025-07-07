@@ -10,7 +10,7 @@ DEVELOPMENT WORKFLOW:
 - Dependencies: Run 'go mod download' to install dependencies, 'go mod tidy' to clean up
 
 DAGGER MODULE (more details in .dagger/):
-- Build: 'dagger call build export --path ./cu'
+- Build: 'dagger call build export --path ./container-use'
 - Test: 'dagger call test' or 'dagger call test --integration=false'
 
 AVAILABLE TOOLS:
@@ -21,7 +21,7 @@ AVAILABLE TOOLS:
 - golangci-lint v1.61.0 (Go linter with various checks)
 
 PROJECT STRUCTURE:
-- cmd/cu: Main CLI application entry point
+- cmd/container-use: Main CLI application entry point
 - environment/: Core environment management logic
 - mcpserver/: MCP (Model Context Protocol) server implementation
 - examples/: Example configurations and usage

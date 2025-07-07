@@ -62,6 +62,15 @@ claude mcp add container-use -- container-use stdio
 curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
 ```
 
+<details>
+<summary>💡 Command Shortcut</summary>
+
+The `container-use` command is also available as `cu` for convenience. Both commands work identically:
+- `container-use stdio` (used in documentation)
+- `cu stdio` (shortcut)
+
+</details>
+
 ### Try It
 
 Ask your agent to create something:

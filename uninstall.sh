@@ -5,7 +5,7 @@
 set -euo pipefail
 
 main() {
-    local BINARY_NAME="cu"
+    local BINARY_NAME="container-use"
     local INSTALL_DIR="${BIN_DIR:-$HOME/.local/bin}"
     local BINARY_PATH="$INSTALL_DIR/$BINARY_NAME"
 
@@ -31,6 +31,13 @@ main() {
         [yY]|[yY][eE][sS])
             rm -f "$BINARY_PATH"
             echo "Removed $BINARY_PATH"
+
+            # Also remove cu symlink if it exists
+            local SYMLINK_PATH="$INSTALL_DIR/cu"
+            if [ -L "$SYMLINK_PATH" ]; then
+                rm -f "$SYMLINK_PATH"
+                echo "Removed cu symlink at $SYMLINK_PATH"
+            fi
             ;;
         *)
             echo "Cancelled"
