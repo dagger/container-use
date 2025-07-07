@@ -334,23 +334,6 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, ex
 	return err
 }
 
-func (r *Repository) withGitStash(ctx context.Context, fn func() error) error {
-	stashOutput, err := RunGitCommand(ctx, r.userRepoPath, "stash", "save", "--include-untracked", "container-use: stash before applying")
-	if err != nil {
-		return fmt.Errorf("failed to save git stash: %w", err)
-	}
-
-	fnErr := fn()
-
-	if !strings.Contains(stashOutput, "No local changes to save") {
-		if _, err := RunGitCommand(ctx, r.userRepoPath, "stash", "pop", "-q"); err != nil {
-			return fmt.Errorf("failed to pop git stash: %w", err)
-		}
-	}
-
-	return fnErr
-}
-
 // AI slop below!
 // this is just to keep us moving fast because big git repos get hard to work with
 // and our demos like to download large dependencies.
