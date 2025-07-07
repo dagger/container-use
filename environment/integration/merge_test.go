@@ -63,7 +63,6 @@ func TestRepositoryMerge(t *testing.T) {
 
 // TestRepositoryApply tests applying an environment as staged changes (equivalent to merge --squash)
 func TestRepositoryApply(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-apply", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
