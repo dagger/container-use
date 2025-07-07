@@ -19,18 +19,9 @@ Choose your preferred installation method:
 
 <Tabs>
   <Tab title="Homebrew (macOS)">
-    <Note>
-      **Recommended for macOS users** - Homebrew will automatically install shell completions for you.
-    </Note>
-
     ```sh
     brew install dagger/tap/container-use
     ```
-
-    This will:
-    - Install the latest `cu` binary
-    - Add it to your `$PATH`
-    - Install shell completions automatically
 
     ### Verify Installation
     ```sh
@@ -40,49 +31,9 @@ Choose your preferred installation method:
   </Tab>
 
   <Tab title="Shell Script (All Platforms)">
-    <Note>
-      **Universal installer** - Works on Linux, macOS, and Windows (WSL).
-    </Note>
-
     ```sh
     curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
     ```
-
-    This script will:
-    - Check for Docker & Git (required dependencies)
-    - Detect your platform automatically
-    - Install the latest `cu` binary to your `$PATH`
-    - Provide shell completion installation instructions
-
-    ### Verify Installation
-    ```sh
-    cu version
-    ```
-
-    ### Shell Completions
-    After installation, follow the provided instructions to enable shell completions for your shell (bash, zsh, fish).
-
-  </Tab>
-
-  <Tab title="Build from Source">
-    <Note>
-      **For developers** - Build the latest version from source code.
-    </Note>
-
-    ### Prerequisites
-    - Go 1.21 or later
-    - Git
-    - Docker
-
-    ### Build Steps
-    ```sh
-    git clone https://github.com/dagger/container-use.git
-    cd container-use
-    go build -o cu ./cmd/cu
-    sudo mv cu /usr/local/bin/
-    ```
-
-    For detailed build instructions, see the [CONTRIBUTING.md](https://github.com/dagger/container-use/blob/main/CONTRIBUTING.md#building) guide.
 
     ### Verify Installation
     ```sh
@@ -91,6 +42,10 @@ Choose your preferred installation method:
 
   </Tab>
 </Tabs>
+
+<Card title="More Installation Options" icon="download" href="/installation">
+  See all installation methods including build from source
+</Card>
 
 ## Agent Setup
 

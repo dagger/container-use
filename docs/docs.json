@@ -17,6 +17,7 @@
             "group": "Getting Started",
             "pages": [
               "introduction",
+              "installation",
               "quickstart"
             ]
         },
