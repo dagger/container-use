@@ -9,7 +9,7 @@ icon: arrows-rotate
 Each environment in Container Use is an **isolated workspace** that combines:
 
 - **🌳 Git Branch**: Dedicated branch tracking all changes and history
-- **📦 Container**: Isolated runtime with your code and dependencies  
+- **📦 Container**: Isolated runtime with your code and dependencies
 - **📝 Complete History**: Every command, file change, and container state automatically tracked
 
 Think of environments as **disposable sandboxes** where agents can work safely without affecting your main codebase.
@@ -20,16 +20,20 @@ Container Use follows a simple but powerful pattern:
 
 <Steps>
   <Step title="Agent Creates Fresh Environment">
-    Every agent session starts with a brand new environment from your current branch state.
+    Every agent session starts with a brand new environment from your current
+    branch state.
   </Step>
   <Step title="Agent Works in Isolation">
-    The agent makes changes, runs commands, and builds features completely isolated from your work.
+    The agent makes changes, runs commands, and builds features completely
+    isolated from your work.
   </Step>
   <Step title="You Observe the Work">
-    Use Container Use commands to see what the agent did without disrupting your local setup.
+    Use Container Use commands to see what the agent did without disrupting your
+    local setup.
   </Step>
   <Step title="Make a Decision">
-    Merge good work, iterate with refined prompts, or discard failed attempts.
+    Accept good work using merge or apply, iterate with refined prompts, or
+    discard failed attempts.
   </Step>
 </Steps>
 
@@ -53,11 +57,15 @@ container-use diff fancy-mallard
 ```
 
 <Card title="When to use" icon="eye">
-  Use quick assessment when you want to rapidly understand if the agent is on the right track, see what files changed, or review the approach before diving deeper.
+  Use quick assessment when you want to rapidly understand if the agent is on
+  the right track, see what files changed, or review the approach before diving
+  deeper.
 </Card>
 
 <Note>
-  🔒 **Secret Security**: If the agent used any secrets (API keys, database credentials), these were resolved within the container environment - agents can use your credentials without the AI model ever seeing the actual values.
+  🔒 **Secret Security**: If the agent used any secrets (API keys, database
+  credentials), these were resolved within the container environment - agents
+  can use your credentials without the AI model ever seeing the actual values.
 </Note>
 
 ### Deep Exploration (Interactive)
@@ -73,7 +81,8 @@ container-use checkout fancy-mallard
 ```
 
 <Card title="When to use" icon="magnifying-glass">
-  Use deep exploration when you need to test functionality, debug issues, understand complex changes, or review code thoroughly in your IDE.
+  Use deep exploration when you need to test functionality, debug issues,
+  understand complex changes, or review code thoroughly in your IDE.
 </Card>
 
 ## Making Decisions
@@ -82,17 +91,31 @@ After observing the agent's work, you have three paths forward:
 
 <Tabs>
   <Tab title="✅ Accept Work">
-    When the agent succeeded and you're happy with the results:
+    When the agent succeeded and you're happy with the results, you have two options:
 
+    **Option 1: Merge (Preserve History)**
     ```bash
     # Merge the environment into your current branch
     container-use merge fancy-mallard
-    
+
     # Clean up (optional)
     container-use delete fancy-mallard
     ```
 
-    The work becomes part of your Git history and you can continue from this new state.
+    **Option 2: Apply (Customize Commit)**
+    ```bash
+    # Apply changes as staged modifications
+    container-use apply fancy-mallard
+
+    # Review and commit with your own message
+    git status
+    git commit -m "Your custom commit message"
+
+    # Clean up (optional)
+    container-use delete fancy-mallard
+    ```
+
+    Choose **merge** to preserve the agent's commit history, or **apply** to create your own commit message and review changes before committing.
 
   </Tab>
 
@@ -120,7 +143,7 @@ After observing the agent's work, you have three paths forward:
     ```bash
     # Discard the environment
     container-use delete fancy-mallard
-    
+
     # Start over with a new prompt
     # The agent will create a fresh environment from your current branch
     ```
@@ -141,7 +164,8 @@ To have a new chat continue work in an existing environment, simply mention the 
 "Continue in environment fancy-mallard - the tests are failing, please fix them"
 
 "Using the fancy-mallard environment, add CSS styling to make it look modern"
-```
+
+````
 
 ```text What Happens
 The agent will:
@@ -149,7 +173,8 @@ The agent will:
 ✅ Have access to all previous work
 ✅ Continue from where it left off
 ✅ Maintain the same dependencies and setup
-```
+````
+
 </CodeGroup>
 
 ## Practical Examples
@@ -168,7 +193,7 @@ $ container-use diff fancy-mallard
 +    # Authentication logic
 +    pass
 
-# 3. Accept the work
+# 3. Accept the work (choose merge or apply)
 $ container-use merge fancy-mallard
 Updating abc123..def456
 Fast-forward
@@ -199,7 +224,7 @@ $ container-use diff fancy-mallard
 $ container-use log problematic-env
 # Shows agent went down wrong path with complex dependency issues
 
-# 2. Cut losses and start fresh  
+# 2. Cut losses and start fresh
 $ container-use delete problematic-env
 
 # 3. Try different approach
@@ -215,7 +240,7 @@ You can have multiple agents working simultaneously:
 $ container-use list
 ID              TITLE                     CREATED       UPDATED
 frontend-work   React UI Components       5 mins ago    1 min ago
-backend-api     FastAPI User Service      3 mins ago    2 mins ago  
+backend-api     FastAPI User Service      3 mins ago    2 mins ago
 data-pipeline   ETL Processing Script     1 min ago     30 secs ago
 ```
 
@@ -228,17 +253,28 @@ Each environment is completely isolated - no conflicts, no interference.
     Always use `container-use diff` and `container-use log` first. Most of the time, this gives you enough information to decide next steps without the overhead of checking out or entering containers.
   </Accordion>
 
-  <Accordion title="Merge Early and Often">
-    When an agent produces good work, merge it quickly. This creates safe checkpoints you can return to. Better to have many small merges than one large risky change.
-  </Accordion>
+{" "}
 
-  <Accordion title="Don't Be Afraid to Delete">
-    Environments are disposable by design. If an agent gets stuck or goes down the wrong path, it's often faster to delete and start fresh than to try to fix problematic work.
-  </Accordion>
+<Accordion title="Choose the Right Acceptance Method">
+  Use **merge** when you want to preserve the agent's commit history and
+  understand how the work evolved. Use **apply** when you want to create clean,
+  customized commits or review changes before committing.
+</Accordion>
 
-  <Accordion title="Use Specific Resume Prompts">
-    When resuming work, be specific about what you want. Instead of "continue working", say "work in ENV-ID and add error handling to the upload function".
-  </Accordion>
+{" "}
+
+<Accordion title="Don't Be Afraid to Delete">
+  Environments are disposable by design. If an agent gets stuck or goes down the
+  wrong path, it's often faster to delete and start fresh than to try to fix
+  problematic work.
+</Accordion>
+
+{" "}
+
+<Accordion title="Use Specific Resume Prompts">
+  When resuming work, be specific about what you want. Instead of "continue
+  working", say "work in ENV-ID and add error handling to the upload function".
+</Accordion>
 
   <Accordion title="Keep Your Branch Clean">
     Your main working branch should only contain merged, tested work. Use environments for all experimental and agent-driven development.
@@ -248,22 +284,32 @@ Each environment is completely isolated - no conflicts, no interference.
 ## Essential Commands Reference
 
 | Command | Purpose | When to Use |
-|---------|---------|-------------|
+| ------- | ------- | ----------- |
+
 | `container-use list` | See all environments | Check status of agent work |
-| `container-use log <env-id>` | View commit history + commands | Understand what agent did |  
+| `container-use log <env-id>` | View commit history + commands | Understand what agent did |
 | `container-use diff <env-id>` | See code changes | Quick assessment of changes |
 | `container-use terminal <env-id>` | Enter live container | Debug, test, hands-on exploration |
 | `container-use checkout <env-id>` | Bring changes to local IDE | Detailed code review |
-| `container-use merge <env-id>` | Accept work into current branch | When agent succeeded |
+| `container-use merge <env-id>` | Accept work preserving history | When you want agent's commit history |
+| `container-use apply <env-id>` | Apply as staged changes | When you want to customize commits |
 | `container-use delete <env-id>` | Discard environment | When starting over |
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Environment Configuration" icon="gear" href="/environment-configuration">
+  <Card
+    title="Environment Configuration"
+    icon="gear"
+    href="/environment-configuration"
+  >
     Configure your project's default environment setup
   </Card>
-  <Card title="Join Community" icon="discord" href="https://discord.gg/YXbtwRQv">
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
     Share your environment workflow strategies in #container-use
   </Card>
 </CardGroup>

@@ -44,10 +44,10 @@ Each environment is just a Git branch that your source repo tracks on the contai
 ## Architecture
 
 ```
-projectName/ Source Repo            container-use/ Remote
-├── feature-branch ←──── container-use merge ──────────┐
-├── main (current) ───────── environment_create ──→ adverb-animal
-└── cu-adverb-animal ←──── container-use checkout ───────┘
+projectName/ Source Repo                container-use/ Remote
+├── feature-branch ←──── cu merge/apply ────────┐
+├── main (current) ── environment_create ──→ adverb-animal
+└── cu-adverb-animal ←──── cu checkout ───────────┘
                                        │
                                        │ (host filesystem implementation)
                                        ▼
@@ -63,6 +63,10 @@ projectName/ Source Repo            container-use/ Remote
 ```
 
 The diagram shows how environment branches sync between your source repo and the container-use remote. When you create an environment, the current branch content gets pushed to the container-use remote as `adverb-animal`. When you checkout an environment, it creates a local tracking branch `cu-adverb-animal` that tracks the remote environment branch. Regular branches like `main` and `feature-branch` stay only in your source repo.
+
+You can accept the environment's work into your current branch using either:
+- **`cu merge`** - Preserves the agent's commit history
+- **`cu apply`** - Stages changes for you to commit with your own message
 
 Below the branch level, the system creates a bare Git repository and worktree in `~/.config/container-use/` - this is plumbing to make the Git operations work with minimal modifications to your source repository. The worktree contains a copy of your code that gets mounted into the Docker container at `/workdir`.
 

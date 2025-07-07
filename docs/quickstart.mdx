@@ -96,6 +96,7 @@ Configure Container Use with your coding agent. Choose your agent below:
 <summary>💡 Command Shortcut</summary>
 
 The `container-use` command is also available as `cu` for convenience. Both commands work identically:
+
 - `container-use stdio` (used in documentation)
 - `cu stdio` (shortcut)
 
@@ -340,21 +341,53 @@ cu /workdir $ python app.py
 
 This gives you the same Python environment, dependencies, and setup your agent used.
 
-### Merging the Work
+### Accepting the Work
 
-Once you're satisfied with the agent's work, merge it into your main branch:
+Once you're satisfied with the agent's work, you have two options to accept it:
 
-```sh
-$ git checkout main
-$ container-use merge fancy-mallard
-Updating 95bb17b..9e3a5c9
-Fast-forward
- app.py           | 10 ++++++++++
- templates/index.html | 20 ++++++++++++++++++++
- 2 files changed, 30 insertions(+)
- create mode 100644 app.py
- create mode 100644 templates/index.html
-```
+<Tabs>
+  <Tab title="Merge (Default)">
+    Merge preserves the original commit history from the environment:
+
+    ```sh
+    $ git checkout main
+    $ container-use merge fancy-mallard
+    Updating 95bb17b..9e3a5c9
+    Fast-forward
+     app.py           | 10 ++++++++++
+     templates/index.html | 20 ++++++++++++++++++++
+     2 files changed, 30 insertions(+)
+     create mode 100644 app.py
+     create mode 100644 templates/index.html
+    ```
+
+    This maintains a complete history of the agent's work with individual commits.
+
+  </Tab>
+
+  <Tab title="Apply (Customizable)">
+    Apply stages the changes for you to commit manually, discarding the original commit sequence:
+
+    ```sh
+    $ git checkout main
+    $ container-use apply fancy-mallard
+    Applied changes from fancy-mallard to current branch
+
+    $ git status
+    Changes to be committed:
+      (use "git restore --staged <file>..." to unstage)
+        new file:   app.py
+        new file:   templates/index.html
+
+    $ git commit -m "Add Flask hello world application"
+    ```
+
+    This lets you review and customize the final commit before making it permanent.
+
+  </Tab>
+</Tabs>
+
+Choose **merge** when you want to preserve the agent's commit history, or **apply** when you want to create your own commit message and review the changes before committing.
 
 ## Essential Commands
 
@@ -376,8 +409,11 @@ container-use checkout <environment-id>
 # Get a terminal in the container
 container-use terminal <environment-id>
 
-# Merge the work into your branch
+# Merge the work into your branch (preserves commit history)
 container-use merge <environment-id>
+
+# Apply the work as staged changes (customize commit)
+container-use apply <environment-id>
 ```
 
 ## Success! 🎉
