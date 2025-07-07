@@ -406,9 +406,7 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 		return err
 	}
 
-	return r.withGitStash(ctx, func() error {
-		return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
-	})
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
 
 func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
