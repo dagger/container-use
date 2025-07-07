@@ -1,0 +1,84 @@
+---
+title: Amazon Q Developer
+description: "Setup guide for Amazon Q Developer with Container Use"
+icon: robot
+---
+
+## Add MCP Configuration
+
+Add this configuration to `~/.aws/amazonq/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"],
+      "env": {},
+      "timeout": 60000
+    }
+  }
+}
+```
+
+## Add Agent Rules
+
+Save agent instructions to your project root:
+
+```sh
+mkdir -p ./.amazonq/rules && curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md > .amazonq/rules/container-use.md
+```
+
+## Trust Only Container Use Tools (Optional)
+
+```sh
+q chat --trust-tools=container_use___environment_checkpoint,container_use___environment_file_delete,container_use___environment_file_list,container_use___environment_file_read,container_use___environment_file_write,container_use___environment_open,container_use___environment_run_cmd,container_use___environment_update
+```
+
+<Card title="Video Tutorial" icon="youtube" href="https://youtu.be/C2g3vdbffOI">
+  Watch the Amazon Q Developer setup walkthrough
+</Card>
+
+## Verification
+
+After setting up Amazon Q Developer, verify Container Use is working:
+
+1. **Check MCP Connection**: Amazon Q should recognize Container Use tools
+2. **Test Environment Creation**: Ask Amazon Q to create a new environment
+3. **Verify Isolation**: Multiple environments should work independently
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Amazon Q doesn't recognize Container Use">
+    - Verify the `cu` command is in your PATH: `which cu`
+    - Check MCP configuration syntax
+    - Restart Amazon Q after configuration changes
+  </Accordion>
+
+  <Accordion title="Permission errors">
+    - Ensure Docker is running and accessible
+    - Check file permissions for configuration files
+    - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+  </Accordion>
+
+  <Accordion title="Tools not appearing">
+    - Check your Amazon Q MCP server logs
+    - Verify Container Use tools are enabled in settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Back to Quickstart" icon="rocket" href="/quickstart">
+    Return to the quickstart guide to create your first environment
+  </Card>
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
+    Get help and share experiences in #container-use
+  </Card>
+</CardGroup>

@@ -1,0 +1,83 @@
+---
+title: Claude Code
+description: "Setup guide for Claude Code with Container Use"
+icon: robot
+---
+
+## Install Claude Code
+
+```sh
+npm install -g @anthropic-ai/claude-code
+```
+
+## Add MCP Configuration
+
+```sh
+cd /path/to/repository
+claude mcp add container-use -- <full path to cu command> stdio
+```
+
+## Add Agent Rules (Optional)
+
+Save the CLAUDE.md file at the root of your repository:
+
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
+```
+
+## Trust Only Container Use Tools (Optional)
+
+For maximum security, restrict Claude Code to only use Container Use tools:
+
+```sh
+claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_create,mcp__container-use__environment_add_service,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update
+```
+
+<Info>
+  Learn more: [Claude Code MCP
+  Documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
+</Info>
+
+## Verification
+
+After setting up Claude Code, verify Container Use is working:
+
+1. **Check MCP Connection**: Claude Code should recognize Container Use tools
+2. **Test Environment Creation**: Ask Claude Code to create a new environment
+3. **Verify Isolation**: Multiple environments should work independently
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Claude Code doesn't recognize Container Use">
+    - Verify the `cu` command is in your PATH: `which cu`
+    - Check MCP configuration syntax
+    - Restart Claude Code after configuration changes
+  </Accordion>
+
+  <Accordion title="Permission errors">
+    - Ensure Docker is running and accessible
+    - Check file permissions for configuration files
+    - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+  </Accordion>
+
+  <Accordion title="Tools not appearing">
+    - Check your Claude Code MCP server logs
+    - Verify Container Use tools are enabled in settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Back to Quickstart" icon="rocket" href="/quickstart">
+    Return to the quickstart guide to create your first environment
+  </Card>
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
+    Get help and share experiences in #container-use
+  </Card>
+</CardGroup>
