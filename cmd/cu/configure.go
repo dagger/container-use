@@ -16,6 +16,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const CU_BINARY = "cu"
+
 // Configuration structures for different agents
 type GooseExtension struct {
 	Name    string            `yaml:"name"`
@@ -139,7 +141,7 @@ func configureClaude() error {
 	}
 
 	// Get the path to cu command
-	cuPath, err := exec.LookPath("cu")
+	cuPath, err := exec.LookPath(CU_BINARY)
 	if err != nil {
 		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
@@ -152,7 +154,7 @@ func configureClaude() error {
 		fmt.Println("✓ Added container-use MCP server to Claude")
 	}
 
-	// Download and append agent rules
+	// save agent rules
 	if err := saveFile("CLAUDE.md", rules.AgentRules); err != nil {
 		return fmt.Errorf("failed to save agent rules: %v\n", err)
 	} else {
@@ -213,7 +215,7 @@ func configureClaude() error {
 func configureGoose() error {
 	fmt.Println("Configuring Goose...")
 
-	configPath, err := homedir.Expand(filepath.Join(".config", "goose", "config.yaml"))
+	configPath, err := homedir.Expand(filepath.Join("~", ".config", "goose", "config.yaml"))
 	if err != nil {
 		return err
 	}
@@ -242,18 +244,17 @@ func configureGoose() error {
 		config["extensions"] = extensions
 	}
 
-	// Check if container-use already exists
-	if _, exists := extensions["container-use"]; exists {
-		fmt.Println("✓ container-use already configured in Goose")
-		return nil
+	cuPath, err := exec.LookPath(CU_BINARY)
+	if err != nil {
+		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
 
-	// Add container-use extension TODO make it re-entrant
+	// Add container-use extension
 	extensions["container-use"] = map[string]any{
 		"name":    "container-use",
 		"type":    "stdio",
 		"enabled": true,
-		"cmd":     "cu",
+		"cmd":     cuPath,
 		"args":    []any{"stdio"},
 		"envs":    map[string]any{},
 	}
@@ -269,6 +270,18 @@ func configureGoose() error {
 	}
 
 	fmt.Printf("✓ Added container-use extension to %s\n", configPath)
+
+	// save agent rules
+	gooseHints, err := homedir.Expand(filepath.Join("~", ".config", "goose", ".goosehints"))
+	if err != nil {
+		return err
+	}
+	if err := saveFile(gooseHints, rules.AgentRules); err != nil {
+		return fmt.Errorf("failed to save agent rules: %v\n", err)
+	} else {
+		fmt.Printf("✓ Added agent rules to %s\n", gooseHints)
+	}
+
 	fmt.Println("Goose configuration complete!")
 	return nil
 }
@@ -276,22 +289,65 @@ func configureGoose() error {
 func configureCursor() error {
 	fmt.Println("Configuring Cursor...")
 
-	// Download cursor rules TODO embed cursor.mdc
-	if err := saveFile(".cursor/rules/container-use.mdc", rules.CursorRules); err != nil {
+	configPath := filepath.Join(".cursor", "mcp.json")
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Read existing config or create new
+	var config MCPServersConfig
+	if data, err := os.ReadFile(configPath); err == nil {
+		if err := json.Unmarshal(data, &config); err != nil {
+			return fmt.Errorf("failed to parse existing config: %w", err)
+		}
+	}
+
+	// Initialize mcpServers map if nil
+	if config.MCPServers == nil {
+		config.MCPServers = make(map[string]MCPServer)
+	}
+
+	cuPath, err := exec.LookPath(CU_BINARY)
+	if err != nil {
+		return fmt.Errorf("cu command not found in PATH: %w", err)
+	}
+
+	// Add container-use server
+	config.MCPServers["container-use"] = MCPServer{
+		Command: cuPath,
+		Args:    []string{"stdio"},
+	}
+
+	// Write config back
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	fmt.Printf("✓ Added container-use server to %s\n", configPath)
+
+	// save cursor rules
+	rulesFile := filepath.Join(".cursor", "rules", "container-use.mdc")
+	if err := saveFile(rulesFile, rules.CursorRules); err != nil {
 		return fmt.Errorf("failed to save cursor rules: %v\n", err)
 	} else {
-		fmt.Println("✓ Downloaded cursor rules to .cursor/rules/container-use.mdc")
+		fmt.Printf("✓ Saved cursor rules to %s\n", rulesFile)
 	}
 
 	fmt.Println("\nCursor configuration complete!")
-	fmt.Println("Please also install the MCP server using the deeplink in the README.md") // TODO generate deeplink or config
 	return nil
 }
 
 func configureCodex() error {
 	fmt.Println("Configuring OpenAI Codex...")
 
-	configPath, err := homedir.Expand(filepath.Join(".codex", "config.toml"))
+	configPath, err := homedir.Expand(filepath.Join("~", ".codex", "config.toml"))
 	if err != nil {
 		return err
 	}
@@ -320,15 +376,14 @@ func configureCodex() error {
 		config["mcp_servers"] = mcpServers
 	}
 
-	// Check if container-use already exists
-	if _, exists := mcpServers["container-use"]; exists {
-		fmt.Println("✓ container-use already configured in Codex")
-		return nil
+	cuPath, err := exec.LookPath(CU_BINARY)
+	if err != nil {
+		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
 
-	// Add container-use server TODO make it re-entrant
+	// Add container-use server
 	mcpServers["container-use"] = map[string]any{
-		"command":      "cu",
+		"command":      cuPath,
 		"args":         []any{"stdio"},
 		"auto_approve": tools(""),
 	}
@@ -344,6 +399,15 @@ func configureCodex() error {
 	}
 
 	fmt.Printf("✓ Added container-use server to %s\n", configPath)
+
+	// save agent rules
+	agentsFile := "AGENTS.md"
+	if err := saveFile(agentsFile, rules.AgentRules); err != nil {
+		return fmt.Errorf("failed to save agent rules: %v\n", err)
+	} else {
+		fmt.Printf("✓ Added agent rules to %s\n", agentsFile)
+	}
+
 	fmt.Println("OpenAI Codex configuration complete!")
 	return nil
 }
@@ -351,7 +415,7 @@ func configureCodex() error {
 func configureAmazonQ() error {
 	fmt.Println("Configuring Amazon Q Developer CLI chat...")
 
-	configPath, err := homedir.Expand(filepath.Join(".aws", "amazonq", "mcp.json"))
+	configPath, err := homedir.Expand(filepath.Join("~", ".aws", "amazonq", "mcp.json"))
 	if err != nil {
 		return err
 	}
@@ -374,15 +438,14 @@ func configureAmazonQ() error {
 		config.MCPServers = make(map[string]MCPServer)
 	}
 
-	// Check if container-use already exists
-	if _, exists := config.MCPServers["container-use"]; exists {
-		fmt.Println("✓ container-use already configured in Amazon Q")
-		return nil
+	cuPath, err := exec.LookPath(CU_BINARY)
+	if err != nil {
+		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
 
-	// Add container-use server TODO make it re-entrant
+	// Add container-use server
 	config.MCPServers["container-use"] = MCPServer{
-		Command: "cu",
+		Command: cuPath,
 		Args:    []string{"stdio"},
 		Env:     map[string]string{},
 		Timeout: &[]int{60000}[0], // TODO: configure trusted tools
@@ -415,21 +478,43 @@ func configureAmazonQ() error {
 }
 
 // Helper functions
-func saveFile(localPath, content string) error {
-	dir := filepath.Dir(localPath)
+func saveFile(rulesFile, content string) error {
+	dir := filepath.Dir(rulesFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	// Append to file if it exists, create if it doesn't TODO make it re-entrant
-	file, err := os.OpenFile(localPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+	// Append to file if it exists, create if it doesn't TODO make it re-entrant with a marker
+	existing, err := os.ReadFile(rulesFile)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read existing rules: %w", err)
 	}
-	defer file.Close()
 
-	_, err = file.Write([]byte(content))
-	return err
+	// Look for section markers
+	const marker = "<!-- container-use-rules -->"
+	existingStr := string(existing)
+
+	if strings.Contains(existingStr, marker) {
+		// Update existing section
+		parts := strings.Split(existingStr, marker)
+		if len(parts) != 3 {
+			return fmt.Errorf("malformed rules file - expected single section marked with %s", marker)
+		}
+		newContent := parts[0] + marker + "\n" + content + "\n" + marker + parts[2]
+		if err := os.WriteFile(rulesFile, []byte(newContent), 0644); err != nil {
+			return fmt.Errorf("failed to update rules: %w", err)
+		}
+	} else {
+		// Append new section
+		newContent := string(existing)
+		if len(newContent) > 0 && !strings.HasSuffix(newContent, "\n") {
+			newContent += "\n"
+		}
+		newContent += "\n" + marker + "\n" + content + "\n" + marker + "\n"
+		if err := os.WriteFile(rulesFile, []byte(newContent), 0644); err != nil {
+			return fmt.Errorf("failed to append rules: %w", err)
+		}
+	}
 }
 
 func tools(prefix string) []string {
