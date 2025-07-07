@@ -41,7 +41,7 @@ cu terminal backend-api`,
 				}
 				return fmt.Errorf("failed to look up dagger binary: %w", err)
 			}
-			return syscall.Exec(daggerBin, append([]string{"dagger", "run"}, os.Args...), os.Environ())
+			return syscall.Exec(daggerBin, append([]string{"dagger", "run"}, os.Args...), append(os.Environ(), "DAGGER_LEAVE_OLD_ENGINE=1"))
 		}
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
