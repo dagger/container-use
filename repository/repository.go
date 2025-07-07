@@ -419,5 +419,26 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
 
 	return r.withGitStash(ctx, func() error {
 		return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--squash", "--", "container-use/"+envInfo.ID)
+		// FIXME(aluzzardi): do we want to use `git apply` instead of `git merge`?
+		// revisionRange, err := r.revisionRange(ctx, envInfo)
+		// if err != nil {
+		// 	return err
+		// }
+
+		// diff, err := RunGitCommand(ctx, r.userRepoPath, "diff", revisionRange)
+		// if err != nil {
+		// 	return err
+		// }
+
+		// f, err := os.CreateTemp(os.TempDir(), "cu-diff-*")
+		// if err != nil {
+		// 	return err
+		// }
+		// defer f.Close()
+		// if _, err := f.Write([]byte(diff)); err != nil {
+		// 	return err
+		// }
+
+		// return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "apply", "--3way", f.Name())
 	})
 }
