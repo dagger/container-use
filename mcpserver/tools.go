@@ -137,6 +137,7 @@ func init() {
 		EnvironmentFileReadTool,
 		EnvironmentFileListTool,
 		EnvironmentFileWriteTool,
+		EnvironmentFileEditTool,
 		EnvironmentFileDeleteTool,
 
 		EnvironmentAddServiceTool,
@@ -610,6 +611,73 @@ var EnvironmentFileWriteTool = &Tool{
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote", targetFile)), nil
+	},
+}
+
+var EnvironmentFileEditTool = &Tool{
+	Definition: mcp.NewTool("environment_file_edit",
+		mcp.WithDescription("Find and replace text in a file."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this file is being edited."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Required(),
+		),
+		mcp.WithString("target_file",
+			mcp.Description("Path of the file to write, absolute or relative to the workdir."),
+			mcp.Required(),
+		),
+		mcp.WithString("search_text",
+			mcp.Description("The text to find and replace."),
+			mcp.Required(),
+		),
+		mcp.WithString("replace_text",
+			mcp.Description("The text to insert."),
+			mcp.Required(),
+		),
+		mcp.WithString("which_match",
+			mcp.Description("The ID of the match to replace, if there were multiple matches."),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		targetFile, err := request.RequireString("target_file")
+		if err != nil {
+			return nil, err
+		}
+		search, err := request.RequireString("search_text")
+		if err != nil {
+			return nil, err
+		}
+		replace, err := request.RequireString("replace_text")
+		if err != nil {
+			return nil, err
+		}
+
+		if err := env.FileEdit(ctx,
+			request.GetString("explanation", ""),
+			targetFile,
+			search,
+			replace,
+			request.GetString("which_match", ""),
+		); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
+		}
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/ remote", targetFile)), nil
 	},
 }
 
