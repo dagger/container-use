@@ -61,16 +61,16 @@ func TestRepositoryMerge(t *testing.T) {
 	})
 }
 
-// TestRepositoryMergeSquash tests merging an environment with --squash flag
-func TestRepositoryMergeSquash(t *testing.T) {
+// TestRepositoryApply tests applying an environment as staged changes (equivalent to merge --squash)
+func TestRepositoryApply(t *testing.T) {
 	t.Parallel()
-	WithRepository(t, "repository-merge-squash", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+	WithRepository(t, "repository-apply", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
 		// Create an environment and add content with multiple commits
-		env := user.CreateEnvironment("Test Merge Squash", "Testing repository merge with squash")
-		user.FileWrite(env.ID, "squash-test.txt", "first version", "First commit")
-		user.FileWrite(env.ID, "squash-test.txt", "updated version", "Second commit")
+		env := user.CreateEnvironment("Test Apply", "Testing repository apply functionality")
+		user.FileWrite(env.ID, "apply-test.txt", "first version", "First commit")
+		user.FileWrite(env.ID, "apply-test.txt", "updated version", "Second commit")
 		user.FileWrite(env.ID, "another-file.txt", "another file", "Third commit")
 
 		// Get initial branch
@@ -78,19 +78,19 @@ func TestRepositoryMergeSquash(t *testing.T) {
 		require.NoError(t, err)
 		initialBranch = strings.TrimSpace(initialBranch)
 
-		// Merge with squash
-		var mergeOutput bytes.Buffer
-		err = repo.Merge(ctx, env.ID, &mergeOutput, true)
-		require.NoError(t, err, "Squash merge should succeed: %s", mergeOutput.String())
+		// Apply the environment (squash merge)
+		var applyOutput bytes.Buffer
+		err = repo.Apply(ctx, env.ID, &applyOutput)
+		require.NoError(t, err, "Apply should succeed: %s", applyOutput.String())
 
 		// Verify we're still on the initial branch
 		currentBranch, err := repository.RunGitCommand(ctx, repo.SourcePath(), "branch", "--show-current")
 		require.NoError(t, err)
 		assert.Equal(t, initialBranch, strings.TrimSpace(currentBranch))
 
-		// Verify the files were merged into working directory
-		squashTestPath := filepath.Join(repo.SourcePath(), "squash-test.txt")
-		content, err := os.ReadFile(squashTestPath)
+		// Verify the files were applied to working directory
+		applyTestPath := filepath.Join(repo.SourcePath(), "apply-test.txt")
+		content, err := os.ReadFile(applyTestPath)
 		require.NoError(t, err)
 		assert.Equal(t, "updated version", string(content))
 
@@ -99,12 +99,29 @@ func TestRepositoryMergeSquash(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "another file", string(anotherContent))
 
-		// With squash merge, changes should be staged but not committed yet
+		// With apply, changes should be staged but not committed yet
 		status, err := repository.RunGitCommand(ctx, repo.SourcePath(), "status", "--porcelain")
 		require.NoError(t, err)
 		// Files should be staged (prefixed with A or M)
-		assert.Contains(t, status, "squash-test.txt")
+		assert.Contains(t, status, "apply-test.txt")
 		assert.Contains(t, status, "another-file.txt")
+
+		// Verify no commits were made (original commit history should be discarded)
+		log, err := repository.RunGitCommand(ctx, repo.SourcePath(), "log", "--oneline", "-10")
+		require.NoError(t, err)
+		// Should NOT contain the individual environment commits
+		assert.NotContains(t, log, "First commit", "Apply should discard original commit history")
+		assert.NotContains(t, log, "Second commit", "Apply should discard original commit history")
+		assert.NotContains(t, log, "Third commit", "Apply should discard original commit history")
+
+		// User can now commit manually
+		_, err = repository.RunGitCommand(ctx, repo.SourcePath(), "commit", "-m", "Apply environment changes")
+		require.NoError(t, err)
+
+		// Verify the commit was made
+		finalLog, err := repository.RunGitCommand(ctx, repo.SourcePath(), "log", "--oneline", "-1")
+		require.NoError(t, err)
+		assert.Contains(t, finalLog, "Apply environment changes")
 	})
 }
 
@@ -118,6 +135,20 @@ func TestRepositoryMergeNonExistent(t *testing.T) {
 		var mergeOutput bytes.Buffer
 		err := repo.Merge(ctx, "non-existent-env", &mergeOutput)
 		assert.Error(t, err, "Merging non-existent environment should fail")
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+// TestRepositoryApplyNonExistent tests applying a non-existent environment
+func TestRepositoryApplyNonExistent(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-apply-nonexistent", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Try to apply non-existent environment
+		var applyOutput bytes.Buffer
+		err := repo.Apply(ctx, "non-existent-env", &applyOutput)
+		assert.Error(t, err, "Applying non-existent environment should fail")
 		assert.Contains(t, err.Error(), "not found")
 	})
 }
@@ -149,6 +180,36 @@ func TestRepositoryMergeWithConflicts(t *testing.T) {
 		assert.Error(t, err, "Merge should fail due to conflict")
 		outputStr := mergeOutput.String()
 		assert.Contains(t, outputStr, "conflict", "Merge output should mention conflict: %s", outputStr)
+	})
+}
+
+// TestRepositoryApplyWithConflicts tests apply behavior when there are conflicts
+func TestRepositoryApplyWithConflicts(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-apply-conflicts", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create an environment and modify the same file
+		env := user.CreateEnvironment("Test Apply Conflicts", "Testing apply conflicts")
+		user.FileWrite(env.ID, "conflict.txt", "environment branch content", "Modify conflict file")
+
+		conflictFile := filepath.Join(repo.SourcePath(), "conflict.txt")
+		err := os.WriteFile(conflictFile, []byte("main branch content"), 0644)
+		require.NoError(t, err)
+
+		_, err = repository.RunGitCommand(ctx, repo.SourcePath(), "add", "conflict.txt")
+		require.NoError(t, err)
+		_, err = repository.RunGitCommand(ctx, repo.SourcePath(), "commit", "-m", "Add conflict file in main")
+		require.NoError(t, err)
+
+		// Try to apply - this should fail due to conflict
+		var applyOutput bytes.Buffer
+		err = repo.Apply(ctx, env.ID, &applyOutput)
+
+		// The apply should fail due to conflict
+		assert.Error(t, err, "Apply should fail due to conflict")
+		outputStr := applyOutput.String()
+		assert.Contains(t, outputStr, "conflict", "Apply output should mention conflict: %s", outputStr)
 	})
 }
 

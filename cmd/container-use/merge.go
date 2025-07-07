@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -10,7 +11,6 @@ import (
 
 var (
 	mergeDelete bool
-	mergeSquash bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -38,27 +38,28 @@ container-use merge --delete backend-api`,
 
 		env := args[0]
 
-		if err := repo.Merge(ctx, env, os.Stdout, mergeSquash); err != nil {
+		if err := repo.Merge(ctx, env, os.Stdout); err != nil {
 			return fmt.Errorf("failed to merge environment: %w", err)
 		}
 
-		// Delete the environment if the flag is set and merge was successful
-		if mergeDelete {
-			if err := repo.Delete(ctx, env); err != nil {
-				return fmt.Errorf("merge succeeded but failed to delete environment: %w", err)
-			}
-			fmt.Printf("Environment '%s' merged and deleted successfully.\n", env)
-		} else {
-			fmt.Printf("Environment '%s' merged successfully.\n", env)
-		}
-
-		return nil
+		return deleteAfterMerge(ctx, repo, env, mergeDelete, "merged")
 	},
+}
+
+func deleteAfterMerge(ctx context.Context, repo *repository.Repository, env string, delete bool, verb string) error {
+	if !delete {
+		fmt.Printf("Environment '%s' %s successfully.\n", env, verb)
+		return nil
+	}
+	if err := repo.Delete(ctx, env); err != nil {
+		return fmt.Errorf("environment '%s' %s but delete failed: %w", env, verb, err)
+	}
+	fmt.Printf("Environment '%s' %s and deleted successfully.\n", env, verb)
+	return nil
 }
 
 func init() {
 	mergeCmd.Flags().BoolVarP(&mergeDelete, "delete", "d", false, "Delete the environment after successful merge")
-	mergeCmd.Flags().BoolVar(&mergeSquash, "squash", false, "Produce the working tree and index state as if a real merge happened (except for the merge information), but do not actually make a commit")
 
 	rootCmd.AddCommand(mergeCmd)
 }
