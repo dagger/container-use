@@ -4,7 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"dagger.io/dagger"
+	"dagger.io/dagger/dag"
 )
+
+// FIXME: See hack where it's used
+const fileEditBaseImage = "busybox"
 
 func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {
 	file, err := env.container().File(targetFile).Contents(ctx)
@@ -31,7 +37,7 @@ func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldR
 	return strings.Join(lines[start:end], "\n"), nil
 }
 
-func (env *Environment) FileWrite(ctx context.Context, explanation, targetFile, contents string) error {
+func (env *Environment) FileWrite(ctx context.Context, targetFile, contents string) error {
 	err := env.apply(ctx, env.container().WithNewFile(targetFile, contents))
 	if err != nil {
 		return fmt.Errorf("failed applying file write, skipping git propagation: %w", err)
@@ -40,7 +46,7 @@ func (env *Environment) FileWrite(ctx context.Context, explanation, targetFile, 
 	return nil
 }
 
-func (env *Environment) FileDelete(ctx context.Context, explanation, targetFile string) error {
+func (env *Environment) FileDelete(ctx context.Context, targetFile string) error {
 	err := env.apply(ctx, env.container().WithoutFile(targetFile))
 	if err != nil {
 		return fmt.Errorf("failed applying file delete, skipping git propagation: %w", err)
@@ -49,8 +55,18 @@ func (env *Environment) FileDelete(ctx context.Context, explanation, targetFile 
 	return nil
 }
 
-func (env *Environment) FileList(ctx context.Context, path string) (string, error) {
-	entries, err := env.container().Directory(path).Entries(ctx)
+func (env *Environment) FileList(ctx context.Context, path string, ignore []string) (string, error) {
+	filter := dagger.DirectoryFilterOpts{Exclude: ignore}
+	return env.ls(ctx, path, filter)
+}
+
+func (env *Environment) FileGlob(ctx context.Context, path string, pattern string) (string, error) {
+	filter := dagger.DirectoryFilterOpts{Include: []string{pattern}}
+	return env.ls(ctx, path, filter)
+}
+
+func (env *Environment) ls(ctx context.Context, path string, filter dagger.DirectoryFilterOpts) (string, error) {
+	entries, err := env.container().Directory(path).Filter(filter).Entries(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -59,4 +75,29 @@ func (env *Environment) FileList(ctx context.Context, path string) (string, erro
 		fmt.Fprintf(out, "%s\n", entry)
 	}
 	return out.String(), nil
+}
+
+func (env *Environment) FileGrep(ctx context.Context, path, pattern, include string) (string, error) {
+	// Hack: use busybox to run `sed` since dagger doesn't have native file editing primitives.
+	args := []string{"/bin/grep", "-E", "--", pattern, include}
+
+	dir := env.container().Rootfs().Directory(path)
+	out, err := dag.Container().From(fileEditBaseImage).WithMountedDirectory("/mnt", dir).WithWorkdir("/mnt").WithExec(args).Stdout(ctx)
+	if err != nil {
+		return "", err
+	}
+	return out, nil
+}
+
+func (env *Environment) FileEdit(ctx context.Context, targetFile string, edits []string) error {
+	// Hack: use busybox to run `sed` since dagger doesn't have native file editing primitives.
+	args := []string{"/bin/sh", "-c", fmt.Sprintf("sed -ri'' -- %s /target && cp /target /new", strings.Join(edits, " "))}
+
+	newFile := dag.Container().From(fileEditBaseImage).WithMountedFile("/target", env.container().File(targetFile)).WithExec(args).File("/new")
+	err := env.apply(ctx, env.container().WithFile(targetFile, newFile))
+	if err != nil {
+		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
+	}
+	env.Notes.Add("Edit %s", targetFile)
+	return nil
 }

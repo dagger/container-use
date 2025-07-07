@@ -115,9 +115,12 @@ func init() {
 
 		EnvironmentRunCmdTool,
 
-		EnvironmentFileReadTool,
 		EnvironmentFileListTool,
+		EnvironmentFileGlobTool,
+		EnvironmentFileGrepTool,
+		EnvironmentFileReadTool,
 		EnvironmentFileWriteTool,
+		EnvironmentFileEditTool,
 		EnvironmentFileDeleteTool,
 
 		EnvironmentAddServiceTool,
@@ -714,7 +717,7 @@ func ReadEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envID,
 
 var EnvironmentFileListTool = &Tool{
 	Definition: mcp.NewTool("environment_file_list",
-		mcp.WithDescription("List the contents of a directory"),
+		mcp.WithDescription("List files and directories in a given path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the environment_file_glob and environment_file_grep tools, if you know which directories to search."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this directory is being listed."),
 		),
@@ -730,8 +733,17 @@ var EnvironmentFileListTool = &Tool{
 			mcp.Description("Path of the directory to list contents of, absolute or relative to the workdir"),
 			mcp.Required(),
 		),
+		mcp.WithArray("ignore",
+			mcp.Description("List of glob patterns to ignore"),
+			mcp.Items(map[string]any{"type": "string"}),
+		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
+		if !ok {
+			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+		}
+
 		source, err := request.RequireString("environment_source")
 		if err != nil {
 			return nil, err
@@ -744,13 +756,17 @@ var EnvironmentFileListTool = &Tool{
 		if err != nil {
 			return nil, err
 		}
-
-		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
-		if !ok {
-			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+		args := request.GetArguments()
+		v, ok := args["ignore"]
+		var ignore []string
+		if ok {
+			ignore, ok = v.([]string)
+			if !ok {
+				return nil, fmt.Errorf("`ignore` argument expects an array of strings")
+			}
 		}
 
-		out, err := ListEnvironmentFiles(ctx, dag, source, envID, path)
+		out, err := ListEnvironmentFiles(ctx, dag, source, envID, path, ignore)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to list directory", err), nil
 		}
@@ -760,7 +776,7 @@ var EnvironmentFileListTool = &Tool{
 }
 
 // ListEnvironmentFiles lists the contents of a directory in an environment
-func ListEnvironmentFiles(ctx context.Context, dag *dagger.Client, source, envID, path string) (string, error) {
+func ListEnvironmentFiles(ctx context.Context, dag *dagger.Client, source, envID, path string, ignore []string) (string, error) {
 	repo, err := repository.Open(ctx, source)
 	if err != nil {
 		return "", err
@@ -771,7 +787,7 @@ func ListEnvironmentFiles(ctx context.Context, dag *dagger.Client, source, envID
 		return "", err
 	}
 
-	out, err := env.FileList(ctx, path)
+	out, err := env.FileList(ctx, path, ignore)
 	if err != nil {
 		return "", err
 	}
@@ -779,9 +795,168 @@ func ListEnvironmentFiles(ctx context.Context, dag *dagger.Client, source, envID
 	return out, nil
 }
 
+var EnvironmentFileGlobTool = &Tool{
+	Definition: mcp.NewTool("environment_file_glob",
+		mcp.WithDescription("Fast file pattern matching tool.\nSupports glob syntax \"**/*.js\" or \"src/**/*.ts\".\nReturns matching file paths."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why file paths are being matched."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Required(),
+		),
+		mcp.WithString("path",
+			mcp.Description("Path of the directory to search in, absolute or relative to the workdir"),
+			mcp.Required(),
+		),
+		mcp.WithString("pattern",
+			mcp.Description("The glob pattern to match file paths against."),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		_, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		path, err := request.RequireString("path")
+		if err != nil {
+			return nil, err
+		}
+
+		pattern, err := request.RequireString("pattern")
+		if err != nil {
+			return nil, err
+		}
+
+		out, err := env.FileGlob(ctx, path, pattern)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to list directory", err), nil
+		}
+
+		return mcp.NewToolResultText(out), nil
+	},
+}
+
+var EnvironmentFileGrepTool = &Tool{
+	Definition: mcp.NewTool("environment_file_grep",
+		mcp.WithDescription("Fast file content search using regular expressions.\nSupports full regex syntax (eg. \"log.*Error\", \"function\\s+\\w+\", etc.).\nReturns matching file paths."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why file paths are being matched."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Required(),
+		),
+		mcp.WithString("path",
+			mcp.Description("Path of the directory to search in, absolute or relative to the workdir"),
+			mcp.Required(),
+		),
+		mcp.WithString("pattern",
+			mcp.Description("The regular expression pattern to search for in file contents."),
+			mcp.Required(),
+		),
+		mcp.WithString("include",
+			mcp.Description("File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")."),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		_, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		path, err := request.RequireString("path")
+		if err != nil {
+			return nil, err
+		}
+
+		pattern, err := request.RequireString("pattern")
+		if err != nil {
+			return nil, err
+		}
+
+		include := request.GetString("include", "")
+
+		out, err := env.FileGrep(ctx, path, pattern, include)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to grep directory", err), nil
+		}
+
+		return mcp.NewToolResultText(out), nil
+	},
+}
+
+var EnvironmentFileEditTool = &Tool{
+	Definition: mcp.NewTool("environment_file_edit",
+		mcp.WithDescription("Efficiently edit the contents of a file."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this file is being edited."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Required(),
+		),
+		mcp.WithString("target_file",
+			mcp.Description("Path of the file to edit, absolute or relative to the workdir."),
+			mcp.Required(),
+		),
+		mcp.WithArray("edits",
+			mcp.Description("Array of sed search-replace operations to perform on the contents of target_file (e.g. \"s/old/new/g\").\nUses extended regex syntax."),
+			mcp.Items(map[string]any{"type": "string"}),
+			mcp.MinItems(1),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		targetFile, err := request.RequireString("target_file")
+		if err != nil {
+			return nil, err
+		}
+
+		args := request.GetArguments()
+		v, ok := args["edits"]
+		if !ok {
+			return nil, fmt.Errorf("could not find `edits` argument")
+		}
+		edits, ok := v.([]string)
+		if !ok {
+			return nil, fmt.Errorf("`edits` argument is expected to be a []string")
+		}
+
+		if err := env.FileEdit(ctx, targetFile, edits); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to edit file", err), nil
+		}
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/ remote", targetFile)), nil
+	},
+}
+
 var EnvironmentFileWriteTool = &Tool{
 	Definition: mcp.NewTool("environment_file_write",
-		mcp.WithDescription("Write the contents of a file."),
+		mcp.WithDescription("Write the full contents of a file."),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this file is being written."),
 		),
@@ -847,15 +1022,11 @@ func WriteEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envID
 		return err
 	}
 
-	if err := env.FileWrite(ctx, explanation, targetFile, contents); err != nil {
+	if err := env.FileWrite(ctx, targetFile, contents); err != nil {
 		return err
 	}
 
-	if err := repo.Update(ctx, env, explanation); err != nil {
-		return err
-	}
-
-	return nil
+	return repo.Update(ctx, env, explanation)
 }
 
 var EnvironmentFileDeleteTool = &Tool{
@@ -916,7 +1087,7 @@ func DeleteEnvironmentFile(ctx context.Context, dag *dagger.Client, source, envI
 		return err
 	}
 
-	if err := env.FileDelete(ctx, explanation, targetFile); err != nil {
+	if err := env.FileDelete(ctx, targetFile); err != nil {
 		return err
 	}
 
