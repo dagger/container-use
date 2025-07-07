@@ -5,6 +5,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
+
+	"dagger.io/dagger"
+	godiffpatch "github.com/sourcegraph/go-diff-patch"
 )
 
 func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexedInclusive int, endLineOneIndexedInclusive int) (string, error) {
@@ -109,8 +112,12 @@ func (env *Environment) FileSearchReplace(ctx context.Context, explanation, targ
 	// Replace the specific match
 	newContents := contents[:targetMatchIndex] + replace + contents[targetMatchIndex+len(search):]
 
-	// Apply the changes
-	err = env.apply(ctx, env.container().WithNewFile(targetFile, newContents))
+	// Apply the changes using `patch` so we don't have to spit out the entire
+	// contents
+	err = env.apply(ctx, env.container().
+		WithExec([]string{"patch", "-p1"}, dagger.ContainerWithExecOpts{
+			Stdin: godiffpatch.GeneratePatch(targetFile, contents, newContents),
+		}))
 	if err != nil {
 		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
 	}
