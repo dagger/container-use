@@ -14,20 +14,18 @@ import (
 // The Load method should gracefully handle missing files while still failing on actual errors
 func TestEnvironmentConfig_Load(t *testing.T) {
 	scenarios := []struct {
-		name               string
-		setup              func(t *testing.T, dir string)
-		expectError        bool
-		expectInstructions string
-		expectBaseImage    string
-		expectWorkdir      string
+		name            string
+		setup           func(t *testing.T, dir string)
+		expectError     bool
+		expectBaseImage string
+		expectWorkdir   string
 	}{
 		{
-			name:               "both_files_missing",
-			setup:              func(t *testing.T, dir string) {}, // no setup
-			expectError:        false,
-			expectInstructions: "No instructions found. Please look around the filesystem and update me",
-			expectBaseImage:    "ubuntu:24.04",
-			expectWorkdir:      "/workdir",
+			name:            "both_files_missing",
+			setup:           func(t *testing.T, dir string) {}, // no setup
+			expectError:     false,
+			expectBaseImage: "ubuntu:24.04",
+			expectWorkdir:   "/workdir",
 		},
 		{
 			name: "only_instructions_missing",
@@ -37,20 +35,18 @@ func TestEnvironmentConfig_Load(t *testing.T) {
 					Workdir:   "/custom",
 				})
 			},
-			expectError:        false,
-			expectInstructions: "No instructions found. Please look around the filesystem and update me",
-			expectBaseImage:    "custom:image",
-			expectWorkdir:      "/custom",
+			expectError:     false,
+			expectBaseImage: "custom:image",
+			expectWorkdir:   "/custom",
 		},
 		{
 			name: "only_environment_missing",
 			setup: func(t *testing.T, dir string) {
 				createInstructionsFile(t, dir, "Custom instructions")
 			},
-			expectError:        false,
-			expectInstructions: "Custom instructions",
-			expectBaseImage:    "ubuntu:24.04",
-			expectWorkdir:      "/workdir",
+			expectError:     false,
+			expectBaseImage: "ubuntu:24.04",
+			expectWorkdir:   "/workdir",
 		},
 		{
 			name: "both_files_present",
@@ -61,10 +57,9 @@ func TestEnvironmentConfig_Load(t *testing.T) {
 					Workdir:   "/test",
 				})
 			},
-			expectError:        false,
-			expectInstructions: "Test instructions",
-			expectBaseImage:    "test:image",
-			expectWorkdir:      "/test",
+			expectError:     false,
+			expectBaseImage: "test:image",
+			expectWorkdir:   "/test",
 		},
 		{
 			name: "invalid_json",
@@ -104,7 +99,6 @@ func TestEnvironmentConfig_Load(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, scenario.expectInstructions, config.Instructions)
 			assert.Equal(t, scenario.expectBaseImage, config.BaseImage)
 			assert.Equal(t, scenario.expectWorkdir, config.Workdir)
 		})

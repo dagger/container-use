@@ -242,7 +242,7 @@ func (u *UserActions) UpdateEnvironment(envID, title, explanation string, config
 		env.State.Title = title
 	}
 
-	err = env.UpdateConfig(u.ctx, explanation, config)
+	err = env.UpdateConfig(u.ctx, config)
 	require.NoError(u.t, err, "UpdateConfig should succeed")
 
 	err = u.repo.Update(u.ctx, env, explanation)

@@ -29,7 +29,7 @@ type EndpointMappings map[int]*EndpointMapping
 
 func (env *Environment) startServices(ctx context.Context) ([]*Service, error) {
 	services := []*Service{}
-	for _, cfg := range env.Config.Services {
+	for _, cfg := range env.State.Config.Services {
 		service, err := env.startService(ctx, cfg)
 		if err != nil {
 			return nil, err
@@ -119,14 +119,14 @@ func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*
 }
 
 func (env *Environment) AddService(ctx context.Context, explanation string, cfg *ServiceConfig) (*Service, error) {
-	if env.Config.Services.Get(cfg.Name) != nil {
+	if env.State.Config.Services.Get(cfg.Name) != nil {
 		return nil, fmt.Errorf("service %s already exists", cfg.Name)
 	}
 	svc, err := env.startService(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
-	env.Config.Services = append(env.Config.Services, cfg)
+	env.State.Config.Services = append(env.State.Config.Services, cfg)
 	env.Services = append(env.Services, svc)
 
 	state := env.container().WithServiceBinding(cfg.Name, svc.svc)
