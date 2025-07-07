@@ -24,7 +24,8 @@
         {
           "group": "Guides",
           "pages": [
-            "managing-environments"
+            "environment-workflow",
+            "environment-configuration"
           ]
         },
           {

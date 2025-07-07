@@ -1,0 +1,335 @@
+---
+title: Environment Configuration
+description: "Configure your project's default environment with custom base images and setup commands. Set up the foundation that all agent environments will start from."
+icon: gear
+---
+
+## Overview
+
+Environment configuration lets you define the **default environment** that all agents will start from when working on your project. Instead of using the generic Ubuntu environment, you can specify exactly what base image, dependencies, and setup your project needs.
+
+<Note>
+  Configuration applies to **new environments only**. Existing environments will
+  continue using their original setup.
+</Note>
+
+## When to Configure Environments
+
+Consider customizing your environment when:
+
+- **Your project requires a specific language runtime** (Python, Node.js, Go, etc.)
+- **You need specific system packages** or tools installed
+- **You want consistent development dependencies** across all agent sessions
+- **Your project has a complex setup process** that should be automated
+
+<Card title="Default vs Configured" icon="balance-scale">
+  **Default**: Basic Ubuntu 24.04 with essential tools (git, curl, build tools)
+
+**Configured**: Your specified base image + automated setup commands
+
+</Card>
+
+## Quick Start
+
+Set up a Python project environment:
+
+```bash
+# Set the base image to Python 3.11
+container-use config base-image set python:3.11
+
+# Add setup commands for your project
+container-use config setup-command add "pip install -r requirements.txt"
+container-use config setup-command add "pip install pytest black flake8"
+
+# View your configuration
+container-use config show
+```
+
+Now all new agent environments will start with Python 3.11 and your dependencies pre-installed.
+
+## Base Image Configuration
+
+The base image is the foundation of your environment - the container image that everything else builds on top of.
+
+### Setting a Base Image
+
+```bash
+# Popular base images
+container-use config base-image set python:3.11
+container-use config base-image set node:18
+container-use config base-image set golang:1.21
+container-use config base-image set ubuntu:22.04
+
+# With specific tags for reproducibility
+container-use config base-image set python:3.11.9-slim
+container-use config base-image set node:18.19.0-alpine
+```
+
+### Viewing Current Base Image
+
+```bash
+container-use config base-image get
+# Output: python:3.11
+```
+
+### Resetting to Default
+
+```bash
+container-use config base-image reset
+# Resets to ubuntu:24.04
+```
+
+<Tabs>
+  <Tab title="🐍 Python Projects">
+    ```bash container-use config base-image set python:3.11 container-use config
+    setup-command add "pip install -r requirements.txt" ```
+  </Tab>
+  <Tab title="🟢 Node.js Projects">
+    ```bash container-use config base-image set node:18 container-use config
+    setup-command add "npm install" ```
+  </Tab>
+  <Tab title="🐹 Go Projects">
+    ```bash container-use config base-image set golang:1.21 container-use config
+    setup-command add "go mod download" ```
+  </Tab>
+  <Tab title="🐳 Custom Images">
+    ```bash container-use config base-image set myregistry.com/my-project:latest
+    container-use config setup-command add "custom-setup.sh" ```
+  </Tab>
+</Tabs>
+
+## Setup Commands
+
+Setup commands are shell commands that run when creating a new environment, after the base image is ready but before the agent starts working.
+
+### Adding Setup Commands
+
+```bash
+# Install project dependencies
+container-use config setup-command add "pip install -r requirements.txt"
+
+# Install development tools
+container-use config setup-command add "pip install pytest black flake8"
+
+# Run custom setup scripts
+container-use config setup-command add "./scripts/dev-setup.sh"
+
+# Multiple commands with &&
+container-use config setup-command add "apt update && apt install -y postgresql-client"
+```
+
+### Managing Setup Commands
+
+```bash
+# List all setup commands
+container-use config setup-command list
+
+# Remove a specific command
+container-use config setup-command remove "pip install pytest black flake8"
+
+# Clear all setup commands
+container-use config setup-command clear
+```
+
+### Setup Command Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Commands Idempotent">
+    Commands should be safe to run multiple times:
+    ```bash
+    # Good - npm install is idempotent
+    container-use config setup-command add "npm install"
+
+    # Good - apt packages can be reinstalled safely
+    container-use config setup-command add "apt update && apt install -y git"
+    ```
+
+  </Accordion>
+
+  <Accordion title="Use Package Managers When Possible">
+    Prefer package managers over manual installation:
+    ```bash
+    # Good - uses pip
+    container-use config setup-command add "pip install requests flask"
+
+    # Avoid - manual download/install
+    container-use config setup-command add "wget https://... && tar -xzf ..."
+    ```
+
+  </Accordion>
+
+  <Accordion title="Order Commands Logically">
+    Dependencies should come before tools that use them:
+    ```bash
+    # First - install runtime dependencies
+    container-use config setup-command add "pip install -r requirements.txt"
+
+    # Then - install development tools
+    container-use config setup-command add "pip install pytest black"
+
+    # Finally - run any setup scripts
+    container-use config setup-command add "./scripts/configure-dev.sh"
+    ```
+
+  </Accordion>
+</AccordionGroup>
+
+## Common Configuration Patterns
+
+### Full-Stack Web Application
+
+```bash
+# Node.js + PostgreSQL client
+container-use config base-image set node:18
+container-use config setup-command add "npm install"
+container-use config setup-command add "apt update && apt install -y postgresql-client"
+container-use config setup-command add "npm run build"
+```
+
+### Data Science Project
+
+```bash
+# Python with scientific computing
+container-use config base-image set python:3.11
+container-use config setup-command add "pip install -r requirements.txt"
+container-use config setup-command add "pip install jupyter pandas numpy matplotlib"
+container-use config setup-command add "python -m ipykernel install --user --name=myproject"
+```
+
+### Microservice Development
+
+```bash
+# Go with build tools
+container-use config base-image set golang:1.21
+container-use config setup-command add "go mod download"
+container-use config setup-command add "go install github.com/air-verse/air@latest"
+container-use config setup-command add "apt update && apt install -y curl jq"
+```
+
+### Legacy Application
+
+```bash
+# Specific Ubuntu version with custom setup
+container-use config base-image set ubuntu:20.04
+container-use config setup-command add "apt update && apt install -y python2.7 python-pip"
+container-use config setup-command add "pip2 install -r legacy-requirements.txt"
+container-use config setup-command add "./scripts/legacy-setup.sh"
+```
+
+## Viewing Your Configuration
+
+See your complete environment configuration:
+
+```bash
+container-use config show
+```
+
+Example output:
+
+```
+Base Image:      python:3.11
+Workdir:         /workdir
+Setup Commands:
+  1.             pip install -r requirements.txt
+  2.             pip install pytest black flake8
+  3.             ./scripts/dev-setup.sh
+```
+
+## How Configuration Works
+
+Understanding the environment creation process:
+
+<Steps>
+  <Step title="Environment Creation Triggered">
+    Agent requests a new environment for your project
+  </Step>
+  <Step title="Base Image Loaded">
+    Container starts from your configured base image (or ubuntu:24.04 default)
+  </Step>
+  <Step title="Source Code Mounted">
+    Your project files are made available in the container at `/workdir`
+  </Step>
+  <Step title="Setup Commands Execute">
+    Each setup command runs in order, with any failures stopping the process
+  </Step>
+  <Step title="Agent Begins Work">
+    Agent starts working in the fully configured environment
+  </Step>
+</Steps>
+
+## Configuration Storage
+
+Your environment configuration is stored in `.container-use/environment.json` in your project root:
+
+```json
+{
+  "base_image": "python:3.11",
+  "setup_commands": [
+    "pip install -r requirements.txt",
+    "pip install pytest black flake8"
+  ],
+  "workdir": "/workdir"
+}
+```
+
+<Card title="Version Control" icon="git-branch">
+  **Commit your `.container-use/` directory** to share environment configuration
+  with your team. Everyone will get the same environment setup.
+</Card>
+
+## Troubleshooting
+
+### Setup Command Failures
+
+If a setup command fails, the environment creation stops:
+
+```bash
+# Check what went wrong
+container-use log <environment-id>
+
+# Common fixes:
+# 1. Fix the command and try again
+container-use config setup-command remove "broken-command"
+container-use config setup-command add "fixed-command"
+
+# 2. Add missing dependencies
+container-use config setup-command add "apt update && apt install -y missing-package"
+```
+
+### Base Image Issues
+
+If your base image doesn't work:
+
+```bash
+# Reset to default and try again
+container-use config base-image reset
+container-use config show
+
+# Or try a different image
+container-use config base-image set python:3.11-slim
+```
+
+### Configuration Not Taking Effect
+
+Remember that configuration only applies to **new environments**:
+
+```bash
+# Delete old environment and create new one
+container-use delete <old-environment-id>
+# Start new agent session - will use new configuration
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Environment Workflow"
+    icon="arrows-rotate"
+    href="/environment-workflow"
+  >
+    Learn how to work with the environments agents create
+  </Card>
+  <Card title="Agent Integrations" icon="robot" href="/agent-integrations">
+    Set up your coding agent to work with Container Use
+  </Card>
+</CardGroup>
