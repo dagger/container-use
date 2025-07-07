@@ -107,12 +107,19 @@ The `container-use` command is also available as `cu` for convenience. Both comm
 
 </details>
 
+<details>
+<summary>💡 No Paths Required</summary>
+
+Since `container-use` is a unique command name, you can use it directly in all configurations without specifying full paths. The command will be found automatically in your PATH after installation.
+
+</details>
+
 <Tabs>
   <Tab title="Claude Code">
     ### Add MCP Configuration
     ```sh
     cd /path/to/repository
-    claude mcp add container-use -- <full path to container-use command> stdio
+    claude mcp add container-use -- container-use stdio
     ```
 
     ### Add Agent Rules (Optional)

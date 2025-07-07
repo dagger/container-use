@@ -31,7 +31,7 @@ npm install -g @anthropic-ai/claude-code
 
 ```sh
 cd /path/to/repository
-claude mcp add container-use -- <full path to container-use command> stdio
+claude mcp add container-use -- container-use stdio
 ```
 
 ### Add Agent Rules (Optional)
@@ -182,14 +182,14 @@ First add the agent rules file, either as `.rules` in the root of your project o
 curl -o .rules https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
 ```
 
-Then configure the Container Use MCP server in the Zed `settings.json`. Provide the absolute path to the `container-use` executable:
+Then configure the Container Use MCP server in the Zed `settings.json`:
 
 ```json
 "context_servers": {
   "container-use": {
     "source": "custom",
     "command": {
-      "path": "/opt/homebrew/bin/container-use",
+      "path": "container-use",
       "args": ["stdio"],
       "env": {}
     }
@@ -252,7 +252,7 @@ Next open the Zed Agent Panel ✨ in the lower right, select the "Container Use"
 
 Configure the Container Use MCP server in a `opencode.json` file.
 
-> Note: Provide the absolute path to your systems `container-use` executable:
+Configure the Container Use MCP server:
 
 ```json
 {
@@ -260,7 +260,7 @@ Configure the Container Use MCP server in a `opencode.json` file.
   "mcp": {
     "container-use": {
       "type": "local",
-      "command": ["/path/to/container-use", "stdio"],
+      "command": ["container-use", "stdio"],
       "enabled": true
     }
   }
@@ -379,7 +379,7 @@ Add at global or project level:
 {
   "mcpServers": {
     "container-use": {
-      "command": "replace with pathname of container-use",
+      "command": "container-use",
       "args": ["stdio"],
       "env": {},
       "alwaysAllow": [],
