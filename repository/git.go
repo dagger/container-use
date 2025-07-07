@@ -156,12 +156,12 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, explanation string) (rerr error) {
 	slog.Info("Propagating to worktree...",
 		"environment.id", env.ID,
-		"workdir", env.Config.Workdir,
+		"workdir", env.State.Config.Workdir,
 		"id", env.ID)
 	defer func() {
 		slog.Info("Propagating to worktree... (DONE)",
 			"environment.id", env.ID,
-			"workdir", env.Config.Workdir,
+			"workdir", env.State.Config.Workdir,
 			"id", env.ID,
 			"err", rerr)
 	}()
@@ -213,10 +213,6 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 		return err
 	}
 
-	slog.Info("Saving environment")
-	if err := env.Config.Save(worktreePath); err != nil {
-		return err
-	}
 	return nil
 }
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {

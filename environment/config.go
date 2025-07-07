@@ -9,31 +9,26 @@ import (
 )
 
 const (
-	defaultImage     = "ubuntu:24.04"
-	alpineImage      = "alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c"
-	configDir        = ".container-use"
-	instructionsFile = "AGENT.md"
-	environmentFile  = "environment.json"
-	lockFile         = "lock"
+	defaultImage    = "ubuntu:24.04"
+	alpineImage     = "alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c"
+	configDir       = ".container-use"
+	environmentFile = "environment.json"
 )
 
 func DefaultConfig() *EnvironmentConfig {
 	return &EnvironmentConfig{
-		BaseImage:    defaultImage,
-		Instructions: "No instructions found. Please look around the filesystem and update me",
-		Workdir:      "/workdir",
+		BaseImage: defaultImage,
+		Workdir:   "/workdir",
 	}
 }
 
 type EnvironmentConfig struct {
-	Instructions  string         `json:"-"`
 	Workdir       string         `json:"workdir,omitempty"`
 	BaseImage     string         `json:"base_image,omitempty"`
 	SetupCommands []string       `json:"setup_commands,omitempty"`
 	Env           KVList         `json:"env,omitempty"`
 	Secrets       KVList         `json:"secrets,omitempty"`
 	Services      ServiceConfigs `json:"services,omitempty"`
-	Locked        bool
 }
 
 type ServiceConfig struct {
@@ -130,10 +125,6 @@ func (config *EnvironmentConfig) Save(baseDir string) error {
 		return err
 	}
 
-	if err := os.WriteFile(path.Join(configPath, instructionsFile), []byte(config.Instructions), 0644); err != nil {
-		return err
-	}
-
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
@@ -149,14 +140,6 @@ func (config *EnvironmentConfig) Save(baseDir string) error {
 func (config *EnvironmentConfig) Load(baseDir string) error {
 	configPath := path.Join(baseDir, configDir)
 
-	instructions, err := os.ReadFile(path.Join(configPath, instructionsFile))
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if err == nil {
-		config.Instructions = string(instructions)
-	}
-
 	data, err := os.ReadFile(path.Join(configPath, environmentFile))
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -165,9 +148,6 @@ func (config *EnvironmentConfig) Load(baseDir string) error {
 		if err := json.Unmarshal(data, config); err != nil {
 			return err
 		}
-	}
-	if _, err := os.Stat(path.Join(baseDir, configDir, lockFile)); err == nil {
-		config.Locked = true
 	}
 
 	return nil

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -16,8 +15,7 @@ import (
 // EnvironmentInfo contains basic metadata about an environment
 // without requiring dagger operations
 type EnvironmentInfo struct {
-	Config *EnvironmentConfig `json:"config,omitempty"`
-	State  *State             `json:"state,omitempty"`
+	State *State `json:"state,omitempty"`
 
 	ID string `json:"id,omitempty"`
 }
@@ -41,9 +39,9 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, in
 
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
-			ID:     id,
-			Config: config,
+			ID: id,
 			State: &State{
+				Config:    config,
 				Title:     title,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -57,7 +55,7 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, in
 		return nil, err
 	}
 
-	slog.Info("Creating environment", "id", env.ID, "workdir", env.Config.Workdir)
+	slog.Info("Creating environment", "id", env.ID, "workdir", env.State.Config.Workdir)
 
 	if err := env.apply(ctx, container); err != nil {
 		return nil, err
@@ -67,7 +65,7 @@ func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, in
 }
 
 func (env *Environment) Workdir() *dagger.Directory {
-	return env.container().Directory(env.Config.Workdir)
+	return env.container().Directory(env.State.Config.Workdir)
 }
 
 func (env *Environment) container() *dagger.Container {
@@ -95,19 +93,22 @@ func Load(ctx context.Context, dag *dagger.Client, id string, state []byte, work
 // This is useful for operations that only need access to configuration and state
 // information without the overhead of initializing container operations.
 func LoadInfo(ctx context.Context, id string, state []byte, worktree string) (*EnvironmentInfo, error) {
-	config := DefaultConfig()
-	if err := config.Load(worktree); err != nil {
-		return nil, err
-	}
-
 	envInfo := &EnvironmentInfo{
-		ID:     id,
-		Config: config,
-		State:  &State{},
+		ID:    id,
+		State: &State{},
 	}
 
 	if err := envInfo.State.Unmarshal(state); err != nil {
 		return nil, err
+	}
+
+	// Backward compatibility: if there's no config in the state, load it from the worktree
+	if envInfo.State.Config == nil {
+		config := DefaultConfig()
+		if err := config.Load(worktree); err != nil {
+			return nil, err
+		}
+		envInfo.State.Config = config
 	}
 
 	return envInfo, nil
@@ -158,15 +159,15 @@ func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container,
 func (env *Environment) buildBase(ctx context.Context, baseSourceDir *dagger.Directory) (*dagger.Container, error) {
 	container := env.dag.
 		Container().
-		From(env.Config.BaseImage).
-		WithWorkdir(env.Config.Workdir)
+		From(env.State.Config.BaseImage).
+		WithWorkdir(env.State.Config.Workdir)
 
-	container, err := containerWithEnvAndSecrets(env.dag, container, env.Config.Env, env.Config.Secrets)
+	container, err := containerWithEnvAndSecrets(env.dag, container, env.State.Config.Env, env.State.Config.Secrets)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, command := range env.Config.SetupCommands {
+	for _, command := range env.State.Config.SetupCommands {
 		var err error
 
 		container = container.WithExec([]string{"sh", "-c", command})
@@ -207,12 +208,8 @@ func (env *Environment) buildBase(ctx context.Context, baseSourceDir *dagger.Dir
 	return container, nil
 }
 
-func (env *Environment) UpdateConfig(ctx context.Context, explanation string, newConfig *EnvironmentConfig) error {
-	if env.Config.Locked {
-		return fmt.Errorf("Environment is locked, no updates allowed. Try to make do with the current environment or ask a human to remove the lock file (%s)", path.Join(configDir, lockFile))
-	}
-
-	env.Config = newConfig
+func (env *Environment) UpdateConfig(ctx context.Context, newConfig *EnvironmentConfig) error {
+	env.State.Config = newConfig
 
 	// Re-build the base image with the new config
 	container, err := env.buildBase(ctx, env.Workdir())
