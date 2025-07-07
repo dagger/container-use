@@ -135,7 +135,7 @@ func (m AgentSelectorModel) View() string {
 	s.WriteString(headerStyle.Render("Select an agent to configure:"))
 	s.WriteString("\n\n")
 
-	// Agent list
+	// Agent list TODO: filter or sort agents based on if they are installed (ConfigurableAgent.isInstalled())
 	for i, agent := range agents {
 		cursor := "  " // not selected
 		if m.cursor == i {
