@@ -26,7 +26,7 @@ type MCPServer struct {
 	StartOnLaunch *bool             `json:"start_on_launch,omitempty"`
 }
 
-const ContainerUseBinary = "cu"
+const ContainerUseBinary = "container-use"
 
 var configureCmd = &cobra.Command{
 	Use:   "configure [agent]",
