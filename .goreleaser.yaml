@@ -63,11 +63,12 @@ homebrew_casks:
       post:
         install: |
           # remove quarantine xattr (note we don't do anything with signatures yet)
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/container-use"]
+          if system("/usr/bin/xattr", "-h", err: :close)
+            system "/usr/bin/xattr", "-dr", "com.apple.quarantine", "#{staged_path}/container-use"
           end
+
           # Create cu symlink for backward compatibility
-          system_command "/bin/ln", args: ["-sf", "container-use", "#{staged_path}/cu"]
+          FileUtils.ln_sf "container-use", "#{staged_path}/cu"
 
           # Install cu completions for backward compatibility
           bash_completion = "#{HOMEBREW_PREFIX}/etc/bash_completion.d"
@@ -75,18 +76,18 @@ homebrew_casks:
           fish_completion = "#{HOMEBREW_PREFIX}/share/fish/vendor_completions.d"
 
           if File.exist?("#{staged_path}/completions/cu.bash")
-            system_command "/bin/mkdir", args: ["-p", bash_completion]
-            system_command "/bin/cp", args: ["#{staged_path}/completions/cu.bash", "#{bash_completion}/cu"]
+            FileUtils.mkdir_p bash_completion
+            FileUtils.cp "#{staged_path}/completions/cu.bash", "#{bash_completion}/cu"
           end
 
           if File.exist?("#{staged_path}/completions/cu.zsh")
-            system_command "/bin/mkdir", args: ["-p", zsh_completion]
-            system_command "/bin/cp", args: ["#{staged_path}/completions/cu.zsh", "#{zsh_completion}/_cu"]
+            FileUtils.mkdir_p zsh_completion
+            FileUtils.cp "#{staged_path}/completions/cu.zsh", "#{zsh_completion}/_cu"
           end
 
           if File.exist?("#{staged_path}/completions/cu.fish")
-            system_command "/bin/mkdir", args: ["-p", fish_completion]
-            system_command "/bin/cp", args: ["#{staged_path}/completions/cu.fish", "#{fish_completion}/cu.fish"]
+            FileUtils.mkdir_p fish_completion
+            FileUtils.cp "#{staged_path}/completions/cu.fish", "#{fish_completion}/cu.fish"
           end
 
 checksum:
