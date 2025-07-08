@@ -296,6 +296,9 @@ func (r *Repository) mergeBase(ctx context.Context, env *environment.Environment
 		return "", err
 	}
 	currentBranch = strings.TrimSpace(currentBranch)
+	if currentBranch == "" {
+		currentBranch = "HEAD"
+	}
 	envGitRef := fmt.Sprintf("%s/%s", containerUseRemote, env.ID)
 	mergeBase, err := RunGitCommand(ctx, r.userRepoPath, "merge-base", currentBranch, envGitRef)
 	if err != nil {
