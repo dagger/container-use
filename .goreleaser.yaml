@@ -89,6 +89,14 @@ homebrew_casks:
             FileUtils.mkdir_p fish_completion
             FileUtils.cp "#{staged_path}/completions/cu.fish", "#{fish_completion}/cu.fish"
           end
+        uninstall: |
+          # Remove cu symlink
+          FileUtils.rm_f "#{HOMEBREW_PREFIX}/bin/cu"
+
+          # Remove cu completions
+          FileUtils.rm_f "#{HOMEBREW_PREFIX}/etc/bash_completion.d/cu"
+          FileUtils.rm_f "#{HOMEBREW_PREFIX}/share/zsh/site-functions/_cu"
+          FileUtils.rm_f "#{HOMEBREW_PREFIX}/share/fish/vendor_completions.d/cu.fish"
 
 checksum:
   name_template: "checksums.txt"
