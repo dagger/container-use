@@ -149,9 +149,9 @@ func environmentResponseFromEnvInfo(envInfo *environment.EnvironmentInfo) *Envir
 		SetupCommands:   envInfo.Config.SetupCommands,
 		Workdir:         envInfo.Config.Workdir,
 		RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
-		CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
-		LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
-		DiffCommand:     fmt.Sprintf("cu diff %s", envInfo.ID),
+		CheckoutCommand: fmt.Sprintf("container-use checkout %s", envInfo.ID),
+		LogCommand:      fmt.Sprintf("container-use log %s", envInfo.ID),
+		DiffCommand:     fmt.Sprintf("container-use diff %s", envInfo.ID),
 		Services:        nil, // EnvironmentInfo doesn't have "active" services, specifically useful for EndpointMappings
 	}
 }
