@@ -48,9 +48,7 @@ Container Use leverages [Dagger](https://dagger.io) for containerized workflows 
   {" "}
 
   <Accordion title="Safety and Experimentation">
-    Agents can experiment freely in their isolated containers. If something goes
-    wrong, simply discard the environment and start fresh. No more worrying about
-    agents breaking your local development setup.
+    Agents can experiment freely in their isolated containers with secure access to API keys, database credentials, and other secrets. Secrets are resolved within the container environment - agents can use your credentials without the AI model ever seeing the actual values. If something goes wrong, simply discard the environment and start fresh. No more worrying about agents breaking your local development setup or exposing sensitive data.
   </Accordion>
   {" "}
 

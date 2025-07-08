@@ -212,6 +212,10 @@ Since `container-use` is a unique command name, you can use it directly in all c
 
 Now let's create your first containerized environment and see Container Use in action!
 
+<Note>
+  🔒 **Secret Security**: When your agent uses API keys or credentials, secrets are resolved within the container environment - agents can use your credentials without the AI model ever seeing the actual values.
+</Note>
+
 ### Setting Up a Demo Project
 
 Let's start with a fresh repository:
@@ -390,18 +394,11 @@ Your coding agent now has its own containerized playground. No more babysitting 
 
 ## Next Steps
 
-<CardGroup cols={3}>
-  <Card title="Multiple Agents" icon="users">
-    Try running multiple agents simultaneously on different tasks
+<CardGroup cols={2}>
+  <Card title="Environment Workflow" icon="arrows-rotate" href="/environment-workflow">
+    Learn how to work with agent environments
   </Card>
-
-{" "}
-
-<Card title="Complete Agent List" icon="list" href="/agent-integrations">
-  See setup guides for all supported agents
-</Card>
-
-  <Card title="Join Community" icon="discord" href="https://discord.gg/YXbtwRQv">
-    Share your experience and get help in #container-use
+  <Card title="Environment Configuration" icon="gear" href="/environment-configuration">
+    Configure your project's default environment setup
   </Card>
 </CardGroup>

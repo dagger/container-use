@@ -25,7 +25,8 @@
           "group": "Guides",
           "pages": [
             "environment-workflow",
-            "environment-configuration"
+            "environment-configuration",
+            "secrets"
           ]
         },
           {
