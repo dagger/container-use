@@ -964,7 +964,6 @@ var EnvironmentCheckpointTool = &Tool{
 	},
 }
 
-
 var EnvironmentAddServiceTool = &Tool{
 	Definition: mcp.NewTool("environment_add_service",
 		mcp.WithDescription("Add a service to the environment (e.g. database, cache, etc.)"),
@@ -1044,7 +1043,7 @@ Supported schemas are:
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		service, err := AddEnvironmentService(ctx, dag, source, envID, serviceName, image, command, 
+		service, err := AddEnvironmentService(ctx, dag, source, envID, serviceName, image, command,
 			request.GetString("explanation", ""), ports, envs, secrets)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
@@ -1065,12 +1064,12 @@ func AddEnvironmentService(ctx context.Context, dag *dagger.Client, source, envI
 	if err != nil {
 		return nil, err
 	}
-	
+
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	service, err := env.AddService(ctx, explanation, &environment.ServiceConfig{
 		Name:         serviceName,
 		Image:        image,
@@ -1082,10 +1081,10 @@ func AddEnvironmentService(ctx context.Context, dag *dagger.Client, source, envI
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if err := repo.Update(ctx, env, explanation); err != nil {
 		return nil, err
 	}
-	
+
 	return service, nil
 }

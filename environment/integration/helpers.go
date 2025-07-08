@@ -216,7 +216,7 @@ func (u *UserActions) RunCommand(envID, command, explanation string) string {
 	result, err := mcpserver.RunEnvironmentCommand(u.ctx, u.dag, u.repoDir, envID, command, "/bin/sh", explanation, false, false, nil)
 	require.NoError(u.t, err, "Run command should succeed")
 	require.NotNil(u.t, result, "Run command should return a result")
-	
+
 	// For non-background commands, result is a string
 	output, ok := result.(string)
 	require.True(u.t, ok, "Run command should return string output")

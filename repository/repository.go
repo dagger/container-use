@@ -40,8 +40,9 @@ var globalConfigPath = func(ctx context.Context) string {
 // must not call t.Parallel().
 //
 // Usage in tests:
-//   cleanup := repository.SetTestConfigPath("/tmp/test-config")
-//   defer cleanup()
+//
+//	cleanup := repository.SetTestConfigPath("/tmp/test-config")
+//	defer cleanup()
 func SetTestConfigPath(path string) func() {
 	original := globalConfigPath
 	globalConfigPath = func(context.Context) string { return path }
