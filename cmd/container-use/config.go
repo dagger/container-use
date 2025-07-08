@@ -90,6 +90,17 @@ var configShowCmd = &cobra.Command{
 				fmt.Fprintf(tw, "Environment Variables:\t(none)\n")
 			}
 
+			secretKeys := config.Secrets.Keys()
+			if len(secretKeys) > 0 {
+				fmt.Fprintf(tw, "Secrets:\t\n")
+				for i, key := range secretKeys {
+					value := config.Secrets.Get(key)
+					fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
+				}
+			} else {
+				fmt.Fprintf(tw, "Secrets:\t(none)\n")
+			}
+
 			return nil
 		})
 	},
@@ -300,6 +311,80 @@ var configEnvClearCmd = &cobra.Command{
 	},
 }
 
+// Secret object commands
+var configSecretCmd = &cobra.Command{
+	Use:   "secret",
+	Short: "Manage secrets",
+	Long:  `Manage secrets that are set when creating environments.`,
+}
+
+var configSecretSetCmd = &cobra.Command{
+	Use:   "set <key> <value>",
+	Short: "Set a secret",
+	Long:  `Set a secret to be used when creating new environments (e.g., "API_KEY" "op://vault/item/field").`,
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		key := args[0]
+		value := args[1]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.Secrets.Set(key, value)
+			fmt.Printf("Secret set: %s=%s\n", key, value)
+			return nil
+		})
+	},
+}
+
+var configSecretUnsetCmd = &cobra.Command{
+	Use:   "unset <key>",
+	Short: "Unset a secret",
+	Long:  `Unset a secret from the environment configuration.`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		key := args[0]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			if !config.Secrets.Unset(key) {
+				return fmt.Errorf("secret not found: %s", key)
+			}
+			fmt.Printf("Secret unset: %s\n", key)
+			return nil
+		})
+	},
+}
+
+var configSecretListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all secrets",
+	Long:  `List all secrets that will be set when creating environments.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return withConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			keys := config.Secrets.Keys()
+			if len(keys) == 0 {
+				fmt.Println("No secrets configured")
+				return nil
+			}
+
+			for i, key := range keys {
+				value := config.Secrets.Get(key)
+				fmt.Printf("%d. %s=%s\n", i+1, key, value)
+			}
+			return nil
+		})
+	},
+}
+
+var configSecretClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Clear all secrets",
+	Long:  `Remove all secrets from the environment configuration.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.Secrets.Clear()
+			fmt.Println("All secrets cleared")
+			return nil
+		})
+	},
+}
+
 func init() {
 	// Add base-image commands
 	configBaseImageCmd.AddCommand(configBaseImageSetCmd)
@@ -318,10 +403,17 @@ func init() {
 	configEnvCmd.AddCommand(configEnvListCmd)
 	configEnvCmd.AddCommand(configEnvClearCmd)
 
+	// Add secret commands
+	configSecretCmd.AddCommand(configSecretSetCmd)
+	configSecretCmd.AddCommand(configSecretUnsetCmd)
+	configSecretCmd.AddCommand(configSecretListCmd)
+	configSecretCmd.AddCommand(configSecretClearCmd)
+
 	// Add object commands to config
 	configCmd.AddCommand(configBaseImageCmd)
 	configCmd.AddCommand(configSetupCommandCmd)
 	configCmd.AddCommand(configEnvCmd)
+	configCmd.AddCommand(configSecretCmd)
 	configCmd.AddCommand(configShowCmd)
 
 	// Add agent command
