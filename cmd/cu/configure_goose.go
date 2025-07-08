@@ -103,11 +103,7 @@ func (a *ConfigureGoose) editMcpConfig() error {
 
 // Save the agent rules with the container-use prompt
 func (a *ConfigureGoose) editRules() error {
-	gooseHints, err := homedir.Expand(filepath.Join("~", ".config", "goose", ".goosehints"))
-	if err != nil {
-		return err
-	}
-	return saveRulesFile(gooseHints, rules.AgentRules)
+	return saveRulesFile(".goosehints", rules.AgentRules)
 }
 
 func (a *ConfigureGoose) isInstalled() bool {

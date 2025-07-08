@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/dagger/container-use/rules"
-	"github.com/mitchellh/go-homedir"
 )
 
 type ConfigureQ struct {
@@ -35,10 +34,7 @@ func (a *ConfigureQ) description() string {
 
 // Save the MCP config with container-use enabled
 func (a *ConfigureQ) editMcpConfig() error {
-	configPath, err := homedir.Expand(filepath.Join("~", ".aws", "amazonq", "mcp.json"))
-	if err != nil {
-		return err
-	}
+	configPath := filepath.Join(".amazonq", "mcp.json")
 
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
