@@ -79,6 +79,17 @@ var configShowCmd = &cobra.Command{
 				fmt.Fprintf(tw, "Setup Commands:\t(none)\n")
 			}
 
+			envKeys := config.Env.Keys()
+			if len(envKeys) > 0 {
+				fmt.Fprintf(tw, "Environment Variables:\t\n")
+				for i, key := range envKeys {
+					value := config.Env.Get(key)
+					fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
+				}
+			} else {
+				fmt.Fprintf(tw, "Environment Variables:\t(none)\n")
+			}
+
 			return nil
 		})
 	},
@@ -215,6 +226,80 @@ var configSetupCommandClearCmd = &cobra.Command{
 	},
 }
 
+// Environment variable object commands
+var configEnvCmd = &cobra.Command{
+	Use:   "env",
+	Short: "Manage environment variables",
+	Long:  `Manage environment variables that are set when creating environments.`,
+}
+
+var configEnvSetCmd = &cobra.Command{
+	Use:   "set <key> <value>",
+	Short: "Set an environment variable",
+	Long:  `Set an environment variable to be used when creating new environments (e.g., "PATH" "/usr/local/bin:$PATH").`,
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		key := args[0]
+		value := args[1]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.Env.Set(key, value)
+			fmt.Printf("Environment variable set: %s=%s\n", key, value)
+			return nil
+		})
+	},
+}
+
+var configEnvUnsetCmd = &cobra.Command{
+	Use:   "unset <key>",
+	Short: "Unset an environment variable",
+	Long:  `Unset an environment variable from the environment configuration.`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		key := args[0]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			if !config.Env.Unset(key) {
+				return fmt.Errorf("environment variable not found: %s", key)
+			}
+			fmt.Printf("Environment variable unset: %s\n", key)
+			return nil
+		})
+	},
+}
+
+var configEnvListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all environment variables",
+	Long:  `List all environment variables that will be set when creating environments.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return withConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			keys := config.Env.Keys()
+			if len(keys) == 0 {
+				fmt.Println("No environment variables configured")
+				return nil
+			}
+
+			for i, key := range keys {
+				value := config.Env.Get(key)
+				fmt.Printf("%d. %s=%s\n", i+1, key, value)
+			}
+			return nil
+		})
+	},
+}
+
+var configEnvClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Clear all environment variables",
+	Long:  `Remove all environment variables from the environment configuration.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.Env.Clear()
+			fmt.Println("All environment variables cleared")
+			return nil
+		})
+	},
+}
+
 func init() {
 	// Add base-image commands
 	configBaseImageCmd.AddCommand(configBaseImageSetCmd)
@@ -227,9 +312,16 @@ func init() {
 	configSetupCommandCmd.AddCommand(configSetupCommandListCmd)
 	configSetupCommandCmd.AddCommand(configSetupCommandClearCmd)
 
+	// Add env commands
+	configEnvCmd.AddCommand(configEnvSetCmd)
+	configEnvCmd.AddCommand(configEnvUnsetCmd)
+	configEnvCmd.AddCommand(configEnvListCmd)
+	configEnvCmd.AddCommand(configEnvClearCmd)
+
 	// Add object commands to config
 	configCmd.AddCommand(configBaseImageCmd)
 	configCmd.AddCommand(configSetupCommandCmd)
+	configCmd.AddCommand(configEnvCmd)
 	configCmd.AddCommand(configShowCmd)
 
 	// Add agent command

@@ -2,8 +2,10 @@ package environment
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
+	"strings"
 )
 
 const (
@@ -28,8 +30,8 @@ type EnvironmentConfig struct {
 	Workdir       string         `json:"workdir,omitempty"`
 	BaseImage     string         `json:"base_image,omitempty"`
 	SetupCommands []string       `json:"setup_commands,omitempty"`
-	Env           []string       `json:"env,omitempty"`
-	Secrets       []string       `json:"secrets,omitempty"`
+	Env           KVList         `json:"env,omitempty"`
+	Secrets       KVList         `json:"secrets,omitempty"`
 	Services      ServiceConfigs `json:"services,omitempty"`
 	Locked        bool
 }
@@ -52,6 +54,64 @@ func (sc ServiceConfigs) Get(name string) *ServiceConfig {
 		}
 	}
 	return nil
+}
+
+// KVList represents a list of key-value pairs in the format KEY=VALUE
+type KVList []string
+
+// parseKeyValue parses a key-value string in the format "KEY=VALUE"
+func (kv KVList) parseKeyValue(raw string) (key, value string) {
+	k, v, _ := strings.Cut(raw, "=")
+	return k, v
+}
+
+// Set adds or updates a key-value pair
+func (kv *KVList) Set(key, value string) {
+	// Remove existing key if it exists
+	kv.Unset(key)
+	// Add new key-value pair
+	*kv = append(*kv, fmt.Sprintf("%s=%s", key, value))
+}
+
+// Unset removes a key-value pair by key and returns true if the key was found
+func (kv *KVList) Unset(key string) bool {
+	found := false
+	newList := make([]string, 0, len(*kv))
+	for _, item := range *kv {
+		if itemKey, _ := kv.parseKeyValue(item); itemKey != key {
+			newList = append(newList, item)
+		} else {
+			found = true
+		}
+	}
+	*kv = newList
+	return found
+}
+
+// Clear removes all key-value pairs
+func (kv *KVList) Clear() {
+	*kv = []string{}
+}
+
+// Keys returns all keys in the list
+func (kv KVList) Keys() []string {
+	keys := make([]string, 0, len(kv))
+	for _, item := range kv {
+		if key, _ := kv.parseKeyValue(item); key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// Get returns the value for a given key, or empty string if not found
+func (kv KVList) Get(key string) string {
+	for _, item := range kv {
+		if itemKey, value := kv.parseKeyValue(item); itemKey == key {
+			return value
+		}
+	}
+	return ""
 }
 
 func (config *EnvironmentConfig) Copy() *EnvironmentConfig {
