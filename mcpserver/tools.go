@@ -219,7 +219,7 @@ var EnvironmentOpenTool = &Tool{
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -409,7 +409,7 @@ Supported schemas are:
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -547,7 +547,7 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 		useEntrypoint := request.GetBool("use_entrypoint", false)
 		explanation := request.GetString("explanation", "")
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -674,7 +674,7 @@ var EnvironmentFileReadTool = &Tool{
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -745,7 +745,7 @@ var EnvironmentFileListTool = &Tool{
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -820,7 +820,7 @@ var EnvironmentFileWriteTool = &Tool{
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -891,7 +891,7 @@ var EnvironmentFileDeleteTool = &Tool{
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -1038,7 +1038,7 @@ Supported schemas are:
 		envs := request.GetStringSlice("envs", []string{})
 		secrets := request.GetStringSlice("secrets", []string{})
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
