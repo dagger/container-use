@@ -282,7 +282,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
 
-		env, err := CreateEnvironment(ctx, dag, source, title, request.GetString("explanation", ""))
+		repo, env, err := CreateEnvironment(ctx, dag, source, title, request.GetString("explanation", ""))
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
 		}
@@ -313,18 +313,18 @@ You MUST tell the user: To include these changes in the environment, they need t
 }
 
 // CreateEnvironment creates a new development environment
-func CreateEnvironment(ctx context.Context, dag *dagger.Client, source, title, explanation string) (*environment.Environment, error) {
+func CreateEnvironment(ctx context.Context, dag *dagger.Client, source, title, explanation string) (*repository.Repository, *environment.Environment, error) {
 	repo, err := repository.Open(ctx, source)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	env, err := repo.Create(ctx, dag, title, explanation)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return env, nil
+	return repo, env, nil
 }
 
 var EnvironmentUpdateTool = &Tool{
