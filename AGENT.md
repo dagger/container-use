@@ -37,3 +37,9 @@ PROJECT STRUCTURE:
 - examples/: Example configurations and usage
 - docs/: Documentation and images
 - .dagger/: Dagger module configuration
+
+DOCS:
+
+- Documentation is in `./docs`, written using Mintlify
+- When making changes, make sure the files are properly formatted in mdx
+- To start a preview, run `mint dev` from the docs folder
