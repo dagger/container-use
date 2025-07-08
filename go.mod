@@ -5,7 +5,7 @@ go 1.24.3
 toolchain go1.24.4
 
 require (
-	dagger.io/dagger v0.18.11
+	dagger.io/dagger v0.18.12
 	github.com/dustin/go-humanize v1.0.1
 	github.com/dustinkirkland/golang-petname v0.0.0-20240428194347-eebcea082ee0
 	github.com/mark3labs/mcp-go v0.29.0
