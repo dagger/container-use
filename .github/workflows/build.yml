@@ -20,13 +20,13 @@ jobs:
         with:
           version: "latest"
           verb: call
-          args: build -o cu
+          args: build -o container-use
 
       - name: Verify binary
         run: |
-          if [ ! -f cu ]; then
-            echo "Binary 'cu' was not created"
+          if [ ! -f container-use ]; then
+            echo "Binary 'container-use' was not created"
             exit 1
           fi
           echo "Binary created successfully"
-          ls -la cu
+          ls -la container-use

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # container-use installer script
-# Downloads and installs the appropriate cu binary for your system
+# Downloads and installs the appropriate container-use binary for your system
 
 set -euo pipefail
 
@@ -219,7 +219,6 @@ download_and_install() {
     cp "$binary_path" "$install_dir/"
     chmod +x "$install_dir/$BINARY_NAME"
 
-    # Create cu symlink for backward compatibility
     log_info "Creating cu symlink for backward compatibility..."
     ln -sf "$BINARY_NAME" "$install_dir/cu"
 

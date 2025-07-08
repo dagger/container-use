@@ -26,13 +26,13 @@ Choose your preferred installation method:
     ```
 
     This will:
-    - Install the latest `cu` binary
+    - Install the latest `container-use` binary
     - Add it to your `$PATH`
     - Install shell completions automatically
 
     ### Verify Installation
     ```sh
-    cu version
+    container-use version
     ```
 
   </Tab>
@@ -49,12 +49,12 @@ Choose your preferred installation method:
     This script will:
     - Check for Docker & Git (required dependencies)
     - Detect your platform automatically
-    - Install the latest `cu` binary to your `$PATH`
+    - Install the latest `container-use` binary to your `$PATH`
     - Provide shell completion installation instructions
 
     ### Verify Installation
     ```sh
-    cu version
+    container-use version
     ```
 
     ### Shell Completions
@@ -76,19 +76,28 @@ Choose your preferred installation method:
     ```sh
     git clone https://github.com/dagger/container-use.git
     cd container-use
-    go build -o cu ./cmd/cu
-    sudo mv cu /usr/local/bin/
+    go build -o container-use ./cmd/container-use
+    sudo mv container-use /usr/local/bin/
     ```
 
     For detailed build instructions, see the [CONTRIBUTING.md](https://github.com/dagger/container-use/blob/main/CONTRIBUTING.md#building) guide.
 
     ### Verify Installation
     ```sh
-    cu version
+    container-use version
     ```
 
   </Tab>
 </Tabs>
+
+<details>
+<summary>💡 Command Shortcut</summary>
+
+The `container-use` command is also available as `cu` for convenience. Both commands work identically:
+- `container-use version` (used in documentation)
+- `cu version` (shortcut)
+
+</details>
 
 ## Next Steps
 
