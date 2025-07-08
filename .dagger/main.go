@@ -87,10 +87,58 @@ func (m *ContainerUse) Test(ctx context.Context,
 		Stdout(ctx)
 }
 
-// Test runs the linter
+// Lint runs the linter and custom checks
 func (m *ContainerUse) Lint(ctx context.Context) error {
-	return dag.
+	// Run golangci-lint
+	err := dag.
 		Golangci().
 		Lint(m.Source, dagger.GolangciLintOpts{}).
 		Assert(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Check for t.Parallel() in tests using WithRepository
+	// This is a simple grep-based check that prevents race conditions
+	// WithRepository uses SetTestConfigPath which modifies global state
+	checkScript := `#!/bin/bash
+set -e
+
+echo "Checking for t.Parallel() in tests using WithRepository..."
+
+# Find test files that use WithRepository
+files_with_repo=$(grep -l "WithRepository" environment/integration/*_test.go 2>/dev/null || true)
+
+if [ -z "$files_with_repo" ]; then
+  echo "No test files found using WithRepository"
+  exit 0
+fi
+
+# Check each file for t.Parallel()
+found_issues=false
+for file in $files_with_repo; do
+  if grep -q "t\.Parallel()" "$file"; then
+    echo "ERROR: $file uses both WithRepository and t.Parallel()"
+    echo "  WithRepository modifies global state and is not safe for parallel execution"
+    found_issues=true
+  fi
+done
+
+if [ "$found_issues" = true ]; then
+  echo ""
+  echo "Tests using WithRepository must not call t.Parallel() as it causes race conditions."
+  exit 1
+fi
+
+echo "✓ No parallel test issues found"
+`
+
+	_, err = dag.Go(m.Source).
+		Base().
+		WithMountedDirectory("/src", m.Source).
+		WithWorkdir("/src").
+		WithExec([]string{"bash", "-c", checkScript}).
+		Sync(ctx)
+
+	return err
 }
