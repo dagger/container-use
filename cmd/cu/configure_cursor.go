@@ -54,7 +54,7 @@ func (a *ConfigureCursor) editMcpConfig() error {
 		config.MCPServers = make(map[string]MCPServer)
 	}
 
-	cuPath, err := exec.LookPath(CU_BINARY)
+	cuPath, err := exec.LookPath(ContainerUseBinary)
 	if err != nil {
 		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}

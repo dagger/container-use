@@ -74,7 +74,7 @@ func (a *ConfigureGoose) editMcpConfig() error {
 		config["extensions"] = extensions
 	}
 
-	cuPath, err := exec.LookPath(CU_BINARY)
+	cuPath, err := exec.LookPath(ContainerUseBinary)
 	if err != nil {
 		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
@@ -112,8 +112,5 @@ func (a *ConfigureGoose) editRules() error {
 
 func (a *ConfigureGoose) isInstalled() bool {
 	_, err := exec.LookPath("goose")
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }

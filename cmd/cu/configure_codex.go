@@ -75,7 +75,7 @@ func (a *ConfigureCodex) editMcpConfig() error {
 		config["mcp_servers"] = mcpServers
 	}
 
-	cuPath, err := exec.LookPath(CU_BINARY)
+	cuPath, err := exec.LookPath(ContainerUseBinary)
 	if err != nil {
 		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
@@ -107,8 +107,5 @@ func (a *ConfigureCodex) editRules() error {
 
 func (a *ConfigureCodex) isInstalled() bool {
 	_, err := exec.LookPath("codex")
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }

@@ -82,6 +82,8 @@ func (m AgentSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quit = true
 			return m, tea.Quit
 		}
+	default:
+		return m, nil
 	}
 	return m, nil
 }

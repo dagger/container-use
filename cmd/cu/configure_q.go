@@ -58,7 +58,7 @@ func (a *ConfigureQ) editMcpConfig() error {
 		config.MCPServers = make(map[string]MCPServer)
 	}
 
-	cuPath, err := exec.LookPath(CU_BINARY)
+	cuPath, err := exec.LookPath(ContainerUseBinary)
 	if err != nil {
 		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
@@ -90,8 +90,5 @@ func (a *ConfigureQ) editRules() error {
 
 func (a *ConfigureQ) isInstalled() bool {
 	_, err := exec.LookPath("q")
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }

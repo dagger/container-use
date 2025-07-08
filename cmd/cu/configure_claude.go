@@ -43,15 +43,16 @@ func (c *ConfigureClaude) description() string {
 
 func (c *ConfigureClaude) editMcpConfig() error {
 	// Get the path to cu command
-	cuPath, err := exec.LookPath(CU_BINARY)
+	cuPath, err := exec.LookPath(ContainerUseBinary)
 	if err != nil {
 		return fmt.Errorf("cu command not found in PATH: %w", err)
 	}
 
 	// Add MCP server
 	cmd := exec.Command("claude", "mcp", "add", "container-use", "--", cuPath, "stdio")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("could not automatically add MCP server: %v\n", err)
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("could not automatically add MCP server: %w", err)
 	}
 
 	// Configure auto approve settings
@@ -82,9 +83,7 @@ func (c *ConfigureClaude) editMcpConfig() error {
 
 	// Add container-use tools to allow
 	tools := tools("mcp__container-use__")
-	for _, tool := range tools {
-		allows = append(allows, tool)
-	}
+	allows = append(allows, tools...)
 	config.Permissions.Allow = allows
 
 	// Write config back
@@ -105,8 +104,5 @@ func (c *ConfigureClaude) editRules() error {
 
 func (c *ConfigureClaude) isInstalled() bool {
 	_, err := exec.LookPath("claude")
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
