@@ -2,15 +2,16 @@ package environment
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strings"
 
 	"dagger.io/dagger"
-	"dagger.io/dagger/dag"
+	"github.com/dagger/container-use/edit"
 )
 
 // FIXME: See hack where it's used
-const fileEditBaseImage = "busybox"
+const fileUtilsBaseImage = "busybox"
 
 func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {
 	file, err := env.container().File(targetFile).Contents(ctx)
@@ -82,18 +83,41 @@ func (env *Environment) FileGrep(ctx context.Context, path, pattern, include str
 	args := []string{"/bin/grep", "-E", "--", pattern, include}
 
 	dir := env.container().Rootfs().Directory(path)
-	out, err := dag.Container().From(fileEditBaseImage).WithMountedDirectory("/mnt", dir).WithWorkdir("/mnt").WithExec(args).Stdout(ctx)
+	out, err := dag.Container().From(fileUtilsBaseImage).WithMountedDirectory("/mnt", dir).WithWorkdir("/mnt").WithExec(args).Stdout(ctx)
 	if err != nil {
 		return "", err
 	}
 	return out, nil
 }
 
-func (env *Environment) FileEdit(ctx context.Context, targetFile string, edits []string) error {
-	// Hack: use busybox to run `sed` since dagger doesn't have native file editing primitives.
-	args := []string{"/bin/sh", "-c", fmt.Sprintf("sed -ri'' -- %s /target && cp /target /new", strings.Join(edits, " "))}
+type FileEdit struct {
+	OldString  string
+	NewString  string
+	ReplaceAll bool
+}
 
-	newFile := dag.Container().From(fileEditBaseImage).WithMountedFile("/target", env.container().File(targetFile)).WithExec(args).File("/new")
+func EditUtil(dag *dagger.Client) *dagger.Container {
+	editBin := dag.Container().From(golangImage).
+		WithNewFile("/go/src/edit.go", edit.Src).
+		WithNewFile("/go/src/go.mod", edit.GoMod).
+		WithNewFile("/go/src/go.sum", edit.GoSum).
+		WithEnvVariable("CGO_ENABLED", "0").
+		WithExec([]string{"go", "build", "-o", "/edit", "-ldflags", "-w -s", "/go/src/edit.go"}).File("/edit")
+	return dag.Container().From("scratch").WithFile("/edit", editBin).WithEntrypoint([]string{"/edit"})
+}
+
+func (env *Environment) FileEdit(ctx context.Context, targetFile string, edits []FileEdit) error {
+	// Hack: use busybox to run `sed` since dagger doesn't have native file editing primitives.
+	args := []string{"/edit", "/target", "/new"}
+	for _, edit := range edits {
+		replaceCount := "1"
+		if edit.ReplaceAll {
+			replaceCount = "-1"
+		}
+		args = append(args, edit.OldString, edit.NewString, replaceCount)
+	}
+
+	newFile := EditUtil(env.dag).WithMountedFile("/target", env.container().File(targetFile)).WithExec(args).File("/new")
 	err := env.apply(ctx, env.container().WithFile(targetFile, newFile))
 	if err != nil {
 		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)

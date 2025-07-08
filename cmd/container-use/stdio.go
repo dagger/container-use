@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
 	"dagger.io/dagger"
+	"github.com/dagger/container-use/environment"
 	"github.com/dagger/container-use/mcpserver"
 	"github.com/spf13/cobra"
 )
@@ -30,8 +32,13 @@ var stdioCmd = &cobra.Command{
 		}
 		defer dag.Close()
 
+		go warmCache(ctx, dag)
 		return mcpserver.RunStdioServer(ctx, dag)
 	},
+}
+
+func warmCache(ctx context.Context, dag *dagger.Client) {
+	environment.EditUtil(dag).Sync(ctx)
 }
 
 func init() {

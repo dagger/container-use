@@ -6,6 +6,7 @@ toolchain go1.24.4
 
 require (
 	dagger.io/dagger v0.18.11
+	github.com/dagger/container-use/edit v0.0.0-00010101000000-000000000000
 	github.com/dustin/go-humanize v1.0.1
 	github.com/dustinkirkland/golang-petname v0.0.0-20240428194347-eebcea082ee0
 	github.com/mark3labs/mcp-go v0.29.0
@@ -62,3 +63,5 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/dagger/container-use/edit => ./edit
