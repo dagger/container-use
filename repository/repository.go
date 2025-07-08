@@ -247,7 +247,7 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 
 		// FIXME(aluzzardi): This is a hack to make sure the branch is actually an environment.
 		// There must be a better way to do this.
-		worktree, err := r.worktreePath(branch)
+		worktree, err := r.WorktreePath(branch)
 		if err != nil {
 			return nil, err
 		}

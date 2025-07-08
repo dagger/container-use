@@ -5,7 +5,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"log"
 	"log/slog"
+	"os"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
@@ -14,6 +16,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+type daggerClientKey struct{}
 
 func openRepository(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, error) {
 	source, err := request.RequireString("environment_source")
@@ -36,7 +40,7 @@ func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*reposit
 	if err != nil {
 		return nil, nil, err
 	}
-	dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+	dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 	if !ok {
 		return nil, nil, fmt.Errorf("dagger client not found in context")
 	}
@@ -64,7 +68,11 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
 	}
 
 	slog.Info("starting server")
-	return server.ServeStdio(s)
+
+	stdioSrv := server.NewStdioServer(s)
+	stdioSrv.SetErrorLogger(log.Default()) // this should re-use our `slog` handler
+
+	return stdioSrv.Listen(ctx, os.Stdin, os.Stdout)
 }
 
 var tools = []*Tool{}
@@ -97,7 +105,7 @@ func wrapToolWithClient(tool *Tool, dag *dagger.Client) *Tool {
 	return &Tool{
 		Definition: tool.Definition,
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			ctx = context.WithValue(ctx, "dagger_client", dag)
+			ctx = context.WithValue(ctx, daggerClientKey{}, dag)
 			return tool.Handler(ctx, request)
 		},
 	}
@@ -136,29 +144,8 @@ type EnvironmentResponse struct {
 	Services        []*environment.Service `json:"services,omitempty"`
 }
 
-func marshalEnvironment(env *environment.Environment) (string, error) {
-	resp := &EnvironmentResponse{
-		ID:              env.ID,
-		Title:           env.State.Title,
-		Instructions:    env.Config.Instructions,
-		BaseImage:       env.Config.BaseImage,
-		SetupCommands:   env.Config.SetupCommands,
-		Workdir:         env.Config.Workdir,
-		RemoteRef:       fmt.Sprintf("container-use/%s", env.ID),
-		CheckoutCommand: fmt.Sprintf("cu checkout %s", env.ID),
-		LogCommand:      fmt.Sprintf("cu log %s", env.ID),
-		DiffCommand:     fmt.Sprintf("cu diff %s", env.ID),
-		Services:        env.Services,
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal response: %w", err)
-	}
-	return string(out), nil
-}
-
-func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error) {
-	resp := &EnvironmentResponse{
+func environmentResponseFromEnvInfo(envInfo *environment.EnvironmentInfo) *EnvironmentResponse {
+	return &EnvironmentResponse{
 		ID:              envInfo.ID,
 		Title:           envInfo.State.Title,
 		Instructions:    envInfo.Config.Instructions,
@@ -168,9 +155,27 @@ func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error
 		RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
 		CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
 		LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
+		DiffCommand:     fmt.Sprintf("cu diff %s", envInfo.ID),
 		Services:        nil, // EnvironmentInfo doesn't have "active" services, specifically useful for EndpointMappings
 	}
-	out, err := json.Marshal(resp)
+}
+
+func environmentResponseFromEnv(env *environment.Environment) *EnvironmentResponse {
+	resp := environmentResponseFromEnvInfo(env.EnvironmentInfo)
+	resp.Services = env.Services
+	return resp
+}
+
+func marshalEnvironment(env *environment.Environment) (string, error) {
+	out, err := json.Marshal(environmentResponseFromEnv(env))
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return string(out), nil
+}
+
+func marshalEnvironmentInfo(envInfo *environment.EnvironmentInfo) (string, error) {
+	out, err := json.Marshal(environmentResponseFromEnvInfo(envInfo))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -246,7 +251,7 @@ DO NOT manually install toolchains inside the environment, instead explicitly ca
 			return nil, err
 		}
 
-		dag, ok := ctx.Value("dagger_client").(*dagger.Client)
+		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
 		}
@@ -415,18 +420,7 @@ var EnvironmentListTool = &Tool{
 		// Convert EnvironmentInfo slice to EnvironmentResponse slice
 		responses := make([]EnvironmentResponse, len(envInfos))
 		for i, envInfo := range envInfos {
-			responses[i] = EnvironmentResponse{
-				ID:              envInfo.ID,
-				Title:           envInfo.State.Title,
-				Instructions:    envInfo.Config.Instructions,
-				BaseImage:       envInfo.Config.BaseImage,
-				SetupCommands:   envInfo.Config.SetupCommands,
-				Workdir:         envInfo.Config.Workdir,
-				RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
-				CheckoutCommand: fmt.Sprintf("cu checkout %s", envInfo.ID),
-				LogCommand:      fmt.Sprintf("cu log %s", envInfo.ID),
-				Services:        nil, // EnvironmentInfo doesn't have services
-			}
+			responses[i] = *environmentResponseFromEnvInfo(envInfo)
 		}
 
 		out, err := json.Marshal(responses)

@@ -1,53 +1,40 @@
 ---
-title: Introduction
-description: "Containerized environments for coding agents. Scale from babysitting one agent to enabling multiple agents to work safely and independently."
-icon: book
+title: "Introduction"
+description: "Sandboxed dev environments for coding agents."
+icon: "book"
 ---
 
 <img
   className="block dark:hidden"
   src="/images/container-use.png"
   alt="Container Use Hero Light"
-  noZoom
+  noZoom={true}
 />
+
 <img
   className="hidden dark:block"
   src="/images/container-use.png"
   alt="Container Use Hero Dark"
-  noZoom
+  noZoom={true}
 />
 
 ## What is Container Use?
 
-**Container Use** lets each of your coding agents have their own containerized environment. Go from babysitting one agent at a time to enabling multiple agents to work safely and independently with your preferred stack.
+**Container Use** lets each of your coding agents have their own containerized sandbox environment. Go from babysitting one agent at a time to enabling multiple agents to work safely in parallel with your preferred stack.
+
+Container Use leverages [Dagger](https://dagger.io) for containerized workflows and Git worktrees for branching.
 
 <CardGroup cols={2}>
-  <Card
-    title="Isolated Environments"
-    icon="box"
-    iconType="duotone"
-  >
+  <Card title="Sandboxed Environments" icon="box" iconType="duotone">
     Each agent gets a fresh container in its own git branch - run multiple agents without conflicts, experiment safely, discard failures instantly.
   </Card>
-  <Card
-    title="Real-time Visibility"
-    icon="eye"
-    iconType="duotone"
-  >
+  <Card title="Real-time Visibility" icon="eye" iconType="duotone">
     See complete command history and logs of what agents actually did, not just what they claim.
   </Card>
-  <Card
-    title="Direct Intervention"
-    icon="helicopter"
-    iconType="duotone"
-  >
+  <Card title="Direct Intervention" icon="helicopter" iconType="duotone">
     Drop into any agent's terminal to see their state and take control when they get stuck.
   </Card>
-  <Card
-    title="Environment Control"
-    icon="gamepad"
-    iconType="duotone"
-  >
+  <Card title="Environment Control" icon="gamepad" iconType="duotone">
     Standard git workflow - just `git checkout <branch_name>` to review any agent's work.
   </Card>
 </CardGroup>
@@ -58,23 +45,20 @@ icon: book
   <Accordion title="Scale Beyond Single Agent Workflows">
     Most coding agents require constant supervision and can only work on one task at a time. Container Use breaks this limitation by providing isolated environments where multiple agents can work simultaneously without interfering with each other.
   </Accordion>
+  {" "}
 
-{" "}
+  <Accordion title="Safety and Experimentation">
+    Agents can experiment freely in their isolated containers. If something goes
+    wrong, simply discard the environment and start fresh. No more worrying about
+    agents breaking your local development setup.
+  </Accordion>
+  {" "}
 
-<Accordion title="Safety and Experimentation">
-  Agents can experiment freely in their isolated containers. If something goes
-  wrong, simply discard the environment and start fresh. No more worrying about
-  agents breaking your local development setup.
-</Accordion>
-
-{" "}
-
-<Accordion title="Universal Compatibility">
-  Works with any agent, model, or infrastructure - no vendor lock-in. Container
-  Use is an open-source MCP server that integrates with Claude Code, Cursor,
-  VSCode, and other MCP-compatible agents.
-</Accordion>
-
+  <Accordion title="Universal Compatibility">
+    Works with any agent, model, or infrastructure - no vendor lock-in. Container
+    Use is an open-source MCP server that integrates with Claude Code, Cursor,
+    VSCode, and other MCP-compatible agents.
+  </Accordion>
   <Accordion title="Complete Transparency">
     Unlike black-box agent platforms, Container Use gives you full visibility into what your agents are actually doing. Every command, every file change, every process is logged and accessible.
   </Accordion>
@@ -82,45 +66,22 @@ icon: book
 
 ## Quick Demo
 
-<iframe
-  className="w-full aspect-video rounded-xl"
-  src="https://www.youtube.com/embed/BXKq5U3wVFM"
-  title="YouTube video player"
-  frameBorder="0"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-></iframe>
+<iframe className="w-full aspect-video rounded-xl" src="https://www.youtube.com/embed/BXKq5U3wVFM" title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
 
-Check out our [playlist](https://www.youtube.com/playlist?list=PLyHqb4A5ee1u5LrsbalfVkBRsrbjDsnN5) for more examples.
-
-## Architecture Overview
-
-Container Use is built on three core technologies:
-
-- **🐳 Docker**: Provides the containerization layer for isolated environments
-- **📦 Dagger**: Powers the container orchestration and build pipeline
-- **🌳 Git**: Manages environment state through branches and worktrees
-
-<Note>
-  This project is in early development and actively evolving. Expect rough
-  edges, breaking changes, and incomplete documentation. But also expect rapid
-  iteration and responsiveness to feedback.
-</Note>
+See [video playlist](https://www.youtube.com/playlist?list=PLyHqb4A5ee1u5LrsbalfVkBRsrbjDsnN5) for more examples.
 
 ## Getting Started
 
-Ready to give your agents their own containerized environments?
+<Note>
+  This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation. But also expect rapid iteration and responsiveness to feedback.
+</Note>
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Install Container Use on your system using Homebrew, shell script, or build
     from source
   </Card>
-  <Card
-    title="Agent Integration"
-    icon="puzzle-piece"
-    href="/agent-integrations"
-  >
+  <Card title="Agent Integration" icon="puzzle-piece" href="/agent-integrations">
     Configure Container Use with your coding agent (Claude Code, Cursor, VSCode,
     etc.)
   </Card>
@@ -134,18 +95,10 @@ Join our community to get help, share examples, and contribute to the project:
   <Card title="Discord" icon="discord" href="https://discord.gg/YXbtwRQv">
     Join the #container-use channel for real-time support
   </Card>
-  <Card
-    title="GitHub"
-    icon="github"
-    href="https://github.com/dagger/container-use"
-  >
+  <Card title="GitHub" icon="github" href="https://github.com/dagger/container-use">
     Star the repo, report issues, and contribute code
   </Card>
-  <Card
-    title="YouTube"
-    icon="youtube"
-    href="https://www.youtube.com/playlist?list=PLyHqb4A5ee1u5LrsbalfVkBRsrbjDsnN5"
-  >
+  <Card title="YouTube" icon="youtube" href="https://www.youtube.com/playlist?list=PLyHqb4A5ee1u5LrsbalfVkBRsrbjDsnN5">
     Watch the Container Use playlist for examples and tutorials
   </Card>
 </CardGroup>

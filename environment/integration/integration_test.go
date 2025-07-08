@@ -38,7 +38,7 @@ func TestGitAuditTrail(t *testing.T) {
 		user.FileWrite(env.ID, "src/app.js", "console.log('Hello');", "Add app code")
 
 		// Verify all operations are tracked in git
-		gitLog, err := repository.RunGitCommand(context.Background(), env.Worktree, "log", "--oneline", "-5")
+		gitLog, err := repository.RunGitCommand(context.Background(), user.WorktreePath(env.ID), "log", "--oneline", "-5")
 		require.NoError(t, err)
 
 		// Operations that create git-trackable changes should have commits
@@ -47,12 +47,12 @@ func TestGitAuditTrail(t *testing.T) {
 		assert.Contains(t, gitLog, "Add app code")
 
 		// Verify file contents are in git
-		configFromGit, err := repository.RunGitCommand(context.Background(), env.Worktree, "show", "HEAD~1:config.json")
+		configFromGit, err := repository.RunGitCommand(context.Background(), user.WorktreePath(env.ID), "show", "HEAD~1:config.json")
 		require.NoError(t, err)
 		assert.Contains(t, configFromGit, `"version": "1.0.0"`)
 
 		// Verify commit timestamps are reasonable
-		gitTime, err := repository.RunGitCommand(context.Background(), env.Worktree, "log", "-1", "--pretty=format:%ct")
+		gitTime, err := repository.RunGitCommand(context.Background(), user.WorktreePath(env.ID), "log", "-1", "--pretty=format:%ct")
 		require.NoError(t, err)
 		commitTime := time.Unix(mustParseInt64(t, strings.TrimSpace(gitTime)), 0)
 		assert.WithinDuration(t, time.Now(), commitTime, 5*time.Second)
@@ -89,8 +89,8 @@ func TestEnvironmentIsolation(t *testing.T) {
 		staging = user.GetEnvironment(staging.ID)
 
 		// Verify git histories are independent
-		devLog, _ := repository.RunGitCommand(context.Background(), dev.Worktree, "log", "--oneline", "-2")
-		stagingLog, _ := repository.RunGitCommand(context.Background(), staging.Worktree, "log", "--oneline", "-2")
+		devLog, _ := repository.RunGitCommand(context.Background(), user.WorktreePath(dev.ID), "log", "--oneline", "-2")
+		stagingLog, _ := repository.RunGitCommand(context.Background(), user.WorktreePath(staging.ID), "log", "--oneline", "-2")
 
 		assert.Contains(t, devLog, "Dev config")
 		assert.Contains(t, stagingLog, "Staging config")
@@ -304,7 +304,7 @@ func TestWeirdUserScenarios(t *testing.T) {
 
 			// Save worktree path for later verification
 			envID := newEnv.ID
-			worktreePath := newEnv.Worktree
+			worktreePath := user.WorktreePath(newEnv.ID)
 
 			// Simulate corruption by removing the .git directory in the worktree
 			user.CorruptWorktree(newEnv.ID)
@@ -322,7 +322,7 @@ func TestWeirdUserScenarios(t *testing.T) {
 
 			// New environment should have different ID and worktree
 			assert.NotEqual(t, envID, env2.ID)
-			assert.NotEqual(t, worktreePath, env2.Worktree)
+			assert.NotEqual(t, worktreePath, user.WorktreePath(env2.ID))
 
 			// New environment should be functional
 			user.FileWrite(env2.ID, "test.txt", "New environment works", "Verify new env works")
@@ -421,7 +421,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 
 			// Simulate reopening the environment (load config from disk)
 			reloadedConfig := environment.DefaultConfig()
-			err := reloadedConfig.Load(newEnv.Worktree)
+			err := reloadedConfig.Load(user.WorktreePath(newEnv.ID))
 			require.NoError(t, err)
 
 			assert.Equal(t, "alpine:latest", reloadedConfig.BaseImage, "Base image should persist")
@@ -448,7 +448,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 
 			// Load config from disk
 			reloadedConfig := environment.DefaultConfig()
-			err := reloadedConfig.Load(newEnv.Worktree)
+			err := reloadedConfig.Load(user.WorktreePath(newEnv.ID))
 			require.NoError(t, err)
 
 			assert.Equal(t, setupCmds, reloadedConfig.SetupCommands, "Setup commands should persist")
@@ -456,12 +456,12 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 			// Modify persisted setup commands
 			// Remove the echo command, keep only package install
 			reloadedConfig.SetupCommands = []string{"apk add --no-cache curl git"}
-			err = reloadedConfig.Save(newEnv.Worktree)
+			err = reloadedConfig.Save(user.WorktreePath(newEnv.ID))
 			require.NoError(t, err)
 
 			// Load again to verify the modification persisted
 			finalConfig := environment.DefaultConfig()
-			err = finalConfig.Load(newEnv.Worktree)
+			err = finalConfig.Load(user.WorktreePath(newEnv.ID))
 			require.NoError(t, err)
 			assert.Equal(t, []string{"apk add --no-cache curl git"}, finalConfig.SetupCommands, "Modified setup commands should persist")
 		})
@@ -579,7 +579,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 			require.NotNil(t, newEnv)
 
 			envID := newEnv.ID
-			originalWorktree := newEnv.Worktree
+			originalWorktree := user.WorktreePath(newEnv.ID)
 
 			// Environment is registered
 			retrieved, err := repo.Get(ctx, user.dag, envID)
@@ -602,7 +602,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 			assert.Contains(t, output, "v", "Node should be installed")
 
 			// Worktree location stable
-			assert.Equal(t, originalWorktree, newEnv.Worktree, "Worktree location should not change")
+			assert.Equal(t, originalWorktree, user.WorktreePath(newEnv.ID), "Worktree location should not change")
 
 			// Test Delete
 			err = repo.Delete(ctx, envID)
@@ -613,7 +613,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 			assert.Error(t, err, "Environment should not be retrievable after deletion")
 
 			// Worktree deleted
-			_, err = os.Stat(newEnv.Worktree)
+			_, err = os.Stat(user.WorktreePath(envID))
 			assert.True(t, os.IsNotExist(err), "Worktree should be deleted")
 		})
 	})

@@ -29,8 +29,7 @@ func main() {
 
 	go handleSIGUSR(sigusrCh)
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	if err := setupLogger(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to setup logger: %v\n", err)

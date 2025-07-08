@@ -81,7 +81,10 @@ func TestRepositoryMergeWithConflicts(t *testing.T) {
 	WithRepository(t, "repository-merge-conflicts", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
-		// Create a file in the main branch
+		// Create an environment and modify the same file
+		env := user.CreateEnvironment("Test Merge Conflicts", "Testing merge conflicts")
+		user.FileWrite(env.ID, "conflict.txt", "environment branch content", "Modify conflict file")
+
 		conflictFile := filepath.Join(repo.SourcePath(), "conflict.txt")
 		err := os.WriteFile(conflictFile, []byte("main branch content"), 0644)
 		require.NoError(t, err)
@@ -91,23 +94,57 @@ func TestRepositoryMergeWithConflicts(t *testing.T) {
 		_, err = repository.RunGitCommand(ctx, repo.SourcePath(), "commit", "-m", "Add conflict file in main")
 		require.NoError(t, err)
 
-		// Create an environment and modify the same file
-		env := user.CreateEnvironment("Test Merge Conflicts", "Testing merge conflicts")
-		user.FileWrite(env.ID, "conflict.txt", "environment branch content", "Modify conflict file")
-
 		// Try to merge - this should either succeed with conflict resolution or fail gracefully
 		var mergeOutput bytes.Buffer
 		err = repo.Merge(ctx, env.ID, &mergeOutput)
 
-		// The merge might succeed (with automatic resolution) or fail (with conflicts)
-		// Both are valid outcomes, we just want to ensure it doesn't crash
-		if err != nil {
-			// If it fails, it should be due to conflicts
-			assert.Contains(t, strings.ToLower(err.Error()+mergeOutput.String()), "conflict")
-		} else {
-			// If it succeeds, verify the file exists (content may vary based on git's conflict resolution)
-			_, err := os.Stat(conflictFile)
-			assert.NoError(t, err, "Conflict file should still exist after merge")
-		}
+		// The merge should fail due to conflict
+		assert.Error(t, err, "Merge should fail due to conflict")
+		outputStr := mergeOutput.String()
+		assert.Contains(t, outputStr, "conflict", "Merge output should mention conflict: %s", outputStr)
+	})
+}
+
+// TestRepositoryMergeCompleted tests merging the same environment multiple times
+// This should result in fast-forward merges since the main branch doesn't diverge
+func TestRepositoryMergeCompleted(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-merge-completed", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create an environment and add initial content
+		env := user.CreateEnvironment("Test Repeated Merge", "Testing repeated merges")
+		user.FileWrite(env.ID, "repeated-file.txt", "initial content", "Add initial file")
+
+		// First merge
+		var mergeOutput1 bytes.Buffer
+		err := repo.Merge(ctx, env.ID, &mergeOutput1)
+		require.NoError(t, err, "First merge should succeed: %s", mergeOutput1.String())
+
+		// Verify first merge content
+		filePath := filepath.Join(repo.SourcePath(), "repeated-file.txt")
+		content, err := os.ReadFile(filePath)
+		require.NoError(t, err)
+		assert.Equal(t, "initial content", string(content))
+
+		// Update the same file in the environment
+		user.FileWrite(env.ID, "repeated-file.txt", "updated content", "Update file content")
+
+		// Second merge
+		var mergeOutput2 bytes.Buffer
+		err = repo.Merge(ctx, env.ID, &mergeOutput2)
+		require.NoError(t, err, "Second merge should succeed: %s", mergeOutput2.String())
+
+		// Verify second merge content
+		content, err = os.ReadFile(filePath)
+		require.NoError(t, err)
+		assert.Equal(t, "updated content", string(content))
+
+		// Verify commit history includes both merges
+		log, err := repository.RunGitCommand(ctx, repo.SourcePath(), "log", "--oneline", "-10")
+		require.NoError(t, err)
+		// Should have commits for both merges or their individual commits
+		assert.Contains(t, log, "Add initial file", "Log should contain initial commit")
+		assert.Contains(t, log, "Update file content", "Log should contain update commit")
 	})
 }

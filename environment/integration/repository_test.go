@@ -23,10 +23,11 @@ func TestRepositoryCreate(t *testing.T) {
 		assert.NotNil(t, env)
 		assert.NotEmpty(t, env.ID)
 		assert.Equal(t, "Test Create", env.State.Title)
-		assert.NotEmpty(t, env.Worktree)
+		worktreePath := user.WorktreePath(env.ID)
+		assert.NotEmpty(t, worktreePath)
 
 		// Verify worktree was created
-		_, err := os.Stat(env.Worktree)
+		_, err := os.Stat(worktreePath)
 		assert.NoError(t, err)
 	})
 }
@@ -86,7 +87,7 @@ func TestRepositoryDelete(t *testing.T) {
 
 		// Create an environment
 		env := user.CreateEnvironment("Test Delete", "Testing repository delete")
-		worktreePath := env.Worktree
+		worktreePath := user.WorktreePath(env.ID)
 		envID := env.ID
 
 		// Delete it
