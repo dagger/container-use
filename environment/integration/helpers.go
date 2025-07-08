@@ -36,6 +36,10 @@ func init() {
 }
 
 // WithRepository runs a test function with an isolated repository and UserActions
+//
+// WARNING: Tests using WithRepository MUST NOT call t.Parallel() because
+// SetTestConfigPath modifies a global variable. Parallel tests will race
+// and cause unpredictable failures.
 func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t *testing.T, repo *repository.Repository, user *UserActions)) {
 	// Initialize Dagger (needed for environment operations)
 	initializeDaggerOnce(t)
