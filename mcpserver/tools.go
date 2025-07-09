@@ -57,11 +57,43 @@ type Tool struct {
 }
 
 func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
+	// Create hooks to handle initialization and roots
+	hooks := &server.Hooks{}
+
+	// Add hook to check for roots capability and request initial roots
+	hooks.AddAfterInitialize(func(ctx context.Context, id any, message *mcp.InitializeRequest, result *mcp.InitializeResult) {
+		if message.Params.Capabilities.Roots != nil {
+			slog.Info("Client supports roots capability", "listChanged", message.Params.Capabilities.Roots.ListChanged)
+
+			// Get the client session and send roots/list request
+			if session := server.ClientSessionFromContext(ctx); session != nil {
+				sendRootsListRequest(ctx, session)
+			}
+		} else {
+			slog.Info("Client does not support roots capability")
+		}
+	})
+
 	s := server.NewMCPServer(
 		"Dagger",
 		"1.0.0",
 		server.WithInstructions(rules.AgentRules),
+		server.WithHooks(hooks),
 	)
+
+	// Add notification handler for roots updates from client
+	s.AddNotificationHandler("notifications/roots/list_changed", func(ctx context.Context, notification mcp.JSONRPCNotification) {
+		slog.Info("Received notifications/roots/list_changed from client")
+		count := updateClientRoots(notification)
+		slog.Info("Updated client roots", "count", count)
+	})
+
+	// Add response handler for roots/list responses
+	s.AddNotificationHandler("roots/list", func(ctx context.Context, notification mcp.JSONRPCNotification) {
+		slog.Info("Received roots/list response from client")
+		count := updateClientRoots(notification)
+		slog.Info("Updated client roots from response", "count", count)
+	})
 
 	for _, t := range tools {
 		s.AddTool(t.Definition, wrapToolWithClient(t, dag).Handler)
@@ -241,7 +273,7 @@ var EnvironmentOpenTool = &Tool{
 func GetEnvironmentFromSource(ctx context.Context, dag *dagger.Client, source, envID string) (*environment.Environment, error) {
 	repo, err := repository.Open(ctx, source)
 	if err != nil {
-		return nil, err
+		return nil, repoOpenErrorMessage(source, err)
 	}
 
 	env, err := repo.Get(ctx, dag, envID)
@@ -320,7 +352,7 @@ You MUST tell the user: To include these changes in the environment, they need t
 func CreateEnvironment(ctx context.Context, dag *dagger.Client, source, title, explanation string) (*repository.Repository, *environment.Environment, error) {
 	repo, err := repository.Open(ctx, source)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, repoOpenErrorMessage(source, err)
 	}
 
 	env, err := repo.Create(ctx, dag, title, explanation)
