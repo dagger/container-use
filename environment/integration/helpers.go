@@ -264,8 +264,8 @@ func (u *UserActions) FileReadExpectError(envID, targetFile string) {
 }
 
 // FileList mirrors environment_file_list MCP tool behavior
-func (u *UserActions) FileList(envID, path string) string {
-	content, err := mcpserver.ListEnvironmentFiles(u.ctx, u.dag, u.repoDir, envID, path)
+func (u *UserActions) FileList(envID, path string, ignore []string) string {
+	content, err := mcpserver.ListEnvironmentFiles(u.ctx, u.dag, u.repoDir, envID, path, ignore)
 	require.NoError(u.t, err, "FileList should succeed")
 	return content
 }
