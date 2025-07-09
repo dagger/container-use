@@ -29,7 +29,7 @@ type MCPServer struct {
 const ContainerUseBinary = "container-use"
 
 var configureCmd = &cobra.Command{
-	Use:   "configure [agent]",
+	Use:   "agent [agent]",
 	Short: "Configure MCP server for different agents",
 	Long:  `Setup the container-use MCP server according to the specified agent including Claude Code, Goose, Cursor, and others.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -166,5 +166,5 @@ func tools(prefix string) []string {
 }
 
 func init() {
-	rootCmd.AddCommand(configureCmd)
+	configCmd.AddCommand(configureCmd)
 }
