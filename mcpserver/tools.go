@@ -51,7 +51,14 @@ func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*reposit
 	return repo, env, nil
 }
 
-type Tool struct {
+type Tool[R Request, V any] struct {
+	Definition    mcp.Tool
+	ParseRequest  func(request mcp.CallToolRequest) (*R, error)
+	ActualHandler func(ctx context.Context, request *R) (*ToolResponse[V], error)
+	Handler       server.ToolHandlerFunc
+}
+
+type MCPHandler struct {
 	Definition mcp.Tool
 	Handler    server.ToolHandlerFunc
 }
@@ -75,30 +82,52 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client) error {
 	return stdioSrv.Listen(ctx, os.Stdin, os.Stdout)
 }
 
-var tools = []*Tool{}
+var tools = []MCPHandler{}
 
-func registerTool(tool ...*Tool) {
-	for _, t := range tool {
-		tools = append(tools, wrapTool(t))
-	}
+func registerTool[R Request, V Response](tool *Tool[R, V]) {
+	tools = append(tools, createHandler(tool))
 }
 
-func wrapTool(tool *Tool) *Tool {
-	return &Tool{
+func createHandler[R Request, V Response](tool *Tool[R, V]) MCPHandler {
+	return MCPHandler{
 		Definition: tool.Definition,
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			slog.Info("Tool called", "tool", tool.Definition.Name)
 			defer func() {
 				slog.Info("Tool finished", "tool", tool.Definition.Name)
 			}()
-			return tool.Handler(ctx, request)
+			// FIXME(aluzzardi): Backward compat, remove this
+			if tool.Handler != nil {
+				return tool.Handler(ctx, request)
+			}
+			parsed, err := tool.ParseRequest(request)
+			if err != nil {
+				return nil, err
+			}
+			response, err := tool.ActualHandler(ctx, parsed)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			json, err := json.Marshal(response.Data)
+			if err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to marshal response", err), nil
+			}
+
+			body := string(json)
+
+			if response.Message != "" {
+				body += "\n" + response.Message
+			}
+
+			return mcp.NewToolResultText(body), nil
 		},
 	}
 }
 
 // keeping this modular for now. we could move tool registration to RunStdioServer and collapse the 2 wrapTool functions.
-func wrapToolWithClient(tool *Tool, dag *dagger.Client) *Tool {
-	return &Tool{
+func wrapToolWithClient(tool MCPHandler, dag *dagger.Client) MCPHandler {
+	return MCPHandler{
 		Definition: tool.Definition,
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			ctx = context.WithValue(ctx, daggerClientKey{}, dag)
@@ -108,22 +137,19 @@ func wrapToolWithClient(tool *Tool, dag *dagger.Client) *Tool {
 }
 
 func init() {
-	registerTool(
-		EnvironmentOpenTool,
-		EnvironmentCreateTool,
-		EnvironmentUpdateTool,
+	registerTool(EnvironmentOpenTool)
+	registerTool(EnvironmentCreateTool)
+	registerTool(EnvironmentUpdateTool)
 
-		EnvironmentRunCmdTool,
+	registerTool(EnvironmentRunCmdTool)
 
-		EnvironmentFileReadTool,
-		EnvironmentFileListTool,
-		EnvironmentFileWriteTool,
-		EnvironmentFileDeleteTool,
+	registerTool(EnvironmentFileReadTool)
+	registerTool(EnvironmentFileListTool)
+	registerTool(EnvironmentFileWriteTool)
+	registerTool(EnvironmentFileDeleteTool)
 
-		EnvironmentAddServiceTool,
-
-		EnvironmentCheckpointTool,
-	)
+	registerTool(EnvironmentAddServiceTool)
+	registerTool(EnvironmentCheckpointTool)
 }
 
 type EnvironmentResponse struct {
@@ -194,7 +220,7 @@ func EnvironmentInfoToCallResult(envInfo *environment.EnvironmentInfo) (*mcp.Cal
 	return mcp.NewToolResultText(out), nil
 }
 
-var EnvironmentOpenTool = &Tool{
+var EnvironmentOpenTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_open",
 		mcp.WithDescription("Opens an existing environment. Return format is same as environment_create."),
 		mcp.WithString("explanation",
@@ -218,71 +244,69 @@ var EnvironmentOpenTool = &Tool{
 	},
 }
 
-var EnvironmentCreateTool = &Tool{
-	Definition: mcp.NewTool("environment_create",
-		mcp.WithDescription(`Creates a new development environment.
-The environment is the result of a the setups commands on top of the base image.
-Read carefully the instructions to understand the environment.
-DO NOT manually install toolchains inside the environment, instead explicitly call environment_update`,
-		),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being created."),
-		),
+type EnvironmentCreateToolRequest struct {
+	BaseRepositoryRequest
+
+	Title string `json:"title"`
+}
+
+var EnvironmentCreateTool = &Tool[EnvironmentCreateToolRequest, *environment.Environment]{
+	Definition: newRepositoryTool(
+		"environment_create",
+		`Creates a new development environment.
+	The environment is the result of a the setups commands on top of the base image.
+	Read carefully the instructions to understand the environment.
+	DO NOT manually install toolchains inside the environment, instead explicitly call environment_update`,
 		mcp.WithString("title",
 			mcp.Description("Short description of the work that is happening in this environment. Keep this title updated using `environment_update`."),
 			mcp.Required(),
 		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
 	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, err := openRepository(ctx, request)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
-		}
-		title, err := request.RequireString("title")
+	ParseRequest: func(request mcp.CallToolRequest) (*EnvironmentCreateToolRequest, error) {
+		base, err := parseBaseRepositoryRequest(request)
 		if err != nil {
 			return nil, err
 		}
-
-		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
-		if !ok {
-			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+		return &EnvironmentCreateToolRequest{
+			BaseRepositoryRequest: base,
+			Title:                 request.GetString("title", ""),
+		}, nil
+	},
+	ActualHandler: func(ctx context.Context, request *EnvironmentCreateToolRequest) (*ToolResponse[*environment.Environment], error) {
+		repo, err := openRepositoryFromRequest(ctx, request.BaseRepositoryRequest)
+		if err != nil {
+			return nil, fmt.Errorf("unable to open the repository: %w", err)
 		}
 
-		env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
+		env, err := repo.Create(ctx, dagFromContext(ctx), request.Title, request.Explanation)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
+			return nil, fmt.Errorf("failed to create environment: %w", err)
 		}
 
-		out, err := marshalEnvironment(env)
-		if err != nil {
-			return nil, err
+		resp := &ToolResponse[*environment.Environment]{
+			Data: env,
 		}
 
 		dirty, status, err := repo.IsDirty(ctx)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to check if environment is dirty", err), nil
+			return nil, fmt.Errorf("unable to check if environment is dirty: %w", err)
 		}
 
-		if !dirty {
-			return mcp.NewToolResultText(out), nil
-		}
-
-		return mcp.NewToolResultText(fmt.Sprintf(`%s
-
+		if dirty {
+			resp.Message = fmt.Sprintf(`
 CRITICAL: You MUST inform the user that the repository %s has uncommitted changes that are NOT included in this environment. The environment was created from the last committed state only.
 
 Uncommitted changes detected:
 %s
 
-You MUST tell the user: To include these changes in the environment, they need to commit them first using git commands outside the environment.`, out, request.GetString("environment_source", ""), status)), nil
+You MUST tell the user: To include these changes in the environment, they need to commit them first using git commands outside the environment.`,
+				request.EnvironmentSource, status)
+		}
+		return resp, nil
 	},
 }
 
-var EnvironmentUpdateTool = &Tool{
+var EnvironmentUpdateTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_update",
 		mcp.WithDescription("Updates an environment with new instructions and toolchains."+
 			"If the environment is missing any tools or instructions, you MUST call this function to update the environment."+
@@ -392,7 +416,7 @@ Supported schemas are:
 	},
 }
 
-var EnvironmentListTool = &Tool{
+var EnvironmentListTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_list",
 		mcp.WithDescription("List available environments"),
 		mcp.WithString("explanation",
@@ -427,7 +451,7 @@ var EnvironmentListTool = &Tool{
 	},
 }
 
-var EnvironmentRunCmdTool = &Tool{
+var EnvironmentRunCmdTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_run_cmd",
 		mcp.WithDescription("Run a terminal command inside a NEW container within the environment."),
 		mcp.WithString("explanation",
@@ -522,7 +546,7 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 	},
 }
 
-var EnvironmentFileReadTool = &Tool{
+var EnvironmentFileReadTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_file_read",
 		mcp.WithDescription("Read the contents of a file, specifying a line range or the entire file."),
 		mcp.WithString("explanation",
@@ -573,29 +597,25 @@ var EnvironmentFileReadTool = &Tool{
 	},
 }
 
-var EnvironmentFileListTool = &Tool{
-	Definition: mcp.NewTool("environment_file_list",
-		mcp.WithDescription("List the contents of a directory"),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this directory is being listed."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+type EnvironmentFileListToolRequest struct {
+	BaseEnvironmentRequest
+
+	Path string `json:"path"`
+}
+
+var EnvironmentFileListTool = &Tool[EnvironmentFileListToolRequest, string]{
+	Definition: newEnvironmentTool(
+		"environment_file_list",
+		"List the contents of a directory",
 		mcp.WithString("path",
 			mcp.Description("Path of the directory to list contents of, absolute or relative to the workdir"),
 			mcp.Required(),
 		),
 	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		_, env, err := openEnvironment(ctx, request)
+	ParseRequest: func(request mcp.CallToolRequest) (*EnvironmentFileListToolRequest, error) {
+		base, err := parseBaseEnvironmentRequest(request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		path, err := request.RequireString("path")
@@ -603,16 +623,29 @@ var EnvironmentFileListTool = &Tool{
 			return nil, err
 		}
 
-		out, err := env.FileList(ctx, path)
+		return &EnvironmentFileListToolRequest{
+			BaseEnvironmentRequest: base,
+			Path:                   path,
+		}, nil
+	},
+	ActualHandler: func(ctx context.Context, request *EnvironmentFileListToolRequest) (*ToolResponse[string], error) {
+		_, env, err := openEnvironmentFromRequest(ctx, request.BaseEnvironmentRequest)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to list directory", err), nil
+			return nil, fmt.Errorf("unable to open the environment: %w", err)
 		}
 
-		return mcp.NewToolResultText(out), nil
+		out, err := env.FileList(ctx, request.Path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list directory: %w", err)
+		}
+
+		return &ToolResponse[string]{
+			Data: out,
+		}, nil
 	},
 }
 
-var EnvironmentFileWriteTool = &Tool{
+var EnvironmentFileWriteTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_file_write",
 		mcp.WithDescription("Write the contents of a file."),
 		mcp.WithString("explanation",
@@ -662,7 +695,7 @@ var EnvironmentFileWriteTool = &Tool{
 	},
 }
 
-var EnvironmentFileDeleteTool = &Tool{
+var EnvironmentFileDeleteTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_file_delete",
 		mcp.WithDescription("Deletes a file at the specified path."),
 		mcp.WithString("explanation",
@@ -704,7 +737,7 @@ var EnvironmentFileDeleteTool = &Tool{
 	},
 }
 
-var EnvironmentCheckpointTool = &Tool{
+var EnvironmentCheckpointTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_checkpoint",
 		mcp.WithDescription("Checkpoints an environment in its current state as a container."),
 		mcp.WithString("explanation",
@@ -737,7 +770,7 @@ var EnvironmentCheckpointTool = &Tool{
 	},
 }
 
-var EnvironmentAddServiceTool = &Tool{
+var EnvironmentAddServiceTool = &Tool[Request, Response]{
 	Definition: mcp.NewTool("environment_add_service",
 		mcp.WithDescription("Add a service to the environment (e.g. database, cache, etc.)"),
 		mcp.WithString("explanation",
