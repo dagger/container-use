@@ -416,55 +416,54 @@ Supported schemas are:
 	},
 }
 
-var EnvironmentListTool = &Tool[Request, Response]{
-	Definition: mcp.NewTool("environment_list",
-		mcp.WithDescription("List available environments"),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being listed."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("The source directory of the environment."), //  This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
-			mcp.Required(),
-		),
+var EnvironmentListTool = &Tool[BaseRepositoryRequest, []*EnvironmentResponse]{
+	Definition: newRepositoryTool(
+		"environment_list",
+		"List available environments",
 	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, err := openRepository(ctx, request)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
-		}
-		envInfos, err := repo.List(ctx)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("invalid source", err), nil
-		}
-
-		// Convert EnvironmentInfo slice to EnvironmentResponse slice
-		responses := make([]EnvironmentResponse, len(envInfos))
-		for i, envInfo := range envInfos {
-			responses[i] = *environmentResponseFromEnvInfo(envInfo)
-		}
-
-		out, err := json.Marshal(responses)
+	ParseRequest: func(request mcp.CallToolRequest) (*BaseRepositoryRequest, error) {
+		base, err := parseBaseRepositoryRequest(request)
 		if err != nil {
 			return nil, err
 		}
-		return mcp.NewToolResultText(string(out)), nil
+		return &base, nil
+	},
+	ActualHandler: func(ctx context.Context, request *BaseRepositoryRequest) (*ToolResponse[[]*EnvironmentResponse], error) {
+		repo, err := openRepositoryFromRequest(ctx, *request)
+		if err != nil {
+			return nil, err
+		}
+		envInfos, err := repo.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert EnvironmentInfo slice to EnvironmentResponse slice
+		resp := &ToolResponse[[]*EnvironmentResponse]{
+			Data: make([]*EnvironmentResponse, len(envInfos)),
+		}
+		for i, envInfo := range envInfos {
+			resp.Data[i] = environmentResponseFromEnvInfo(envInfo)
+		}
+
+		return resp, nil
 	},
 }
 
-var EnvironmentRunCmdTool = &Tool[Request, Response]{
-	Definition: mcp.NewTool("environment_run_cmd",
-		mcp.WithDescription("Run a terminal command inside a NEW container within the environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this command is being run."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+type EnvironmentRunCmdToolRequest struct {
+	BaseEnvironmentRequest
+
+	Command       string `json:"command"`
+	Shell         string `json:"shell"`
+	Background    bool   `json:"background"`
+	UseEntrypoint bool   `json:"use_entrypoint"`
+	Ports         []int  `json:"ports"`
+}
+
+var EnvironmentRunCmdTool = &Tool[EnvironmentRunCmdToolRequest, environment.EndpointMappings]{
+	Definition: newEnvironmentTool(
+		"environment_run_cmd",
+		"Run a terminal command inside a NEW container within the environment.",
 		mcp.WithString("command",
 			mcp.Description("The terminal command to execute. If empty, the environment's default command is used."),
 		),
@@ -485,64 +484,77 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 			mcp.Items(map[string]any{"type": "number"}),
 		),
 	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, env, err := openEnvironment(ctx, request)
+	ParseRequest: func(request mcp.CallToolRequest) (*EnvironmentRunCmdToolRequest, error) {
+		base, err := parseBaseEnvironmentRequest(request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
-		command := request.GetString("command", "")
-		shell := request.GetString("shell", "sh")
-
-		updateRepo := func() (*mcp.CallToolResult, error) {
-			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
-			}
-			return nil, nil
+		req := &EnvironmentRunCmdToolRequest{
+			BaseEnvironmentRequest: base,
+			Command:                request.GetString("command", ""),
+			Shell:                  request.GetString("shell", "sh"),
+			Background:             request.GetBool("background", false),
+			UseEntrypoint:          request.GetBool("use_entrypoint", false),
 		}
 
-		background := request.GetBool("background", false)
-		if background {
-			ports := []int{}
-			if portList, ok := request.GetArguments()["ports"].([]any); ok {
-				for _, port := range portList {
-					ports = append(ports, int(port.(float64)))
-				}
+		if portList, ok := request.GetArguments()["ports"].([]any); ok {
+			for _, port := range portList {
+				req.Ports = append(req.Ports, int(port.(float64)))
 			}
-			endpoints, runErr := env.RunBackground(ctx, command, shell, ports, request.GetBool("use_entrypoint", false))
+		}
+
+		return req, nil
+	},
+	ActualHandler: func(ctx context.Context, request *EnvironmentRunCmdToolRequest) (*ToolResponse[environment.EndpointMappings], error) {
+		repo, env, err := openEnvironmentFromRequest(ctx, request.BaseEnvironmentRequest)
+		if err != nil {
+			return nil, fmt.Errorf("unable to open the environment: %w", err)
+		}
+
+		updateRepo := func() error {
+			if err := repo.Update(ctx, env, request.Explanation); err != nil {
+				return fmt.Errorf("failed to update repository: %w", err)
+			}
+			return nil
+		}
+
+		if request.Background {
+			endpoints, runErr := env.RunBackground(ctx, request.Command, request.Shell, request.Ports, request.UseEntrypoint)
 			// We want to update the repository even if the command failed.
-			if resp, err := updateRepo(); err != nil {
-				return resp, nil
-			}
-			if runErr != nil {
-				return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
-			}
-
-			out, err := json.Marshal(endpoints)
-			if err != nil {
+			if err := updateRepo(); err != nil {
 				return nil, err
 			}
+			if runErr != nil {
+				return nil, fmt.Errorf("failed to run command: %w", runErr)
+			}
 
-			return mcp.NewToolResultText(fmt.Sprintf(`Command started in the background in NEW container. Endpoints are %s
+			return &ToolResponse[environment.EndpointMappings]{
+				Data: endpoints,
+				Message: fmt.Sprintf(`Command started in the background in NEW container.
 
 To access from the user's machine: use host_external. To access from other commands in this environment: use environment_internal.
 
 Any changes to the container workdir (%s) WILL NOT be committed to container-use/%s
 
 Background commands are unaffected by filesystem and any other kind of changes. You need to start a new command for changes to take effect.`,
-				string(out), env.Config.Workdir, env.ID)), nil
+					env.Config.Workdir, env.ID),
+			}, nil
 		}
 
-		stdout, runErr := env.Run(ctx, command, shell, request.GetBool("use_entrypoint", false))
+		stdout, runErr := env.Run(ctx, request.Command, request.Shell, request.UseEntrypoint)
 		// We want to update the repository even if the command failed.
-		if resp, err := updateRepo(); err != nil {
-			return resp, nil
+		if err := updateRepo(); err != nil {
+			return nil, err
 		}
 		if runErr != nil {
-			return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
+			return nil, fmt.Errorf("failed to run command: %w", runErr)
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir)), nil
+		return &ToolResponse[environment.EndpointMappings]{
+			Message: fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir),
+		}, nil
+
 	},
 }
 
