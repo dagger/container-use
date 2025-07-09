@@ -42,15 +42,9 @@ func (c *ConfigureClaude) description() string {
 }
 
 func (c *ConfigureClaude) editMcpConfig() error {
-	// Get the path to cu command
-	cuPath, err := exec.LookPath(ContainerUseBinary)
-	if err != nil {
-		return fmt.Errorf("cu command not found in PATH: %w", err)
-	}
-
 	// Add MCP server
-	cmd := exec.Command("claude", "mcp", "add", "container-use", "--", cuPath, "stdio")
-	err = cmd.Run()
+	cmd := exec.Command("claude", "mcp", "add", "container-use", "--", ContainerUseBinary, "stdio")
+	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("could not automatically add MCP server: %w", err)
 	}
@@ -68,6 +62,19 @@ func (c *ConfigureClaude) editMcpConfig() error {
 		}
 	}
 
+	data, err := c.updateSettingsLocal(config)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(configPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	return nil
+}
+
+func (c *ConfigureClaude) updateSettingsLocal(config ClaudeSettingsLocal) ([]byte, error) {
 	// Initialize permissions map if nil
 	if config.Permissions == nil {
 		config.Permissions = &ClaudePermissions{Allow: []string{}}
@@ -89,13 +96,9 @@ func (c *ConfigureClaude) editMcpConfig() error {
 	// Write config back
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
-
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
-	}
-	return nil
+	return data, nil
 }
 
 func (c *ConfigureClaude) editRules() error {

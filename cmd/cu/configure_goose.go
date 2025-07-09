@@ -23,16 +23,6 @@ func NewConfigureGoose() *ConfigureGoose {
 	}
 }
 
-// Configuration structures for different agents
-type GooseExtension struct {
-	Name    string            `yaml:"name"`
-	Type    string            `yaml:"type"`
-	Enabled bool              `yaml:"enabled"`
-	Cmd     string            `yaml:"cmd"`
-	Args    []string          `yaml:"args"`
-	Envs    map[string]string `yaml:"envs"`
-}
-
 // Return the agents full name
 func (a *ConfigureGoose) name() string {
 	return a.Name
@@ -65,6 +55,18 @@ func (a *ConfigureGoose) editMcpConfig() error {
 		config = make(map[string]any)
 	}
 
+	data, err := a.updateGooseConfig(config)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	return nil
+}
+
+func (a *ConfigureGoose) updateGooseConfig(config map[string]any) ([]byte, error) {
 	// Get extensions map
 	var extensions map[string]any
 	if ext, ok := config["extensions"]; ok {
@@ -74,17 +76,12 @@ func (a *ConfigureGoose) editMcpConfig() error {
 		config["extensions"] = extensions
 	}
 
-	cuPath, err := exec.LookPath(ContainerUseBinary)
-	if err != nil {
-		return fmt.Errorf("cu command not found in PATH: %w", err)
-	}
-
 	// Add container-use extension
 	extensions["container-use"] = map[string]any{
 		"name":    "container-use",
 		"type":    "stdio",
 		"enabled": true,
-		"cmd":     cuPath,
+		"cmd":     ContainerUseBinary,
 		"args":    []any{"stdio"},
 		"envs":    map[string]any{},
 	}
@@ -92,13 +89,9 @@ func (a *ConfigureGoose) editMcpConfig() error {
 	// Write config back
 	data, err := yaml.Marshal(&config)
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
-
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
-	}
-	return nil
+	return data, nil
 }
 
 // Save the agent rules with the container-use prompt

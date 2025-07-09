@@ -23,17 +23,6 @@ func NewConfigureCodex() *ConfigureCodex {
 	}
 }
 
-// TOML structures for Codex configuration
-type CodexConfig struct {
-	MCPServers map[string]CodexMCPServer `toml:"mcp_servers"`
-}
-
-type CodexMCPServer struct {
-	Command string            `toml:"command"`
-	Args    []string          `toml:"args"`
-	Env     map[string]string `toml:"env"`
-}
-
 // Return the agents full name
 func (a *ConfigureCodex) name() string {
 	return a.Name
@@ -66,6 +55,19 @@ func (a *ConfigureCodex) editMcpConfig() error {
 		config = make(map[string]any)
 	}
 
+	data, err := a.updateCodexConfig(config)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(configPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	return nil
+}
+
+func (a *ConfigureCodex) updateCodexConfig(config map[string]any) ([]byte, error) {
 	// Get mcp_servers map
 	var mcpServers map[string]any
 	if servers, ok := config["mcp_servers"]; ok {
@@ -75,14 +77,9 @@ func (a *ConfigureCodex) editMcpConfig() error {
 		config["mcp_servers"] = mcpServers
 	}
 
-	cuPath, err := exec.LookPath(ContainerUseBinary)
-	if err != nil {
-		return fmt.Errorf("cu command not found in PATH: %w", err)
-	}
-
 	// Add container-use server
 	mcpServers["container-use"] = map[string]any{
-		"command":      cuPath,
+		"command":      ContainerUseBinary,
 		"args":         []any{"stdio"},
 		"auto_approve": tools(""),
 	}
@@ -90,13 +87,9 @@ func (a *ConfigureCodex) editMcpConfig() error {
 	// Write config back
 	data, err := toml.Marshal(&config)
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
-
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
-	}
-	return nil
+	return data, nil
 }
 
 // Save the agent rules with the container-use prompt

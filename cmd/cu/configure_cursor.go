@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/dagger/container-use/rules"
@@ -49,32 +48,36 @@ func (a *ConfigureCursor) editMcpConfig() error {
 		}
 	}
 
+	data, err := a.updateMcpConfig(config)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(configPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	return nil
+}
+
+func (a *ConfigureCursor) updateMcpConfig(config MCPServersConfig) ([]byte, error) {
 	// Initialize mcpServers map if nil
 	if config.MCPServers == nil {
 		config.MCPServers = make(map[string]MCPServer)
 	}
 
-	cuPath, err := exec.LookPath(ContainerUseBinary)
-	if err != nil {
-		return fmt.Errorf("cu command not found in PATH: %w", err)
-	}
-
 	// Add container-use server
 	config.MCPServers["container-use"] = MCPServer{
-		Command: cuPath,
+		Command: ContainerUseBinary,
 		Args:    []string{"stdio"},
 	}
 
 	// Write config back
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
-
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
-	}
-	return nil
+	return data, nil
 }
 
 // Save the agent rules with the container-use prompt

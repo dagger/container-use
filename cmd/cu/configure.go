@@ -119,33 +119,42 @@ func saveRulesFile(rulesFile, content string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read existing rules: %w", err)
 	}
-
-	// Look for section markers
-	const marker = "<!-- container-use-rules -->"
 	existingStr := string(existing)
 
-	if strings.Contains(existingStr, marker) {
+	editedRules, err := editRulesFile(existingStr, content)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(rulesFile, []byte(editedRules), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to update rules: %w", err)
+	}
+
+	return nil
+}
+
+func editRulesFile(existingRules, content string) (string, error) {
+	// Look for section markers
+	const marker = "<!-- container-use-rules -->"
+
+	if strings.Contains(existingRules, marker) {
 		// Update existing section
-		parts := strings.Split(existingStr, marker)
+		parts := strings.Split(existingRules, marker)
 		if len(parts) != 3 {
-			return fmt.Errorf("malformed rules file - expected single section marked with %s", marker)
+			return "", fmt.Errorf("malformed rules file - expected single section marked with %s", marker)
 		}
 		newContent := parts[0] + marker + "\n" + content + "\n" + marker + parts[2]
-		if err := os.WriteFile(rulesFile, []byte(newContent), 0644); err != nil {
-			return fmt.Errorf("failed to update rules: %w", err)
-		}
+		return newContent, nil
 	} else {
 		// Append new section
-		newContent := string(existing)
+		newContent := existingRules
 		if len(newContent) > 0 && !strings.HasSuffix(newContent, "\n") {
 			newContent += "\n"
 		}
 		newContent += "\n" + marker + "\n" + content + "\n" + marker + "\n"
-		if err := os.WriteFile(rulesFile, []byte(newContent), 0644); err != nil {
-			return fmt.Errorf("failed to append rules: %w", err)
-		}
+		return newContent, nil
 	}
-	return nil
 }
 
 func tools(prefix string) []string {
