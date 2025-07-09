@@ -39,6 +39,7 @@ var stdioCmd = &cobra.Command{
 
 func warmCache(ctx context.Context, dag *dagger.Client) {
 	environment.EditUtil(dag).Sync(ctx)
+	environment.GrepUtil(dag).Sync(ctx)
 }
 
 func init() {

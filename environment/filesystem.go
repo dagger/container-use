@@ -10,9 +10,6 @@ import (
 	"github.com/dagger/container-use/edit"
 )
 
-// FIXME: See hack where it's used
-const fileUtilsBaseImage = "busybox"
-
 func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexed int, endLineOneIndexedInclusive int) (string, error) {
 	file, err := env.container().File(targetFile).Contents(ctx)
 	if err != nil {
@@ -80,10 +77,10 @@ func (env *Environment) ls(ctx context.Context, path string, filter dagger.Direc
 
 func (env *Environment) FileGrep(ctx context.Context, path, pattern, include string) (string, error) {
 	// Hack: use busybox to run `sed` since dagger doesn't have native file editing primitives.
-	args := []string{"/bin/grep", "-E", "--", pattern, include}
+	args := []string{"/usr/bin/rg", "--no-unicode", "-g", include, "--", pattern, path}
 
-	dir := env.container().Rootfs().Directory(path)
-	out, err := dag.Container().From(fileUtilsBaseImage).WithMountedDirectory("/mnt", dir).WithWorkdir("/mnt").WithExec(args).Stdout(ctx)
+	dir := env.container().Directory(path)
+	out, err := GrepUtil(env.dag).WithMountedDirectory("/mnt", dir).WithWorkdir("/mnt").WithExec(args).Stdout(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -104,6 +101,10 @@ func EditUtil(dag *dagger.Client) *dagger.Container {
 		WithEnvVariable("CGO_ENABLED", "0").
 		WithExec([]string{"go", "build", "-o", "/edit", "-ldflags", "-w -s", "/go/src/edit.go"}).File("/edit")
 	return dag.Container().From("scratch").WithFile("/edit", editBin).WithEntrypoint([]string{"/edit"})
+}
+
+func GrepUtil(dag *dagger.Client) *dagger.Container {
+	return dag.Container().From(alpineImage).WithExec([]string{"apk", "add", "-U", "ripgrep"})
 }
 
 func (env *Environment) FileEdit(ctx context.Context, targetFile string, edits []FileEdit) error {
