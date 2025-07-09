@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/dagger/container-use/cmd/container-use/agent"
 	"github.com/spf13/cobra"
 )
 
@@ -11,5 +12,7 @@ var configCmd = &cobra.Command{
 }
 
 func init() {
+	configCmd.AddCommand(agent.AgentCmd)
+
 	rootCmd.AddCommand(configCmd)
 }

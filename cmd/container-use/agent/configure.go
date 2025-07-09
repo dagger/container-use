@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ type MCPServer struct {
 
 const ContainerUseBinary = "container-use"
 
-var configureCmd = &cobra.Command{
+var AgentCmd = &cobra.Command{
 	Use:   "agent [agent]",
 	Short: "Configure MCP server for different agents",
 	Long:  `Setup the container-use MCP server according to the specified agent including Claude Code, Goose, Cursor, and others.`,
@@ -163,8 +163,4 @@ func tools(prefix string) []string {
 		tools = append(tools, fmt.Sprintf("%s%s", prefix, t.Definition.Name))
 	}
 	return tools
-}
-
-func init() {
-	configCmd.AddCommand(configureCmd)
 }
