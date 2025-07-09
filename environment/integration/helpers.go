@@ -10,7 +10,6 @@ import (
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
-	"github.com/dagger/container-use/mcpserver"
 	"github.com/dagger/container-use/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,10 +35,6 @@ func init() {
 }
 
 // WithRepository runs a test function with an isolated repository and UserActions
-//
-// WARNING: Tests using WithRepository MUST NOT call t.Parallel() because
-// SetTestConfigPath modifies a global variable. Parallel tests will race
-// and cause unpredictable failures.
 func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t *testing.T, repo *repository.Repository, user *UserActions)) {
 	// Initialize Dagger (needed for environment operations)
 	initializeDaggerOnce(t)
@@ -52,10 +47,6 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 
 	configDir, err := os.MkdirTemp("", "cu-test-config-"+name+"-*")
 	require.NoError(t, err, "Failed to create config dir")
-
-	// Override the global config path for this test
-	cleanup := repository.SetTestConfigPath(configDir)
-	t.Cleanup(cleanup)
 
 	// Initialize git repo
 	cmds := [][]string{
@@ -75,19 +66,19 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 		setup(t, repoDir)
 	}
 
-	// Open repository - it will use the isolated base path from context
-	repo, err := repository.Open(ctx, repoDir)
+	// Open repository with isolated base path
+	repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
 	require.NoError(t, err, "Failed to open repository")
 
 	// Create UserActions with extended capabilities
-	user := NewUserActions(ctx, t, repo, testDaggerClient).WithDirectAccess(repoDir, configDir)
+	user := NewUserActions(t, repo, testDaggerClient).WithDirectAccess(repoDir, configDir)
 
 	// Cleanup
 	t.Cleanup(func() {
 		// Clean up any environments created during the test
-		envs, _ := repo.List(ctx)
+		envs, _ := repo.List(context.Background())
 		for _, env := range envs {
-			repo.Delete(ctx, env.ID)
+			repo.Delete(context.Background(), env.ID)
 		}
 
 		// Remove directories
@@ -193,10 +184,10 @@ type UserActions struct {
 	configDir string // Container-use config directory
 }
 
-func NewUserActions(ctx context.Context, t *testing.T, repo *repository.Repository, dag *dagger.Client) *UserActions {
+func NewUserActions(t *testing.T, repo *repository.Repository, dag *dagger.Client) *UserActions {
 	return &UserActions{
 		t:    t,
-		ctx:  ctx,
+		ctx:  context.Background(),
 		repo: repo,
 		dag:  dag,
 	}
@@ -211,45 +202,71 @@ func (u *UserActions) WithDirectAccess(repoDir, configDir string) *UserActions {
 
 // FileWrite mirrors environment_file_write MCP tool behavior
 func (u *UserActions) FileWrite(envID, targetFile, contents, explanation string) {
-	err := mcpserver.WriteEnvironmentFile(u.ctx, u.dag, u.repoDir, envID, targetFile, contents, explanation)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
+	require.NoError(u.t, err, "Failed to get environment %s", envID)
+
+	err = env.FileWrite(u.ctx, explanation, targetFile, contents)
 	require.NoError(u.t, err, "FileWrite should succeed")
+
+	err = u.repo.Update(u.ctx, env, explanation)
+	require.NoError(u.t, err, "repo.Update after FileWrite should succeed")
 }
 
 // RunCommand mirrors environment_run_cmd MCP tool behavior
 func (u *UserActions) RunCommand(envID, command, explanation string) string {
-	result, err := mcpserver.RunEnvironmentCommand(u.ctx, u.dag, u.repoDir, envID, command, "/bin/sh", explanation, false, false, nil)
-	require.NoError(u.t, err, "Run command should succeed")
-	require.NotNil(u.t, result, "Run command should return a result")
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
+	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
-	// For non-background commands, result is a string
-	output, ok := result.(string)
-	require.True(u.t, ok, "Run command should return string output")
+	output, err := env.Run(u.ctx, command, "/bin/sh", false)
+	require.NoError(u.t, err, "Run command should succeed")
+
+	err = u.repo.Update(u.ctx, env, explanation)
+	require.NoError(u.t, err, "repo.Update after Run should succeed")
+
 	return output
 }
 
 // CreateEnvironment mirrors environment_create MCP tool behavior
 func (u *UserActions) CreateEnvironment(title, explanation string) *environment.Environment {
-	_, env, err := mcpserver.CreateEnvironment(u.ctx, u.dag, u.repoDir, title, explanation)
+	env, err := u.repo.Create(u.ctx, u.dag, title, explanation)
 	require.NoError(u.t, err, "Create environment should succeed")
-	require.NotNil(u.t, env, "Create environment should return an environment")
 	return env
 }
 
 // UpdateEnvironment mirrors environment_update MCP tool behavior
 func (u *UserActions) UpdateEnvironment(envID, title, explanation string, config *environment.EnvironmentConfig) {
-	_, err := mcpserver.UpdateEnvironment(u.ctx, u.dag, u.repoDir, envID, title, config.Instructions, config.BaseImage, explanation, config.SetupCommands, config.Env, config.Secrets)
-	require.NoError(u.t, err, "UpdateEnvironment should succeed")
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
+	require.NoError(u.t, err, "Failed to get environment %s", envID)
+
+	if title != "" {
+		env.State.Title = title
+	}
+
+	err = env.UpdateConfig(u.ctx, explanation, config)
+	require.NoError(u.t, err, "UpdateConfig should succeed")
+
+	err = u.repo.Update(u.ctx, env, explanation)
+	require.NoError(u.t, err, "repo.Update after UpdateConfig should succeed")
 }
 
 // FileDelete mirrors environment_file_delete MCP tool behavior
 func (u *UserActions) FileDelete(envID, targetFile, explanation string) {
-	err := mcpserver.DeleteEnvironmentFile(u.ctx, u.dag, u.repoDir, envID, targetFile, explanation)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
+	require.NoError(u.t, err, "Failed to get environment %s", envID)
+
+	err = env.FileDelete(u.ctx, explanation, targetFile)
 	require.NoError(u.t, err, "FileDelete should succeed")
+
+	err = u.repo.Update(u.ctx, env, explanation)
+	require.NoError(u.t, err, "repo.Update after FileDelete should succeed")
 }
 
 // FileRead mirrors environment_file_read MCP tool behavior (read-only, no update)
 func (u *UserActions) FileRead(envID, targetFile string) string {
-	content, err := mcpserver.ReadEnvironmentFile(u.ctx, u.dag, u.repoDir, envID, targetFile, true, 0, 0)
+	env, err := u.repo.Get(u.ctx, u.dag, envID)
+	require.NoError(u.t, err, "Failed to get environment %s", envID)
+
+	content, err := env.FileRead(u.ctx, targetFile, true, 0, 0)
 	require.NoError(u.t, err, "FileRead should succeed")
 	return content
 }
@@ -263,35 +280,12 @@ func (u *UserActions) FileReadExpectError(envID, targetFile string) {
 	assert.Error(u.t, err, "FileRead should fail for %s", targetFile)
 }
 
-// FileList mirrors environment_file_list MCP tool behavior
-func (u *UserActions) FileList(envID, path string) string {
-	content, err := mcpserver.ListEnvironmentFiles(u.ctx, u.dag, u.repoDir, envID, path)
-	require.NoError(u.t, err, "FileList should succeed")
-	return content
-}
-
 // GetEnvironment retrieves an environment by ID - mirrors how MCP tools work
 // Each MCP tool call starts fresh by getting the environment from the repository
 func (u *UserActions) GetEnvironment(envID string) *environment.Environment {
 	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Should be able to get environment %s", envID)
 	return env
-}
-
-// OpenEnvironment mirrors environment_open MCP tool behavior
-func (u *UserActions) OpenEnvironment(envID string) *environment.Environment {
-	env, err := mcpserver.GetEnvironmentFromSource(u.ctx, u.dag, u.repoDir, envID)
-	require.NoError(u.t, err, "OpenEnvironment should succeed")
-	require.NotNil(u.t, env, "OpenEnvironment should return an environment")
-	return env
-}
-
-// AddService mirrors environment_add_service MCP tool behavior
-func (u *UserActions) AddService(envID, name, image, command, explanation string, ports []int, envs []string, secrets []string) *environment.Service {
-	service, err := mcpserver.AddEnvironmentService(u.ctx, u.dag, u.repoDir, envID, name, image, command, explanation, ports, envs, secrets)
-	require.NoError(u.t, err, "AddService should succeed")
-	require.NotNil(u.t, service, "AddService should return a service")
-	return service
 }
 
 // --- Direct manipulation methods for edge case testing ---

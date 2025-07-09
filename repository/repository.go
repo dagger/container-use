@@ -26,29 +26,6 @@ const (
 	gitNotesStateRef   = "container-use-state"
 )
 
-// globalConfigPath is a function variable that returns the container-use configuration directory.
-// In production, it returns the default path. Tests can replace this function to return
-// an isolated test directory instead.
-var globalConfigPath = func(ctx context.Context) string {
-	return cuGlobalConfigPath
-}
-
-// SetTestConfigPath temporarily replaces globalConfigPath with a function that returns the given path.
-// It returns a cleanup function that restores the original behavior.
-//
-// Note: This pattern doesn't support parallel tests. Tests using SetTestConfigPath
-// must not call t.Parallel().
-//
-// Usage in tests:
-//
-//	cleanup := repository.SetTestConfigPath("/tmp/test-config")
-//	defer cleanup()
-func SetTestConfigPath(path string) func() {
-	original := globalConfigPath
-	globalConfigPath = func(context.Context) string { return path }
-	return func() { globalConfigPath = original }
-}
-
 type Repository struct {
 	userRepoPath string
 	forkRepoPath string
@@ -66,7 +43,7 @@ func (r *Repository) getWorktreePath() string {
 }
 
 func Open(ctx context.Context, repo string) (*Repository, error) {
-	return OpenWithBasePath(ctx, repo, globalConfigPath(ctx))
+	return OpenWithBasePath(ctx, repo, cuGlobalConfigPath)
 }
 
 // OpenWithBasePath opens a repository with a custom base path for container-use data.

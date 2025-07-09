@@ -15,6 +15,7 @@ import (
 
 // TestRepositoryMerge tests merging an environment into the main branch
 func TestRepositoryMerge(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-merge", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -62,6 +63,7 @@ func TestRepositoryMerge(t *testing.T) {
 
 // TestRepositoryMergeNonExistent tests merging a non-existent environment
 func TestRepositoryMergeNonExistent(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-merge-nonexistent", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -75,6 +77,7 @@ func TestRepositoryMergeNonExistent(t *testing.T) {
 
 // TestRepositoryMergeWithConflicts tests merge behavior when there are conflicts
 func TestRepositoryMergeWithConflicts(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-merge-conflicts", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -105,6 +108,7 @@ func TestRepositoryMergeWithConflicts(t *testing.T) {
 // TestRepositoryMergeCompleted tests merging the same environment multiple times
 // This should result in fast-forward merges since the main branch doesn't diverge
 func TestRepositoryMergeCompleted(t *testing.T) {
+	t.Parallel()
 	WithRepository(t, "repository-merge-completed", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
