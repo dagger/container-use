@@ -65,7 +65,15 @@ auto_approve = ['environment_open', 'environment_create', 'environment_update', 
 func TestConfigureGooseUpdateConfig(t *testing.T) {
 	goose := &ConfigureGoose{}
 	config := make(map[string]any)
-	contains := "container-use"
+	contains := `extensions:
+    container-use:
+        args:
+            - stdio
+        cmd: container-use
+        enabled: true
+        envs: {}
+        name: container-use
+        type: stdio`
 	editedConfig, err := goose.updateGooseConfig(config)
 	assert.NoError(t, err)
 	assert.Contains(t, string(editedConfig), contains)
@@ -74,17 +82,36 @@ func TestConfigureGooseUpdateConfig(t *testing.T) {
 func TestConfigureQUpdateConfig(t *testing.T) {
 	q := &ConfigureQ{}
 	config := MCPServersConfig{}
-	contains := "container-use"
+	expect := `{
+  "mcpServers": {
+    "container-use": {
+      "command": "container-use",
+      "args": [
+        "stdio"
+      ],
+      "timeout": 60000
+    }
+  }
+}`
 	editedConfig, err := q.updateMcpConfig(config)
 	assert.NoError(t, err)
-	assert.Contains(t, string(editedConfig), contains)
+	assert.Equal(t, string(editedConfig), expect)
 }
 
 func TestConfigureCursorUpdateConfig(t *testing.T) {
 	q := &ConfigureCursor{}
 	config := MCPServersConfig{}
-	contains := "container-use"
+	expect := `{
+  "mcpServers": {
+    "container-use": {
+      "command": "container-use",
+      "args": [
+        "stdio"
+      ]
+    }
+  }
+}`
 	editedConfig, err := q.updateMcpConfig(config)
 	assert.NoError(t, err)
-	assert.Contains(t, string(editedConfig), contains)
+	assert.Equal(t, string(editedConfig), expect)
 }
