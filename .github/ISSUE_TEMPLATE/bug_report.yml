@@ -15,7 +15,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: Run `cu version` and paste the output
+      description: Run `container-use version` and paste the output
       render: shell
     validations:
       required: true
@@ -24,7 +24,7 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: Contents of `/tmp/cu.debug.stderr.log` (or `$CU_STDERR_FILE` if set)
+      description: Contents of `/tmp/container-use.debug.stderr.log` (or `$CONTAINER_USE_STDERR_FILE` if set)
       render: text
     validations:
       required: false

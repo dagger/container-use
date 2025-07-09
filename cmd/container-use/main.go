@@ -16,7 +16,7 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "cu",
+		Use:   "container-use",
 		Short: "Containerized environments for coding agents",
 		Long: `Container Use creates isolated development environments for AI agents.
 Each environment runs in its own container with dedicated git branches.`,

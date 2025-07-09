@@ -8,7 +8,16 @@ icon: robot
 
 Container Use works with any coding agent that supports the Model Context Protocol (MCP). This page provides comprehensive setup guides for all supported agents.
 
-<Note>All agents use the same MCP server command: `cu stdio`</Note>
+<Note>All agents use the same MCP server command: `container-use stdio`</Note>
+
+<details>
+<summary>💡 Command Shortcut</summary>
+
+The `container-use` command is also available as `cu` for convenience. Both commands work identically:
+- `container-use stdio` (used in documentation)
+- `cu stdio` (shortcut)
+
+</details>
 
 ## Claude Code
 
@@ -22,7 +31,7 @@ npm install -g @anthropic-ai/claude-code
 
 ```sh
 cd /path/to/repository
-claude mcp add container-use -- <full path to cu command> stdio
+claude mcp add container-use -- container-use stdio
 ```
 
 ### Add Agent Rules (Optional)
@@ -56,7 +65,7 @@ Add this configuration to `~/.aws/amazonq/mcp.json`:
 {
   "mcpServers": {
     "container-use": {
-      "command": "cu",
+      "command": "container-use",
       "args": ["stdio"],
       "env": {},
       "timeout": 60000
@@ -89,7 +98,7 @@ q chat --trust-tools=container_use___environment_checkpoint,container_use___envi
 
 Use the one-click deeplink to install (requires Cursor and Container Use already installed):
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY3Ugc3RkaW8ifQ%3D%3D)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY29udGFpbmVyLXVzZSBzdGRpbyJ9)
 
 ### Add Agent Rules
 
@@ -114,7 +123,7 @@ In `~/.codeium/windsurf/mcp_config.json`, add the following configuration:
 {
   "mcpServers": {
     "container-use": {
-      "command": "cu",
+      "command": "container-use",
       "args": ["stdio"],
       "env": {}
     }
@@ -141,7 +150,7 @@ Update your VSCode settings with:
   "servers": {
     "container-use": {
       "type": "stdio",
-      "command": "cu",
+      "command": "container-use",
       "args": ["stdio"]
     }
   }
@@ -173,14 +182,14 @@ First add the agent rules file, either as `.rules` in the root of your project o
 curl -o .rules https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
 ```
 
-Then configure the Container Use MCP server in the Zed `settings.json`. Provide the absolute path to the `cu` executable:
+Then configure the Container Use MCP server in the Zed `settings.json`:
 
 ```json
 "context_servers": {
   "container-use": {
     "source": "custom",
     "command": {
-      "path": "/opt/homebrew/bin/cu",
+      "path": "container-use",
       "args": ["stdio"],
       "env": {}
     }
@@ -243,7 +252,7 @@ Next open the Zed Agent Panel ✨ in the lower right, select the "Container Use"
 
 Configure the Container Use MCP server in a `opencode.json` file.
 
-> Note: Provide the absolute path to your systems `cu` executable:
+Configure the Container Use MCP server:
 
 ```json
 {
@@ -251,7 +260,7 @@ Configure the Container Use MCP server in a `opencode.json` file.
   "mcp": {
     "container-use": {
       "type": "local",
-      "command": ["/path/to/cu", "stdio"],
+      "command": ["container-use", "stdio"],
       "enabled": true
     }
   }
@@ -278,7 +287,7 @@ extensions:
     name: container-use
     type: stdio
     enabled: true
-    cmd: cu
+    cmd: container-use
     args:
       - stdio
     envs: {}
@@ -290,14 +299,14 @@ extensions:
 goose configure
 ```
 
-Then add a command line extension with `cu stdio` as the command.
+Then add a command line extension with `container-use stdio` as the command.
 
 ### Method 3: Goose Desktop
 
 Paste this URL into your browser:
 
 ```
-goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments
+goose://extension?cmd=container-use&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments
 ```
 
 <Info>
@@ -318,7 +327,7 @@ Add to your Cline MCP server configuration JSON:
       "disabled": false,
       "timeout": 60000,
       "type": "stdio",
-      "command": "cu",
+      "command": "container-use",
       "args": ["stdio"],
       "env": {},
       "autoApprove": []
@@ -348,7 +357,7 @@ curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent
 {
   "mcpServers": {
     "container-use": {
-      "command": "cu",
+      "command": "container-use",
       "args": ["stdio"]
     }
   }
@@ -370,7 +379,7 @@ Add at global or project level:
 {
   "mcpServers": {
     "container-use": {
-      "command": "replace with pathname of cu",
+      "command": "container-use",
       "args": ["stdio"],
       "env": {},
       "alwaysAllow": [],
@@ -394,7 +403,7 @@ Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.container-use]
-command = "cu"
+command = "container-use"
 args = ["stdio"]
 env = {}
 ```
@@ -413,7 +422,7 @@ In the Warp sidebar, under Personal → MCP Servers → New:
 ```json
 {
   "container-use": {
-    "command": "cu",
+    "command": "container-use",
     "args": ["stdio"],
     "env": {},
     "working_directory": null,
@@ -435,7 +444,7 @@ Add to `~/.gemini/settings.json` or `.gemini/settings.json`:
   "coreTools": [],
   "mcpServers": {
     "container-use": {
-      "command": "cu",
+      "command": "container-use",
       "args": ["stdio"],
       "timeout": 60000,
       "trust": true
@@ -461,7 +470,7 @@ After setting up your agent, verify Container Use is working:
 
 <AccordionGroup>
   <Accordion title="Agent doesn't recognize Container Use">
-    - Verify the `cu` command is in your PATH: `which cu`
+    - Verify the `container-use` command is in your PATH: `which container-use`
     - Check MCP configuration syntax
     - Restart your agent after configuration changes
   </Accordion>
@@ -470,7 +479,7 @@ After setting up your agent, verify Container Use is working:
 
 <Accordion title="Permission errors">
   - Ensure Docker is running and accessible - Check file permissions for
-  configuration files - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+  configuration files - Verify `container-use stdio` command works: `echo '{}' | container-use stdio`
 </Accordion>
 
   <Accordion title="Tools not appearing">

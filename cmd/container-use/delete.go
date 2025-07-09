@@ -27,13 +27,13 @@ Use --all to delete all environments at once.`,
 	},
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Delete a single environment
-cu delete fancy-mallard
+container-use delete fancy-mallard
 
 # Delete multiple environments at once
-cu delete env1 env2 env3
+container-use delete env1 env2 env3
 
 # Delete all environments
-cu delete --all`,
+container-use delete --all`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 		all, _ := cmd.Flags().GetBool("all")

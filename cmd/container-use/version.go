@@ -16,7 +16,7 @@ var (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-	Long:  `Print the version, commit hash, and build date of the cu binary.`,
+	Long:  `Print the version, commit hash, and build date of the container-use binary.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		currentVersion := version
 		currentCommit := commit
@@ -30,7 +30,7 @@ var versionCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Printf("cu version %s\n", currentVersion)
+		fmt.Printf("container-use version %s\n", currentVersion)
 		if currentCommit != "unknown" {
 			fmt.Printf("commit: %s\n", currentCommit)
 		}

@@ -22,6 +22,6 @@ jobs:
         with:
           version: "latest"
           verb: call
-          args: release --version "${GITHUB_REF#refs/tags/}" --github-token env:RELEASE_GITHUB_TOKEN
+          args: release --version "${GITHUB_REF#refs/tags/}" --github-token env:RELEASE_GITHUB_TOKEN --github-org-name=${{ github.repository_owner }}
         env:
           RELEASE_GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}

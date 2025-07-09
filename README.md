@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.s
 
 ### Setup with Your Agent
 
-Container Use works with any MCP-compatible agent. The setup is always the same: **add `cu stdio` as an MCP server**.
+Container Use works with any MCP-compatible agent. The setup is always the same: **add `container-use stdio` as an MCP server**.
 
 **👉 [Complete setup guide for all agents (Cursor, Goose, VSCode, etc.)](https://container-use.com/quickstart)**
 
@@ -56,11 +56,20 @@ Container Use works with any MCP-compatible agent. The setup is always the same:
 ```sh
 # Add Container Use MCP server
 cd /path/to/repository
-claude mcp add container-use -- cu stdio
+claude mcp add container-use -- container-use stdio
 
 # Add agent rules (optional)
 curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
 ```
+
+<details>
+<summary>💡 Command Shortcut</summary>
+
+The `container-use` command is also available as `cu` for convenience. Both commands work identically:
+- `container-use stdio` (used in documentation)
+- `cu stdio` (shortcut)
+
+</details>
 
 ### Try It
 

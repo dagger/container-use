@@ -43,13 +43,13 @@ Perfect for getting the gist and deciding next steps:
 
 ```bash
 # See all environments at a glance
-cu list
+container-use list
 
 # View exactly what the agent did
-cu log fancy-mallard
+container-use log fancy-mallard
 
 # See code changes without checking out
-cu diff fancy-mallard
+container-use diff fancy-mallard
 ```
 
 <Card title="When to use" icon="eye">
@@ -62,10 +62,10 @@ When you need hands-on understanding:
 
 ```bash
 # Drop into the live container environment
-cu terminal fancy-mallard
+container-use terminal fancy-mallard
 
 # Bring changes into your local workspace/IDE
-cu checkout fancy-mallard
+container-use checkout fancy-mallard
 ```
 
 <Card title="When to use" icon="magnifying-glass">
@@ -82,10 +82,10 @@ After observing the agent's work, you have three paths forward:
 
     ```bash
     # Merge the environment into your current branch
-    cu merge fancy-mallard
+    container-use merge fancy-mallard
     
     # Clean up (optional)
-    cu delete fancy-mallard
+    container-use delete fancy-mallard
     ```
 
     The work becomes part of your Git history and you can continue from this new state.
@@ -115,7 +115,7 @@ After observing the agent's work, you have three paths forward:
 
     ```bash
     # Discard the environment
-    cu delete fancy-mallard
+    container-use delete fancy-mallard
     
     # Start over with a new prompt
     # The agent will create a fresh environment from your current branch
@@ -154,18 +154,18 @@ The agent will:
 
 ```bash
 # 1. Agent creates environment and builds feature
-$ cu list
+$ container-use list
 ID            TITLE                    CREATED       UPDATED
 fancy-mallard Flask App with Login     2 mins ago    30 secs ago
 
 # 2. Quick check - looks good!
-$ cu diff fancy-mallard
+$ container-use diff fancy-mallard
 +def login():
 +    # Authentication logic
 +    pass
 
 # 3. Accept the work
-$ cu merge fancy-mallard
+$ container-use merge fancy-mallard
 Updating abc123..def456
 Fast-forward
  app.py | 15 +++++++++++++++
@@ -176,7 +176,7 @@ Fast-forward
 
 ```bash
 # 1. Check what agent built
-$ cu log fancy-mallard
+$ container-use log fancy-mallard
 def4567a2  Add basic login form (30 minutes ago)
 $ flask run
 
@@ -184,7 +184,7 @@ $ flask run
 # Prompt: "Work in fancy-mallard environment and add password validation"
 
 # 3. Check again after agent works
-$ cu diff fancy-mallard
+$ container-use diff fancy-mallard
 # Now shows both original work + new validation
 ```
 
@@ -192,11 +192,11 @@ $ cu diff fancy-mallard
 
 ```bash
 # 1. Agent's approach isn't working
-$ cu log problematic-env
+$ container-use log problematic-env
 # Shows agent went down wrong path with complex dependency issues
 
 # 2. Cut losses and start fresh  
-$ cu delete problematic-env
+$ container-use delete problematic-env
 
 # 3. Try different approach
 # New prompt: "Create a simple REST API using FastAPI instead of Flask"
@@ -208,7 +208,7 @@ $ cu delete problematic-env
 You can have multiple agents working simultaneously:
 
 ```bash
-$ cu list
+$ container-use list
 ID              TITLE                     CREATED       UPDATED
 frontend-work   React UI Components       5 mins ago    1 min ago
 backend-api     FastAPI User Service      3 mins ago    2 mins ago  
@@ -221,7 +221,7 @@ Each environment is completely isolated - no conflicts, no interference.
 
 <AccordionGroup>
   <Accordion title="Start with Quick Assessment">
-    Always use `cu diff` and `cu log` first. Most of the time, this gives you enough information to decide next steps without the overhead of checking out or entering containers.
+    Always use `container-use diff` and `container-use log` first. Most of the time, this gives you enough information to decide next steps without the overhead of checking out or entering containers.
   </Accordion>
 
   <Accordion title="Merge Early and Often">
@@ -245,13 +245,13 @@ Each environment is completely isolated - no conflicts, no interference.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `cu list` | See all environments | Check status of agent work |
-| `cu log <env-id>` | View commit history + commands | Understand what agent did |  
-| `cu diff <env-id>` | See code changes | Quick assessment of changes |
-| `cu terminal <env-id>` | Enter live container | Debug, test, hands-on exploration |
-| `cu checkout <env-id>` | Bring changes to local IDE | Detailed code review |
-| `cu merge <env-id>` | Accept work into current branch | When agent succeeded |
-| `cu delete <env-id>` | Discard environment | When starting over |
+| `container-use list` | See all environments | Check status of agent work |
+| `container-use log <env-id>` | View commit history + commands | Understand what agent did |  
+| `container-use diff <env-id>` | See code changes | Quick assessment of changes |
+| `container-use terminal <env-id>` | Enter live container | Debug, test, hands-on exploration |
+| `container-use checkout <env-id>` | Bring changes to local IDE | Detailed code review |
+| `container-use merge <env-id>` | Accept work into current branch | When agent succeeded |
+| `container-use delete <env-id>` | Discard environment | When starting over |
 
 ## Next Steps
 

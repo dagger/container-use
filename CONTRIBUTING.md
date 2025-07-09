@@ -21,18 +21,18 @@ Follow these steps to set up your development environment:
 
 ## Building
 
-To build the `cu` binary without installing it to your `$PATH`, you can use either Dagger or Go directly:
+To build the `container-use` binary without installing it to your `$PATH`, you can use either Dagger or Go directly:
 
 ### Using Go
 
 ```bash
-go build -o cu ./cmd/cu
+go build -o container-use ./cmd/container-use
 ```
 
 ### Using Dagger
 
 ```bash
-dagger call build --platform=current export --path ./cu
+dagger call build --platform=current export --path ./container-use
 ```
 
 ## Testing

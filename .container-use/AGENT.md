@@ -3,14 +3,14 @@ This is a development environment for container-use, a CLI tool that provides co
 container-use is designed to work with MCP-compatible agents like Claude Code and Cursor.
 
 DEVELOPMENT WORKFLOW:
-- Build: Use 'go build -o cu ./cmd/cu' or 'dagger call build --platform=current export --path ./cu'
+- Build: Use 'go build -o container-use ./cmd/container-use' or 'dagger call build --platform=current export --path ./container-use'
 - Test: Run 'go test ./...' for all tests, 'go test -short ./...' for unit tests only, or 'go test -count=1 -v ./environment' for integration tests
 - Format: Always run 'go fmt ./...' before committing
 - Lint: Run 'golangci-lint run' to check for linting issues
 - Dependencies: Run 'go mod download' to install dependencies, 'go mod tidy' to clean up
 
 DAGGER MODULE (more details in .dagger/):
-- Build: 'dagger call build export --path ./cu'
+- Build: 'dagger call build export --path ./container-use'
 - Test: 'dagger call test' or 'dagger call test --integration=false'
 
 AVAILABLE TOOLS:
@@ -21,7 +21,7 @@ AVAILABLE TOOLS:
 - golangci-lint v1.61.0 (Go linter with various checks)
 
 PROJECT STRUCTURE:
-- cmd/cu: Main CLI application entry point
+- cmd/container-use: Main CLI application entry point
 - environment/: Core environment management logic
 - mcpserver/: MCP (Model Context Protocol) server implementation
 - examples/: Example configurations and usage

@@ -23,9 +23,13 @@ Choose your preferred installation method:
     brew install dagger/tap/container-use
     ```
 
+    This will:
+    - Install the latest `container-use` binary
+    - Add it to your `$PATH`
+    - Install shell completions automatically
     ### Verify Installation
     ```sh
-    cu version
+    container-use version
     ```
 
   </Tab>
@@ -35,9 +39,44 @@ Choose your preferred installation method:
     curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
     ```
 
+    This script will:
+    - Check for Docker & Git (required dependencies)
+    - Detect your platform automatically
+    - Install the latest `container-use` binary to your `$PATH`
+    - Provide shell completion installation instructions
+
     ### Verify Installation
     ```sh
-    cu version
+    container-use version
+    ```
+
+    ### Shell Completions
+    After installation, follow the provided instructions to enable shell completions for your shell (bash, zsh, fish).
+
+  </Tab>
+
+  <Tab title="Build from Source">
+    <Note>
+      **For developers** - Build the latest version from source code.
+    </Note>
+
+    ### Prerequisites
+    - Go 1.21 or later
+    - Git
+    - Docker
+
+    ### Build Steps
+    ```sh
+    git clone https://github.com/dagger/container-use.git
+    cd container-use
+    go build -o container-use ./cmd/container-use
+    sudo mv container-use /usr/local/bin/
+    ```
+
+    For detailed build instructions, see the [CONTRIBUTING.md](https://github.com/dagger/container-use/blob/main/CONTRIBUTING.md#building) guide.
+    ### Verify Installation
+    ```sh
+    container-use version
     ```
 
   </Tab>
@@ -51,14 +90,30 @@ Choose your preferred installation method:
 
 Configure Container Use with your coding agent. Choose your agent below:
 
-<Note>All agents use the same MCP server command: `cu stdio`</Note>
+<Note>All agents use the same MCP server command: `container-use stdio`</Note>
+
+<details>
+<summary>💡 Command Shortcut</summary>
+
+The `container-use` command is also available as `cu` for convenience. Both commands work identically:
+- `container-use stdio` (used in documentation)
+- `cu stdio` (shortcut)
+
+</details>
+
+<details>
+<summary>💡 No Paths Required</summary>
+
+Since `container-use` is a unique command name, you can use it directly in all configurations without specifying full paths. The command will be found automatically in your PATH after installation.
+
+</details>
 
 <Tabs>
   <Tab title="Claude Code">
     ### Add MCP Configuration
     ```sh
     cd /path/to/repository
-    claude mcp add container-use -- <full path to cu command> stdio
+    claude mcp add container-use -- container-use stdio
     ```
 
     ### Add Agent Rules (Optional)
@@ -85,7 +140,7 @@ Configure Container Use with your coding agent. Choose your agent below:
     ### Install MCP Server
     Use the one-click deeplink to install (requires Cursor and Container Use already installed):
 
-    [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY3Ugc3RkaW8ifQ%3D%3D)
+    [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY29udGFpbmVyLXVzZSBzdGRpbyJ9Cg%3D%3D)
 
     ### Add Agent Rules
     Add the rules file to your project or home directory:
@@ -110,7 +165,7 @@ Configure Container Use with your coding agent. Choose your agent below:
         name: container-use
         type: stdio
         enabled: true
-        cmd: cu
+        cmd: container-use
         args:
         - stdio
         envs: {}
@@ -120,12 +175,12 @@ Configure Container Use with your coding agent. Choose your agent below:
     ```sh
     goose configure
     ```
-    Then add a command line extension with `cu stdio` as the command.
+    Then add a command line extension with `container-use stdio` as the command.
 
     ### Method 3: Goose Desktop
     Paste this URL into your browser:
     ```
-    goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments
+    goose://extension?cmd=container-use&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments
     ```
 
     <Info>
@@ -144,11 +199,11 @@ Configure Container Use with your coding agent. Choose your agent below:
     ### Quick Setup for Any Agent
     Most agents follow this pattern:
 
-    1. **Add MCP Server**: Configure your agent to use `cu stdio` as an MCP server
+    1. **Add MCP Server**: Configure your agent to use `container-use stdio` as an MCP server
     2. **Add Rules** (Optional): Download agent rules from our repository
     3. **Verify**: Ensure your agent recognizes Container Use tools
 
-    All agents use the same MCP server command: `cu stdio`
+    All agents use the same MCP server command: `container-use stdio`
 
   </Tab>
 </Tabs>
@@ -182,8 +237,8 @@ Your agent will work in an isolated environment and respond with something like:
 [agent creates the Flask app with styling and templates]
 
 ✅ The application is now running and accessible at: http://127.0.0.1:58455
-🔍 You can view all the files using: `cu checkout fancy-mallard`
-📋 You can view the development log using: `cu log fancy-mallard`
+🔍 You can view all the files using: `container-use checkout fancy-mallard`
+📋 You can view the development log using: `container-use log fancy-mallard`
 ```
 
 Navigate to the provided URL to see your app running!
@@ -204,17 +259,17 @@ This is because the agent worked in an **isolated environment**. Your local file
 List all environments:
 
 ```sh
-$ cu list
+$ container-use list
 ID                 TITLE                               CREATED        UPDATED
 fancy-mallard      Flask Hello World with Blue Design  2 minutes ago  1 minute ago
 ```
 
 ### Viewing the Development Log
 
-See exactly what your agent did with `cu log`:
+See exactly what your agent did with `container-use log`:
 
 ```sh
-$ cu log fancy-mallard
+$ container-use log fancy-mallard
 9e3a5c9d  Write templates/index.html (2 minutes ago)
 $ python app.py &
 
@@ -224,10 +279,10 @@ $ mkdir -p templates
 
 ### Reviewing the Code
 
-See exactly what files were created with `cu diff`:
+See exactly what files were created with `container-use diff`:
 
 ```sh
-$ cu diff fancy-mallard
+$ container-use diff fancy-mallard
 diff --git a/app.py b/app.py
 new file mode 100644
 index 0000000..f88d1fb
@@ -254,7 +309,7 @@ index 0000000..f88d1fb
 Bring the environment's work into your local Git workspace:
 
 ```sh
-$ cu checkout fancy-mallard
+$ container-use checkout fancy-mallard
 Switched to branch 'cu-fancy-mallard'
 
 $ ls
@@ -268,7 +323,7 @@ Now you can explore the files in your IDE, make changes, or continue development
 Get a terminal inside the exact environment your agent used:
 
 ```sh
-$ cu terminal fancy-mallard
+$ container-use terminal fancy-mallard
 
 ● Attaching terminal
 cu /workdir $ ls
@@ -287,7 +342,7 @@ Once you're satisfied with the agent's work, merge it into your main branch:
 
 ```sh
 $ git checkout main
-$ cu merge fancy-mallard
+$ container-use merge fancy-mallard
 Updating 95bb17b..9e3a5c9
 Fast-forward
  app.py           | 10 ++++++++++
@@ -303,22 +358,22 @@ Here are the key commands you'll use regularly:
 
 ```sh
 # List all environments
-cu list
+container-use list
 
 # View what an agent did
-cu log <environment-id>
+container-use log <environment-id>
 
 # See the code changes
-cu diff <environment-id>
+container-use diff <environment-id>
 
 # Check out the environment locally
-cu checkout <environment-id>
+container-use checkout <environment-id>
 
 # Get a terminal in the container
-cu terminal <environment-id>
+container-use terminal <environment-id>
 
 # Merge the work into your branch
-cu merge <environment-id>
+container-use merge <environment-id>
 ```
 
 ## Success! 🎉

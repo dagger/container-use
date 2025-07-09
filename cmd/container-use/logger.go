@@ -30,8 +30,8 @@ func parseLogLevel(levelStr string) slog.Level {
 func setupLogger() error {
 	var writers []io.Writer
 
-	logFile := "/tmp/cu.debug.stderr.log"
-	if v, ok := os.LookupEnv("CU_STDERR_FILE"); ok {
+	logFile := "/tmp/container-use.debug.stderr.log"
+	if v, ok := os.LookupEnv("CONTAINER_USE_STDERR_FILE"); ok {
 		logFile = v
 	}
 
@@ -42,10 +42,10 @@ func setupLogger() error {
 	writers = append(writers, file)
 
 	if len(writers) == 0 {
-		fmt.Fprintf(os.Stderr, "%s Logging disabled. Set CU_STDERR_FILE and CU_LOG_LEVEL environment variables\n", time.Now().Format(time.DateTime))
+		fmt.Fprintf(os.Stderr, "%s Logging disabled. Set CONTAINER_USE_STDERR_FILE and CONTAINER_USE_LOG_LEVEL environment variables\n", time.Now().Format(time.DateTime))
 	}
 
-	logLevel := parseLogLevel(os.Getenv("CU_LOG_LEVEL"))
+	logLevel := parseLogLevel(os.Getenv("CONTAINER_USE_LOG_LEVEL"))
 	logWriter = io.MultiWriter(writers...)
 	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level: logLevel,

@@ -21,11 +21,11 @@ Your working directory will be automatically stashed and restored.`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Accept agent's work into current branch
-cu merge backend-api
+container-use merge backend-api
 
 # Merge and delete the environment after successful merge
-cu merge -d backend-api
-cu merge --delete backend-api`,
+container-use merge -d backend-api
+container-use merge --delete backend-api`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 

@@ -14,7 +14,6 @@ import (
 
 // TestRepositoryCreate tests creating a new environment
 func TestRepositoryCreate(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-create", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		// Create an environment
 		env := user.CreateEnvironment("Test Create", "Testing repository create")
@@ -34,7 +33,6 @@ func TestRepositoryCreate(t *testing.T) {
 
 // TestRepositoryGet tests retrieving an existing environment
 func TestRepositoryGet(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-get", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -56,7 +54,6 @@ func TestRepositoryGet(t *testing.T) {
 
 // TestRepositoryList tests listing all environments
 func TestRepositoryList(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-list", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -81,7 +78,6 @@ func TestRepositoryList(t *testing.T) {
 
 // TestRepositoryDelete tests deleting an environment
 func TestRepositoryDelete(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-delete", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -106,7 +102,6 @@ func TestRepositoryDelete(t *testing.T) {
 
 // TestRepositoryCheckout tests checking out an environment branch
 func TestRepositoryCheckout(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-checkout", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -131,7 +126,6 @@ func TestRepositoryCheckout(t *testing.T) {
 
 // TestRepositoryLog tests retrieving commit history for an environment
 func TestRepositoryLog(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-log", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 
@@ -170,7 +164,6 @@ func TestRepositoryLog(t *testing.T) {
 
 // TestRepositoryDiff tests retrieving changes between commits
 func TestRepositoryDiff(t *testing.T) {
-	t.Parallel()
 	WithRepository(t, "repository-diff", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := context.Background()
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # container-use installer script
-# Downloads and installs the appropriate cu binary for your system
+# Downloads and installs the appropriate container-use binary for your system
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 REPO="dagger/container-use"
-BINARY_NAME="cu"
+BINARY_NAME="container-use"
 INSTALL_DIR=""
 
 # Helper functions
@@ -86,25 +86,7 @@ detect_arch() {
     echo "$arch"
 }
 
-# Check for existing cu command and warn about conflicts
-check_existing_cu() {
-    local found_binary=$(command -v "$BINARY_NAME" 2>/dev/null || echo "")
 
-    if [ -n "$found_binary" ]; then
-        # Only warn about system paths (user paths could be previous container-use installations)
-        case "$found_binary" in
-            /usr/bin/* | /bin/* | /usr/local/bin/*)
-                log_warning "Existing 'cu' command found at $found_binary"
-                log_warning "This appears to be a system 'cu' command (likely Taylor UUCP)"
-                log_warning "After installation, you may need to run 'hash -r' to clear command cache"
-                log_info "Or use the full path: \$HOME/.local/bin/cu"
-                ;;
-        esac
-
-        log_info "Installation will continue..."
-        echo ""
-    fi
-}
 
 # Find the best installation directory
 find_install_dir() {
@@ -131,12 +113,17 @@ get_latest_version() {
 show_completion_instructions() {
     local binary="$1"
 
-    log_info "To enable shell completions, run:"
-    echo "  Bash (with bash-completion): $binary completion bash > ~/.local/share/bash-completion/completions/cu"
-    echo "  Bash (unconfigured): echo 'source <($binary completion bash)' >> ~/.bashrc"
-    echo "  Zsh (with compinit and a writable fpath[1]):  $binary completion zsh > \"\${fpath[1]}/_cu\""
-    echo "  Zsh (unconfigured):  echo 'source <($binary completion bash)' >> ~/.zshrc"
-    echo "  Fish: $binary completion fish > ~/.config/fish/completions/cu.fish"
+    log_info "To enable shell completions:"
+    echo ""
+    echo "  # For container-use command:"
+    echo "  $binary completion bash > /usr/local/etc/bash_completion.d/container-use"
+    echo "  $binary completion zsh > /usr/local/share/zsh/site-functions/_container-use"
+    echo "  $binary completion fish > ~/.config/fish/completions/container-use.fish"
+    echo ""
+    echo "  # For cu command:"
+    echo "  $binary completion --command-name=cu bash > /usr/local/etc/bash_completion.d/cu"
+    echo "  $binary completion --command-name=cu zsh > /usr/local/share/zsh/site-functions/_cu"
+    echo "  $binary completion --command-name=cu fish > ~/.config/fish/completions/cu.fish"
 }
 
 # Verify checksum of downloaded file
@@ -232,6 +219,9 @@ download_and_install() {
     cp "$binary_path" "$install_dir/"
     chmod +x "$install_dir/$BINARY_NAME"
 
+    log_info "Creating cu symlink for backward compatibility..."
+    ln -sf "$BINARY_NAME" "$install_dir/cu"
+
     # Clean up
     rm -rf "$temp_dir"
 
@@ -254,7 +244,8 @@ main() {
             echo "  1. Check for Docker installation"
             echo "  2. Detect your OS and architecture"
             echo "  3. Download the latest container-use binary"
-            echo "  4. Install it to your PATH"
+            echo "  4. Install 'container-use' binary and create 'cu' shortcut"
+            echo "  5. Provide instructions to set up shell completions for both commands"
             exit 0
             ;;
     esac
@@ -277,8 +268,6 @@ main() {
     INSTALL_DIR=$(find_install_dir)
     log_info "Installation directory: $INSTALL_DIR"
 
-    check_existing_cu
-
     download_and_install "$os" "$arch" "$version" "$INSTALL_DIR"
 
     # Check if install directory is in PATH
@@ -296,32 +285,14 @@ main() {
         # Show shell completion instructions
         show_completion_instructions "$BINARY_NAME"
 
-        # Check if the correct cu command is being found in PATH
-        local found_binary=$(command -v "$BINARY_NAME" 2>/dev/null || echo "")
-
-        if [ "$found_binary" = "$INSTALL_DIR/$BINARY_NAME" ]; then
-            log_success "$BINARY_NAME is ready to use!"
-        elif [ -n "$found_binary" ]; then
-            # Some other cu command is being found
-            local help_output=$("$found_binary" --help 2>&1 || true)
-            if echo "$help_output" | grep -q "Taylor UUCP"; then
-                log_error "Detected Taylor UUCP 'cu' command instead of container-use"
-                log_info "The system 'cu' command at $found_binary is taking precedence"
-                log_info "Try running: $INSTALL_DIR/$BINARY_NAME --help"
-                log_info "Or run 'hash -r' and try again"
-                log_info "Or add $INSTALL_DIR to the beginning of your PATH"
-                exit 1
-            else
-                log_warning "Different 'cu' command found at $found_binary"
-                log_info "Try running: $INSTALL_DIR/$BINARY_NAME --help"
-                log_info "Or run 'hash -r' and try again"
-                log_info "Or add $INSTALL_DIR to the beginning of your PATH"
-            fi
+        # Verify installation
+        if command -v "$BINARY_NAME" >/dev/null 2>&1 && command -v "cu" >/dev/null 2>&1; then
+            log_success "container-use is ready to use!"
         else
             log_warning "You may need to restart your terminal or update your PATH"
         fi
 
-        log_info "Run '$BINARY_NAME --help' to get started"
+        log_info "Run 'container-use --help' or 'cu --help' to get started"
     else
         log_error "Installation verification failed"
         exit 1
