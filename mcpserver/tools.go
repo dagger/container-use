@@ -411,10 +411,9 @@ var EnvironmentConfigTool = &Tool{
 			return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
 		}
 
-		// FIXME(aluzzardi): `cu config apply` is not implemented yet.
 		message := fmt.Sprintf(`SUCCESS: Configuration successfully applied. Environment has been restarted, all previous commands have been lost.
 IMPORTANT: The configuration changes are LOCAL to this environment.
-TELL THE USER: To make these changes persistent, they will have to run "cu config apply %s"
+TELL THE USER: To make these changes persistent, they will have to run "cu config import %s"
 
 %s
 `, env.ID, out)
