@@ -1,5 +1,7 @@
 dagger.io/dagger v0.18.11 h1:6lSfemlbGM2HmdOjhgevrX2+orMDGKU/xTaBMZ+otyY=
 dagger.io/dagger v0.18.11/go.mod h1:azlZ24m2br95t0jQHUBpL5SiafeqtVDLl1Itlq6GO+4=
+dagger.io/dagger v0.18.12 h1:s7v8aHlzDUogZ/jW92lHC+gljCNRML+0mosfh13R4vs=
+dagger.io/dagger v0.18.12/go.mod h1:azlZ24m2br95t0jQHUBpL5SiafeqtVDLl1Itlq6GO+4=
 github.com/99designs/gqlgen v0.17.75 h1:GwHJsptXWLHeY7JO8b7YueUI4w9Pom6wJTICosDtQuI=
 github.com/99designs/gqlgen v0.17.75/go.mod h1:p7gbTpdnHyl70hmSpM8XG8GiKwmCv+T5zkdY8U8bLog=
 github.com/Khan/genqlient v0.8.1 h1:wtOCc8N9rNynRLXN3k3CnfzheCUNKBcvXmVv5zt6WCs=

@@ -5,7 +5,7 @@ go 1.24.3
 toolchain go1.24.4
 
 require (
-	dagger.io/dagger v0.18.11
+	dagger.io/dagger v0.18.12
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/fang v0.3.0
 	github.com/charmbracelet/lipgloss v1.1.0
