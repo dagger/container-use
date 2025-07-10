@@ -1,0 +1,82 @@
+---
+title: VSCode / GitHub Copilot
+description: "Setup guide for VSCode and GitHub Copilot with Container Use"
+icon: robot
+---
+
+## Configure MCP Server
+
+Update your VSCode settings with:
+
+```json
+"mcp": {
+  "servers": {
+    "container-use": {
+      "type": "stdio",
+      "command": "cu",
+      "args": ["stdio"]
+    }
+  }
+}
+```
+
+## Add Copilot Instructions (Optional)
+
+```sh
+curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+```
+
+<Card title="Video Tutorial" icon="youtube" href="https://youtu.be/Nz2sOef0gW0">
+  Watch the VSCode setup walkthrough
+</Card>
+
+<Info>
+  Learn more: [VSCode
+  MCP](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) | [GitHub
+  Copilot
+  MCP](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-chat-with-mcp)
+</Info>
+
+## Verification
+
+After setting up VSCode/GitHub Copilot, verify Container Use is working:
+
+1. **Check MCP Connection**: VSCode should recognize Container Use tools
+2. **Test Environment Creation**: Ask Copilot to create a new environment
+3. **Verify Isolation**: Multiple environments should work independently
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="VSCode doesn't recognize Container Use">
+    - Verify the `cu` command is in your PATH: `which cu`
+    - Check MCP configuration syntax
+    - Restart VSCode after configuration changes
+  </Accordion>
+
+  <Accordion title="Permission errors">
+    - Ensure Docker is running and accessible
+    - Check file permissions for configuration files
+    - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+  </Accordion>
+
+  <Accordion title="Tools not appearing">
+    - Check your VSCode MCP server logs
+    - Verify Container Use tools are enabled in settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Back to Quickstart" icon="rocket" href="/quickstart">
+    Return to the quickstart guide to create your first environment
+  </Card>
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
+    Get help and share experiences in #container-use
+  </Card>
+</CardGroup>

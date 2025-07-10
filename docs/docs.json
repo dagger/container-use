@@ -32,7 +32,12 @@
           {
             "group": "Integrations",
             "pages": [
-              "agent-integrations"
+              "claude-code",
+              "cursor",
+              "amazon-q",
+              "vscode",
+              "zed",
+              "other-agents"
             ]
           }
         ]

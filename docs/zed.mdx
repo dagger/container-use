@@ -1,0 +1,125 @@
+---
+title: Zed
+description: "Setup guide for Zed with Container Use"
+icon: robot
+---
+
+## Add Agent Rules
+
+First add the agent rules file, either as `.rules` in the root of your project or as one of the [other acceptable files/locations](https://zed.dev/docs/ai/rules?highlight=agent.md#rules-files).
+
+```sh
+curl -o .rules https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+```
+
+## Configure MCP Server
+
+Configure the Container Use MCP server in the Zed `settings.json`. Provide the absolute path to the `cu` executable:
+
+```json
+"context_servers": {
+  "container-use": {
+    "source": "custom",
+    "command": {
+      "path": "/opt/homebrew/bin/cu",
+      "args": ["stdio"],
+      "env": {}
+    }
+  }
+}
+```
+
+## Add Container Use Agent Profile (Optional)
+
+To lock the Zed agent out of your host system, you can create a dedicated agent profile that only enables Container Use tools. Add this to your `settings.json` under the `agent` section:
+
+```json
+"agent": {
+  "profiles": {
+    "container-use": {
+      "name": "Container Use",
+      "tools": {
+        "fetch": true,
+        "thinking": true,
+        "copy_path": false,
+        "find_path": false,
+        "delete_path": false,
+        "create_directory": false,
+        "list_directory": false,
+        "diagnostics": false,
+        "read_file": false,
+        "open": false,
+        "move_path": false,
+        "grep": false,
+        "edit_file": false,
+        "terminal": false
+      },
+      "enable_all_context_servers": false,
+      "context_servers": {
+        "container-use": {
+          "tools": {
+            "environment_create": true,
+            "environment_add_service": true,
+            "environment_update": true,
+            "environment_run_cmd": true,
+            "environment_open": true,
+            "environment_file_write": true,
+            "environment_file_read": true,
+            "environment_file_list": true,
+            "environment_file_delete": true,
+            "environment_checkpoint": true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This profile ensures your agent can only use Container Use tools, preventing it from modifying your local files directly.
+
+Next open the Zed Agent Panel ✨ in the lower right, select the "Container Use" profile from the dropdown to the left of the model dropdown, and prompt away!
+
+## Verification
+
+After setting up Zed, verify Container Use is working:
+
+1. **Check MCP Connection**: Zed should recognize Container Use tools
+2. **Test Environment Creation**: Ask Zed to create a new environment
+3. **Verify Isolation**: Multiple environments should work independently
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Zed doesn't recognize Container Use">
+    - Verify the `cu` command is in your PATH: `which cu`
+    - Check MCP configuration syntax
+    - Restart Zed after configuration changes
+  </Accordion>
+
+  <Accordion title="Permission errors">
+    - Ensure Docker is running and accessible
+    - Check file permissions for configuration files
+    - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+  </Accordion>
+
+  <Accordion title="Tools not appearing">
+    - Check your Zed MCP server logs
+    - Verify Container Use tools are enabled in settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Back to Quickstart" icon="rocket" href="/quickstart">
+    Return to the quickstart guide to create your first environment
+  </Card>
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
+    Get help and share experiences in #container-use
+  </Card>
+</CardGroup>

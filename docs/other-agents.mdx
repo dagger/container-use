@@ -1,0 +1,278 @@
+---
+title: Other Agents
+description: "Setup guides for additional coding agents with Container Use"
+icon: robot
+---
+
+## Windsurf
+
+### Install MCP Server
+
+In `~/.codeium/windsurf/mcp_config.json`, add the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"],
+      "env": {}
+    }
+  }
+}
+```
+
+### Add Agent Rules
+
+Add the rules file to your project or home directory:
+
+```sh
+curl --create-dirs -o .windsurf/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/windsurf.mdc
+```
+
+## OpenCode
+
+Configure the Container Use MCP server in a `opencode.json` file.
+
+> Note: Provide the absolute path to your systems `cu` executable:
+
+```json
+{
+  "$schema": "http://opencode.ai/config.json",
+  "mcp": {
+    "container-use": {
+      "type": "local",
+      "command": ["/path/to/cu", "stdio"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Add the `AGENTS.md` file using this command (this is optional but usually provides the best results):
+
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> AGENTS.md
+```
+
+Run `opencode` and dispatch your agents to complete your tasks!
+
+## Goose
+
+### Method 1: Configuration File
+
+Add to `~/.config/goose/config.yaml`:
+
+```yaml
+extensions:
+  container-use:
+    name: container-use
+    type: stdio
+    enabled: true
+    cmd: cu
+    args:
+      - stdio
+    envs: {}
+```
+
+### Method 2: Interactive Setup
+
+```sh
+goose configure
+```
+
+Then add a command line extension with `cu stdio` as the command.
+
+### Method 3: Goose Desktop
+
+Paste this URL into your browser:
+
+```
+goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments
+```
+
+<Info>
+  Learn more: [Goose MCP
+  Extensions](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
+</Info>
+
+## Cline
+
+### Add MCP Configuration
+
+Add to your Cline MCP server configuration JSON:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "disabled": false,
+      "timeout": 60000,
+      "type": "stdio",
+      "command": "cu",
+      "args": ["stdio"],
+      "env": {},
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### Add Agent Rules
+
+```sh
+curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+```
+
+<Info>Learn more: [Cline Documentation](https://cline.bot/)</Info>
+
+## Qodo Gen
+
+### Setup Steps
+
+1. Open Qodo Gen chat panel in VSCode or IntelliJ
+2. Click "Connect more tools"
+3. Click "+ Add new MCP"
+4. Add this configuration:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"]
+    }
+  }
+}
+```
+
+<Info>
+  Learn more: [Qodo Gen MCP
+  Documentation](https://docs.qodo.ai/qodo-documentation/qodo-gen/qodo-gen-chat/agentic-mode/agentic-tools-mcps)
+</Info>
+
+## Kilo Code
+
+### Add MCP Configuration
+
+Add at global or project level:
+
+```json
+{
+  "mcpServers": {
+    "container-use": {
+      "command": "replace with pathname of cu",
+      "args": ["stdio"],
+      "env": {},
+      "alwaysAllow": [],
+      "disabled": false
+    }
+  }
+}
+```
+
+<Info>
+  Kilo Code allows setting MCP servers at the global or project level. Learn
+  more: [Kilo Code MCP
+  Documentation](https://kilocode.ai/docs/features/mcp/using-mcp-in-kilo-code)
+</Info>
+
+## OpenAI Codex
+
+### Add MCP Configuration
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.container-use]
+command = "cu"
+args = ["stdio"]
+env = {}
+```
+
+<Info>
+  Learn more: [OpenAI Codex
+  Documentation](https://github.com/openai/codex/tree/main/codex-rs)
+</Info>
+
+## Warp
+
+### Add MCP Configuration
+
+In the Warp sidebar, under Personal → MCP Servers → New:
+
+```json
+{
+  "container-use": {
+    "command": "cu",
+    "args": ["stdio"],
+    "env": {},
+    "working_directory": null,
+    "start_on_launch": true
+  }
+}
+```
+
+<Info>Warp 2.0 introduces coding agents with MCP support.</Info>
+
+## Gemini CLI
+
+### Add MCP Configuration
+
+Add to `~/.gemini/settings.json` or `.gemini/settings.json`:
+
+```json
+{
+  "coreTools": [],
+  "mcpServers": {
+    "container-use": {
+      "command": "cu",
+      "args": ["stdio"],
+      "timeout": 60000,
+      "trust": true
+    }
+  }
+}
+```
+
+<Info>
+  Learn more: [Gemini CLI
+  Configuration](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/configuration.md)
+</Info>
+
+## General Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent doesn't recognize Container Use">
+    - Verify the `cu` command is in your PATH: `which cu`
+    - Check MCP configuration syntax
+    - Restart your agent after configuration changes
+  </Accordion>
+
+  <Accordion title="Permission errors">
+    - Ensure Docker is running and accessible
+    - Check file permissions for configuration files
+    - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+  </Accordion>
+
+  <Accordion title="Tools not appearing">
+    - Some agents require explicit tool trust/approval
+    - Check your agent's MCP server logs
+    - Verify Container Use tools are enabled in agent settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Back to Quickstart" icon="rocket" href="/quickstart">
+    Return to the quickstart guide to create your first environment
+  </Card>
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
+    Get help and share experiences in #container-use
+  </Card>
+</CardGroup>

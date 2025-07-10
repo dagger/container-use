@@ -1,0 +1,68 @@
+---
+title: Cursor
+description: "Setup guide for Cursor with Container Use"
+icon: robot
+---
+
+## Install MCP Server
+
+Use the one-click deeplink to install (requires Cursor and Container Use already installed):
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY3Ugc3RkaW8ifQ%3D%3D)
+
+## Add Agent Rules
+
+Add the rules file to your project or home directory:
+
+```sh
+curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc
+```
+
+<Info>
+  Learn more: [Cursor MCP
+  Documentation](https://docs.cursor.com/context/model-context-protocol)
+</Info>
+
+## Verification
+
+After setting up Cursor, verify Container Use is working:
+
+1. **Check MCP Connection**: Cursor should recognize Container Use tools
+2. **Test Environment Creation**: Ask Cursor to create a new environment
+3. **Verify Isolation**: Multiple environments should work independently
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cursor doesn't recognize Container Use">
+    - Verify the `cu` command is in your PATH: `which cu`
+    - Check MCP configuration syntax
+    - Restart Cursor after configuration changes
+  </Accordion>
+
+  <Accordion title="Permission errors">
+    - Ensure Docker is running and accessible
+    - Check file permissions for configuration files
+    - Verify `cu stdio` command works: `echo '{}' | cu stdio`
+  </Accordion>
+
+  <Accordion title="Tools not appearing">
+    - Check your Cursor MCP server logs
+    - Verify Container Use tools are enabled in settings
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Back to Quickstart" icon="rocket" href="/quickstart">
+    Return to the quickstart guide to create your first environment
+  </Card>
+  <Card
+    title="Join Community"
+    icon="discord"
+    href="https://discord.gg/YXbtwRQv"
+  >
+    Get help and share experiences in #container-use
+  </Card>
+</CardGroup>
