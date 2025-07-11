@@ -9,6 +9,18 @@ DEVELOPMENT WORKFLOW:
 - Lint: Run 'golangci-lint run' to check for linting issues
 - Dependencies: Run 'go mod download' to install dependencies, 'go mod tidy' to clean up
 
+MANUAL STDIO TESTING:
+- Test stdio interface: Use 'echo $request | timeout $seconds container-use stdio' where:
+  - $request is a JSON-formatted MCP request (e.g., '{"jsonrpc":"2.0","method":"ping","id":1}')
+  - $seconds is timeout duration (e.g., 10 for 10 seconds)
+  - Example: 'echo '{"jsonrpc":"2.0","method":"ping","id":1}' | timeout 10 container-use stdio'
+- For multiline requests, use printf or a here-doc instead of echo
+- Use 'jq' to format JSON responses for readability: '... | jq .'
+- Common test requests:
+  - Ping: '{"jsonrpc":"2.0","method":"ping","id":1}'
+  - List tools: '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+  - Initialize: '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true},"sampling":{}}},"id":1}'
+
 DAGGER MODULE (more details in .dagger/):
 - Build: 'dagger call build export --path ./container-use'
 - Test: 'dagger call test' or 'dagger call test --integration=false'
