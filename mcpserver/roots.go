@@ -2,7 +2,6 @@ package mcpserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -46,35 +45,38 @@ func sendRootsListRequest(ctx context.Context, session server.ClientSession) {
 
 // updateClientRoots parses roots from notification params and updates the global clientRoots
 func updateClientRoots(notification mcp.JSONRPCNotification) int {
-	if notification.Params.AdditionalFields != nil {
-		if rootsData, ok := notification.Params.AdditionalFields["roots"].([]any); ok {
-			newRoots := make([]mcp.Root, 0, len(rootsData))
-			for _, rootData := range rootsData {
-				if rootMap, ok := rootData.(map[string]any); ok {
-					root := mcp.Root{}
-					if uri, ok := rootMap["uri"].(string); ok {
-						root.URI = uri
-					}
-					if name, ok := rootMap["name"].(string); ok {
-						root.Name = name
-					}
-					newRoots = append(newRoots, root)
-				}
+	if notification.Params.AdditionalFields == nil {
+		return 0
+	}
+	rootsData, ok := notification.Params.AdditionalFields["roots"].([]any)
+	if !ok {
+		return 0
+	}
+
+	newRoots := make([]mcp.Root, 0, len(rootsData))
+	for _, rootData := range rootsData {
+		if rootMap, ok := rootData.(map[string]any); ok {
+			root := mcp.Root{}
+			if uri, ok := rootMap["uri"].(string); ok {
+				root.URI = uri
 			}
-
-			clientRootsMu.Lock()
-			clientRoots = newRoots
-			clientRootsMu.Unlock()
-
-			return len(newRoots)
+			if name, ok := rootMap["name"].(string); ok {
+				root.Name = name
+			}
+			newRoots = append(newRoots, root)
 		}
 	}
-	return 0
+
+	clientRootsMu.Lock()
+	clientRoots = newRoots
+	clientRootsMu.Unlock()
+
+	return len(newRoots)
 }
 
 // repoOpenErrorMessage provides helpful error messages when repository opening fails
 func repoOpenErrorMessage(source string, originalErr error) error {
-	baseMsg := fmt.Sprintf("failed to open repository '%s': %v", source, originalErr)
+	baseMsg := fmt.Sprintf("failed to open repository '%s'", source)
 
 	// If we have client roots, suggest them
 	clientRootsMu.RLock()
@@ -91,10 +93,10 @@ func repoOpenErrorMessage(source string, originalErr error) error {
 				baseMsg += fmt.Sprintf("\n  - %s", uri)
 			}
 		}
-		return errors.New(baseMsg)
+		return fmt.Errorf("%s: %w", baseMsg, originalErr)
 	}
 
 	// Fallback: suggest common patterns
 	baseMsg += "\n\nTry using:\n  - '.' for current directory\n  - An absolute path to your git repository"
-	return errors.New(baseMsg)
+	return fmt.Errorf("%s: %w", baseMsg, originalErr)
 }
