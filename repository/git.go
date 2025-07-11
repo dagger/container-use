@@ -32,9 +32,9 @@ var (
 // RunGitCommand executes a git command in the specified directory.
 // This is exported for use in tests and other packages that need direct git access.
 func RunGitCommand(ctx context.Context, dir string, args ...string) (out string, rerr error) {
-	slog.Info(fmt.Sprintf("[%s] $ git %s", dir, strings.Join(args, " ")))
+	slog.Debug(fmt.Sprintf("[%s] $ git %s", dir, strings.Join(args, " ")))
 	defer func() {
-		slog.Info(fmt.Sprintf("[%s] $ git %s (DONE)", dir, strings.Join(args, " ")), "err", rerr)
+		slog.Debug(fmt.Sprintf("[%s] $ git %s (DONE)", dir, strings.Join(args, " ")), "err", rerr)
 	}()
 
 	cmd := exec.CommandContext(ctx, "git", args...)
@@ -55,9 +55,9 @@ func RunGitCommand(ctx context.Context, dir string, args ...string) (out string,
 
 // RunInteractiveGitCommand executes a git command in the specified directory in interactive mode.
 func RunInteractiveGitCommand(ctx context.Context, dir string, w io.Writer, args ...string) (rerr error) {
-	slog.Info(fmt.Sprintf("[%s] $ git %s", dir, strings.Join(args, " ")))
+	slog.Debug(fmt.Sprintf("[%s] $ git %s", dir, strings.Join(args, " ")))
 	defer func() {
-		slog.Info(fmt.Sprintf("[%s] $ git %s (DONE)", dir, strings.Join(args, " ")), "err", rerr)
+		slog.Debug(fmt.Sprintf("[%s] $ git %s (DONE)", dir, strings.Join(args, " ")), "err", rerr)
 	}()
 
 	cmd := exec.CommandContext(ctx, "git", args...)
