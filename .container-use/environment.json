@@ -2,12 +2,14 @@
   "workdir": "/workdir",
   "base_image": "golang:1.24-bullseye",
   "setup_commands": [
-    "apt-get update \u0026\u0026 apt-get install -y curl git build-essential",
+    "apt-get update && apt-get install -y curl git build-essential",
     "curl -fsSL https://get.docker.com | sh",
-    "cd /tmp \u0026\u0026 curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.11 sh \u0026\u0026 cp ./bin/dagger /usr/local/bin/dagger",
+    "cd /tmp && curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.11 sh && cp ./bin/dagger /usr/local/bin/dagger",
     "git config --global user.name \"Test User\"",
     "git config --global user.email \"test@dagger.com\"",
-    "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.61.0"
-  ],
-  "Locked": false
+    "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.61.0",
+    "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
+    "apt-get install -y nodejs",
+    "npm i -g mint"
+  ]
 }

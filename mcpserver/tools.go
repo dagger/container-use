@@ -125,7 +125,8 @@ func init() {
 	registerTool(
 		EnvironmentOpenTool,
 		EnvironmentCreateTool,
-		EnvironmentUpdateTool,
+		EnvironmentUpdateMetadataTool,
+		EnvironmentConfigTool,
 
 		EnvironmentRunCmdTool,
 
@@ -141,27 +142,21 @@ func init() {
 }
 
 type EnvironmentResponse struct {
-	ID              string                 `json:"id"`
-	Title           string                 `json:"title"`
-	BaseImage       string                 `json:"base_image"`
-	SetupCommands   []string               `json:"setup_commands"`
-	Instructions    string                 `json:"instructions"`
-	Workdir         string                 `json:"workdir"`
-	RemoteRef       string                 `json:"remote_ref"`
-	CheckoutCommand string                 `json:"checkout_command_to_share_with_user"`
-	LogCommand      string                 `json:"log_command_to_share_with_user"`
-	DiffCommand     string                 `json:"diff_command_to_share_with_user"`
-	Services        []*environment.Service `json:"services,omitempty"`
+	ID              string                         `json:"id"`
+	Title           string                         `json:"title"`
+	Config          *environment.EnvironmentConfig `json:"config"`
+	RemoteRef       string                         `json:"remote_ref"`
+	CheckoutCommand string                         `json:"checkout_command_to_share_with_user"`
+	LogCommand      string                         `json:"log_command_to_share_with_user"`
+	DiffCommand     string                         `json:"diff_command_to_share_with_user"`
+	Services        []*environment.Service         `json:"services,omitempty"`
 }
 
 func environmentResponseFromEnvInfo(envInfo *environment.EnvironmentInfo) *EnvironmentResponse {
 	return &EnvironmentResponse{
 		ID:              envInfo.ID,
 		Title:           envInfo.State.Title,
-		Instructions:    envInfo.Config.Instructions,
-		BaseImage:       envInfo.Config.BaseImage,
-		SetupCommands:   envInfo.Config.SetupCommands,
-		Workdir:         envInfo.Config.Workdir,
+		Config:          envInfo.State.Config,
 		RemoteRef:       fmt.Sprintf("container-use/%s", envInfo.ID),
 		CheckoutCommand: fmt.Sprintf("container-use checkout %s", envInfo.ID),
 		LogCommand:      fmt.Sprintf("container-use log %s", envInfo.ID),
@@ -236,14 +231,13 @@ var EnvironmentCreateTool = &Tool{
 	Definition: mcp.NewTool("environment_create",
 		mcp.WithDescription(`Creates a new development environment.
 The environment is the result of a the setups commands on top of the base image.
-Read carefully the instructions to understand the environment.
-DO NOT manually install toolchains inside the environment, instead explicitly call environment_update`,
+Environment configuration is managed by the user via cu config commands.`,
 		),
 		mcp.WithString("explanation",
 			mcp.Description("One sentence explanation for why this environment is being created."),
 		),
 		mcp.WithString("title",
-			mcp.Description("Short description of the work that is happening in this environment. Keep this title updated using `environment_update`."),
+			mcp.Description("Short description of the work that is happening in this environment."),
 			mcp.Required(),
 		),
 		mcp.WithString("environment_source",
@@ -296,13 +290,11 @@ You MUST tell the user: To include these changes in the environment, they need t
 	},
 }
 
-var EnvironmentUpdateTool = &Tool{
-	Definition: mcp.NewTool("environment_update",
-		mcp.WithDescription("Updates an environment with new instructions and toolchains."+
-			"If the environment is missing any tools or instructions, you MUST call this function to update the environment."+
-			"You MUST update the environment with any useful information or tools. You will be resumed with no other context than the information provided here"),
+var EnvironmentUpdateMetadataTool = &Tool{
+	Definition: mcp.NewTool("environment_update_metadata",
+		mcp.WithDescription("Update environment metadata such as title. This updates the descriptive information about what work is being done in the environment."),
 		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being updated."),
+			mcp.Description("One sentence explanation for why this metadata is being updated."),
 		),
 		mcp.WithString("environment_source",
 			mcp.Description("Absolute path to the source git repository for the environment."),
@@ -312,40 +304,8 @@ var EnvironmentUpdateTool = &Tool{
 			mcp.Description("The ID of the environment to update."),
 			mcp.Required(),
 		),
-		mcp.WithString("instructions",
-			mcp.Description("The instructions for the environment. This should contain any information that might be useful to operate in the environment, such as what tools are available, what commands to use to build/test/etc"),
-			mcp.Required(),
-		),
 		mcp.WithString("title",
-			mcp.Description("Short description of the work that is happening in this environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("base_image",
-			mcp.Description("Change the base image for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithArray("setup_commands",
-			mcp.Description("Commands that will be executed on top of the base image to set up the environment. Similar to `RUN` instructions in Dockerfiles."),
-			mcp.Required(),
-			mcp.Items(map[string]any{"type": "string"}),
-		),
-		mcp.WithArray("envs",
-			mcp.Description("The environment variables to set (e.g. `[\"FOO=bar\", \"BAZ=qux\"]`)."),
-			mcp.Required(),
-			mcp.Items(map[string]any{"type": "string"}),
-		),
-		mcp.WithArray("secrets",
-			mcp.Description(`Secret references in the format of "SECRET_NAME=schema://value
-
-Secrets will be available in the environment as environment variables ($SECRET_NAME).
-
-Supported schemas are:
-- file://PATH: local file path
-- env://NAME: environment variable
-- op://<vault-name>/<item-name>/[section-name/]<field-name>: 1Password secret
-`),
-			mcp.Required(),
-			mcp.Items(map[string]any{"type": "string"}),
+			mcp.Description("Updated title describing the work being done in this environment."),
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -354,44 +314,9 @@ Supported schemas are:
 			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
 		}
 
-		config := env.Config.Copy()
-
-		instructions, err := request.RequireString("instructions")
-		if err != nil {
-			return nil, err
-		}
-		config.Instructions = instructions
-
-		baseImage, err := request.RequireString("base_image")
-		if err != nil {
-			return nil, err
-		}
-		config.BaseImage = baseImage
-
-		setupCommands, err := request.RequireStringSlice("setup_commands")
-		if err != nil {
-			return nil, err
-		}
-		config.SetupCommands = setupCommands
-
-		envs, err := request.RequireStringSlice("envs")
-		if err != nil {
-			return nil, err
-		}
-		config.Env = envs
-
-		secrets, err := request.RequireStringSlice("secrets")
-		if err != nil {
-			return nil, err
-		}
-		config.Secrets = secrets
-
+		// Update title if provided
 		if title := request.GetString("title", ""); title != "" {
 			env.State.Title = title
-		}
-
-		if err := env.UpdateConfig(ctx, request.GetString("explanation", ""), config); err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 		}
 
 		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
@@ -402,7 +327,99 @@ Supported schemas are:
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
 		}
-		return mcp.NewToolResultText(fmt.Sprintf("Environment %s updated successfully. Environment has been restarted, all previous commands have been lost.\n%s", env.ID, out)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("Environment metadata updated successfully.\n%s", out)), nil
+	},
+}
+
+var EnvironmentConfigTool = &Tool{
+	Definition: mcp.NewTool("environment_config",
+		mcp.WithDescription("Make environment config changes such as base image and setup commands."+
+			"If the environment is missing any tools or instructions, you MUST call this function to update the environment."+
+			"You MUST update the environment with any useful tools. You will be resumed with no other context than the information provided here"),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this environment configuration is being requested."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment for this request."),
+			mcp.Required(),
+		),
+		mcp.WithObject("config",
+			mcp.Required(),
+			mcp.Properties(map[string]any{
+				"base_image": map[string]any{
+					"type":        "string",
+					"description": "Base image for the environment",
+				},
+				"setup_commands": map[string]any{
+					"type":        "array",
+					"description": "Commands that should be executed on top of the base image to set up the environment. Similar to `RUN` instructions in Dockerfiles.",
+					"items":       map[string]any{"type": "string"},
+				},
+				"envs": map[string]any{
+					"type":        "array",
+					"description": "The environment variables to set (e.g. `[\"FOO=bar\", \"BAZ=qux\"]`).",
+					"items":       map[string]any{"type": "string"},
+				},
+			}),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		updatedConfig := env.State.Config.Copy()
+
+		newConfig, ok := request.GetArguments()["config"].(map[string]any)
+		if !ok {
+			return mcp.NewToolResultError("invalid config"), nil
+		}
+
+		if baseImage, ok := newConfig["base_image"].(string); ok {
+			updatedConfig.BaseImage = baseImage
+		}
+
+		if setupCommands, ok := newConfig["setup_commands"].([]any); ok {
+			updatedConfig.SetupCommands = make([]string, len(setupCommands))
+			for i, command := range setupCommands {
+				updatedConfig.SetupCommands[i] = command.(string)
+			}
+		}
+
+		if envs, ok := newConfig["envs"].([]any); ok {
+			updatedConfig.Env = make([]string, len(envs))
+			for i, env := range envs {
+				updatedConfig.Env[i] = env.(string)
+			}
+		}
+
+		if err := env.UpdateConfig(ctx, updatedConfig); err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+		}
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
+		}
+
+		out, err := marshalEnvironment(env)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
+		}
+
+		// FIXME(aluzzardi): `cu config apply` is not implemented yet.
+		message := fmt.Sprintf(`SUCCESS: Configuration successfully applied. Environment has been restarted, all previous commands have been lost.
+IMPORTANT: The configuration changes are LOCAL to this environment.
+TELL THE USER: To make these changes persistent, they will have to run "cu config apply %s"
+
+%s
+`, env.ID, out)
+
+		return mcp.NewToolResultText(message), nil
 	},
 }
 
@@ -520,7 +537,7 @@ To access from the user's machine: use host_external. To access from other comma
 Any changes to the container workdir (%s) WILL NOT be committed to container-use/%s
 
 Background commands are unaffected by filesystem and any other kind of changes. You need to start a new command for changes to take effect.`,
-				string(out), env.Config.Workdir, env.ID)), nil
+				string(out), env.State.Config.Workdir, env.ID)), nil
 		}
 
 		stdout, runErr := env.Run(ctx, command, shell, request.GetBool("use_entrypoint", false))
@@ -532,7 +549,7 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 			return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.Config.Workdir)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.State.Config.Workdir)), nil
 	},
 }
 

@@ -240,7 +240,7 @@ func TestWorktreeUpdatesAreVisibleAfterRebuild(t *testing.T) {
 			env = user.GetEnvironment(env.ID)
 
 			// Update config to force rebuild
-			config := env.Config.Copy()
+			config := env.State.Config.Copy()
 			user.UpdateEnvironment(env.ID, env.State.Title, "Force rebuild", config)
 
 			// Check script after rebuild
@@ -410,7 +410,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 			newEnv := user.CreateEnvironment("Test environment", "Creating Alpine-based test environment")
 
 			// Update to Alpine with git
-			updatedConfig := newEnv.Config.Copy()
+			updatedConfig := newEnv.State.Config.Copy()
 			updatedConfig.BaseImage = "alpine:latest"
 			updatedConfig.SetupCommands = []string{"apk add --no-cache git"}
 
@@ -418,14 +418,10 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 
 			// Save and reload config
 			newEnv = user.GetEnvironment(newEnv.ID)
+			newConfig := newEnv.State.Config.Copy()
 
-			// Simulate reopening the environment (load config from disk)
-			reloadedConfig := environment.DefaultConfig()
-			err := reloadedConfig.Load(user.WorktreePath(newEnv.ID))
-			require.NoError(t, err)
-
-			assert.Equal(t, "alpine:latest", reloadedConfig.BaseImage, "Base image should persist")
-			assert.Equal(t, []string{"apk add --no-cache git"}, reloadedConfig.SetupCommands, "Setup commands should persist")
+			assert.Equal(t, "alpine:latest", newConfig.BaseImage, "Base image should persist")
+			assert.Equal(t, []string{"apk add --no-cache git"}, newConfig.SetupCommands, "Setup commands should persist")
 		})
 	})
 
@@ -437,33 +433,16 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 				"apk add --no-cache curl git",
 				"echo 'Setup complete' > /setup.log",
 			}
-			updatedConfig := newEnv.Config.Copy()
+			updatedConfig := newEnv.State.Config.Copy()
 			updatedConfig.BaseImage = "alpine:latest"
 			updatedConfig.SetupCommands = setupCmds
 
 			user.UpdateEnvironment(newEnv.ID, "Test with setup", "Install development tools", updatedConfig)
 
-			// Save and reload config
+			// Reload config
 			newEnv = user.GetEnvironment(newEnv.ID)
-
-			// Load config from disk
-			reloadedConfig := environment.DefaultConfig()
-			err := reloadedConfig.Load(user.WorktreePath(newEnv.ID))
-			require.NoError(t, err)
-
-			assert.Equal(t, setupCmds, reloadedConfig.SetupCommands, "Setup commands should persist")
-
-			// Modify persisted setup commands
-			// Remove the echo command, keep only package install
-			reloadedConfig.SetupCommands = []string{"apk add --no-cache curl git"}
-			err = reloadedConfig.Save(user.WorktreePath(newEnv.ID))
-			require.NoError(t, err)
-
-			// Load again to verify the modification persisted
-			finalConfig := environment.DefaultConfig()
-			err = finalConfig.Load(user.WorktreePath(newEnv.ID))
-			require.NoError(t, err)
-			assert.Equal(t, []string{"apk add --no-cache curl git"}, finalConfig.SetupCommands, "Modified setup commands should persist")
+			newConfig := newEnv.State.Config.Copy()
+			assert.Equal(t, setupCmds, newConfig.SetupCommands, "Setup commands should persist")
 		})
 	})
 
@@ -477,7 +456,6 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 				// User: "I need to set environment variables for my API"
 				// LLM has to provide ALL required fields because the tool requires them
 				user.UpdateEnvironment(envID, "Node.js Dev", "Configure API environment variables", &environment.EnvironmentConfig{
-					Instructions:  "Node.js development environment with API configuration",
 					BaseImage:     "ubuntu:24.04",
 					SetupCommands: []string{},
 					Workdir:       "/workdir",
@@ -498,8 +476,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 				// User: "Add a simple setup command"
 				// Again, LLM must provide ALL fields, potentially losing env vars if not careful
 				user.UpdateEnvironment(envID, "Node.js Dev", "Add setup command", &environment.EnvironmentConfig{
-					Instructions: "Node.js development environment with API configuration",
-					BaseImage:    "ubuntu:24.04",
+					BaseImage: "ubuntu:24.04",
 					SetupCommands: []string{
 						"echo 'Setup complete' > /tmp/setup.log",
 					},
@@ -533,7 +510,6 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 
 				// User: "Set up my API environment variables"
 				user.UpdateEnvironment(envID, "Node.js API", "Configure environment", &environment.EnvironmentConfig{
-					Instructions:  "Node.js API with environment variables",
 					BaseImage:     "ubuntu:24.04",
 					SetupCommands: []string{},
 					Workdir:       "/workdir",
@@ -552,8 +528,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 				// User: "Add a marker file"
 				// LLM forgets to include the env vars when updating!
 				user.UpdateEnvironment(envID, "Node.js API", "Add marker file", &environment.EnvironmentConfig{
-					Instructions: "Node.js API with Redis support",
-					BaseImage:    "ubuntu:24.04",
+					BaseImage: "ubuntu:24.04",
 					SetupCommands: []string{
 						"touch /tmp/marker.txt",
 					},
@@ -591,7 +566,7 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 
 			// Test Update with Alpine base image
 			setupCmds := []string{"apk add --no-cache git nodejs npm"}
-			updatedConfig := newEnv.Config.Copy()
+			updatedConfig := newEnv.State.Config.Copy()
 			updatedConfig.BaseImage = "alpine:latest"
 			updatedConfig.SetupCommands = setupCmds
 
