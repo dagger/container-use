@@ -30,6 +30,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		assert.Equal(t, "test-env", envID)
 	})
 
-	// Note: Testing with empty args requires a real repository and is tested 
+	// Note: Testing with empty args requires a real repository and is tested
 	// in the repository integration tests and environment integration tests
 }
