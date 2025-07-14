@@ -1,35 +1,49 @@
 ---
 title: Environment Configuration
-description: "Configure your project's default environment with custom base images and setup commands. Set up the foundation that all agent environments will start from."
+description: "Configure your project's default environment and understand how agents adapt their environments during work. Manage ephemeral configuration changes made by agents."
 icon: gear
 ---
 
 ## Overview
 
-Environment configuration lets you define the **default environment** that all agents will start from when working on your project. Instead of using the generic Ubuntu environment, you can specify exactly what base image, dependencies, and setup your project needs.
+Environment configuration in Container Use works in two layers:
+
+1. **Default Configuration**: The foundation environment that all agents start from
+2. **Agent Environment Adaptation**: Changes agents make to their environment during work (ephemeral until imported)
+
+Instead of using the generic environment, you can specify exactly what base image, dependencies, and setup your project needs as defaults. Agents can then adapt their environment as they discover additional requirements during their work.
 
 <Note>
-  Configuration applies to **new environments only**. Existing environments will
-  continue using their original setup.
+  **Agent configuration changes are ephemeral** - they only exist within the agent's environment until you explicitly import them using `container-use config import`.
 </Note>
 
-## When to Configure Environments
+## The Configuration Workflow
 
-Consider customizing your environment when:
+<Steps>
+  <Step title="Set Default Configuration">
+    Configure your project's baseline environment that all agents will start from
+  </Step>
+  <Step title="Agent Starts with Defaults">
+    When an agent creates a new environment, it begins with your default configuration
+  </Step>
+  <Step title="Agent Adapts as Needed">
+    During work, the agent may modify its environment configuration - adding tools, changing base images, or setting variables
+  </Step>
+  <Step title="View Agent Changes">
+    Use `container-use config view <env>` to see what configuration changes the agent made
+  </Step>
+  <Step title="Import Useful Changes">
+    Use `container-use config import <env>` to adopt the agent's configuration improvements as your new defaults
+  </Step>
+</Steps>
 
-- **Your project requires a specific language runtime** (Python, Node.js, Go, etc.)
-- **You need specific system packages** or tools installed
-- **You want consistent development dependencies** across all agent sessions
-- **Your project has a complex setup process** that should be automated
+## Default Environment Configuration
 
-<Card title="Default vs Configured" icon="balance-scale">
-  **Default**: Basic Ubuntu 24.04 with essential tools (git, curl, build tools)
+Configure the baseline environment that all agents will start from when working on your project.
 
-**Configured**: Your specified base image + automated setup commands + environment variables
+By default, environments use a basic Ubuntu image with essential tools (git, curl, ...).
 
-</Card>
-
-## Quick Start
+### Quick Start
 
 Set up a Python project environment:
 
@@ -51,6 +65,48 @@ container-use config show
 
 Now all new agent environments will start with Python 3.11, your dependencies pre-installed, and environment variables configured.
 
+## Agent Environment Adaptation
+
+During their work, agents can modify their environment configuration when they discover they need different tools, base images, or setup commands. These changes are **ephemeral** - they only exist within the agent's environment until you explicitly import them.
+
+Agent environment adaptation allows for:
+
+- **Dynamic Discovery**: Agents can discover and install exactly what they need
+- **Optimal Environments**: Agents can fine-tune their environment for the specific task
+- **Learning Opportunities**: You can see what tools/configurations agents find useful
+- **No Disruption**: Changes don't affect your defaults until you choose to import them
+
+<Card title="Ephemeral by Design" icon="clock">
+  Agent configuration changes are **ephemeral** - they exist only within the agent's environment. This ensures your defaults remain stable while allowing agents to experiment and adapt.
+</Card>
+
+## Viewing Agent Configuration Changes
+
+After an agent completes work, you can inspect any configuration changes it made to its environment.
+
+### View Agent Configuration
+
+```bash
+# See the configuration for a specific environment
+container-use config view fancy-mallard
+
+# Compare with your defaults
+container-use config show        # Your defaults
+container-use config view fancy-mallard  # Agent's configuration
+```
+
+## Importing Agent Configurations
+
+When an agent makes useful configuration changes, you can import them to become your new defaults for future environments.
+
+```bash
+# Import all configuration changes from an environment
+container-use config import fancy-mallard
+
+# View the updated configuration
+container-use config show
+```
+
 ## Base Image Configuration
 
 The base image is the foundation of your environment - the container image that everything else builds on top of.
@@ -60,13 +116,6 @@ The base image is the foundation of your environment - the container image that 
 ```bash
 # Popular base images
 container-use config base-image set python:3.11
-container-use config base-image set node:18
-container-use config base-image set golang:1.21
-container-use config base-image set ubuntu:22.04
-
-# With specific tags for reproducibility
-container-use config base-image set python:3.11.9-slim
-container-use config base-image set node:18.19.0-alpine
 ```
 
 ### Viewing Current Base Image
@@ -83,32 +132,6 @@ container-use config base-image reset
 # Resets to ubuntu:24.04
 ```
 
-<Tabs>
-  <Tab title="🐍 Python Projects">
-    ```bash
-    container-use config base-image set python:3.11
-    container-use config setup-command add "pip install -r requirements.txt" ```
-  </Tab>
-  <Tab title="🟢 Node.js Projects">
-    ```bash
-    container-use config base-image set node:18
-    container-use config setup-command add "npm install"
-    ```
-  </Tab>
-  <Tab title="🐹 Go Projects">
-    ```bash
-    container-use config base-image set golang:1.21
-    container-use config setup-command add "go mod download"
-    ```
-  </Tab>
-  <Tab title="🐳 Custom Images">
-    ```bash
-    container-use config base-image set myregistry.com/my-project:latest
-    container-use config setup-command add "custom-setup.sh"
-    ```
-  </Tab>
-</Tabs>
-
 ## Setup Commands
 
 Setup commands are shell commands that run when creating a new environment, after the base image is ready but before the agent starts working.
@@ -116,17 +139,7 @@ Setup commands are shell commands that run when creating a new environment, afte
 ### Adding Setup Commands
 
 ```bash
-# Install project dependencies
 container-use config setup-command add "pip install -r requirements.txt"
-
-# Install development tools
-container-use config setup-command add "pip install pytest black flake8"
-
-# Run custom setup scripts
-container-use config setup-command add "./scripts/dev-setup.sh"
-
-# Multiple commands with &&
-container-use config setup-command add "apt update && apt install -y postgresql-client"
 ```
 
 ### Managing Setup Commands
@@ -142,49 +155,6 @@ container-use config setup-command remove "pip install pytest black flake8"
 container-use config setup-command clear
 ```
 
-### Setup Command Best Practices
-
-<AccordionGroup>
-  <Accordion title="Keep Commands Idempotent">
-    Commands should be safe to run multiple times:
-    ```bash
-    # Good - npm install is idempotent
-    container-use config setup-command add "npm install"
-
-    # Good - apt packages can be reinstalled safely
-    container-use config setup-command add "apt update && apt install -y git"
-    ```
-
-  </Accordion>
-
-  <Accordion title="Use Package Managers When Possible">
-    Prefer package managers over manual installation:
-    ```bash
-    # Good - uses pip
-    container-use config setup-command add "pip install requests flask"
-
-    # Avoid - manual download/install
-    container-use config setup-command add "wget https://... && tar -xzf ..."
-    ```
-
-  </Accordion>
-
-  <Accordion title="Order Commands Logically">
-    Dependencies should come before tools that use them:
-    ```bash
-    # First - install runtime dependencies
-    container-use config setup-command add "pip install -r requirements.txt"
-
-    # Then - install development tools
-    container-use config setup-command add "pip install pytest black"
-
-    # Finally - run any setup scripts
-    container-use config setup-command add "./scripts/configure-dev.sh"
-    ```
-
-  </Accordion>
-</AccordionGroup>
-
 ## Environment Variables
 
 Environment variables are set in all new environments and can be used to configure your application, development tools, and runtime behavior.
@@ -192,17 +162,7 @@ Environment variables are set in all new environments and can be used to configu
 ### Setting Environment Variables
 
 ```bash
-# Set common development variables
-container-use config env set DEBUG true
-container-use config env set LOG_LEVEL debug
-
-# Configure application paths
-container-use config env set PYTHONPATH /workdir
-container-use config env set PATH /usr/local/bin:/workdir/bin:$PATH
-
-# Set API keys and configuration
-container-use config env set API_URL https://api.example.com
-container-use config env set REDIS_URL redis://localhost:6379
+container-use config env set NODE_ENV development
 ```
 
 ### Managing Environment Variables
@@ -218,52 +178,6 @@ container-use config env unset DEBUG
 container-use config env clear
 ```
 
-### Environment Variable Best Practices
-
-<AccordionGroup>
-  <Accordion title="Use Standard Environment Variable Names">
-    Follow common conventions for well-known variables:
-    ```bash
-    # Good - standard names
-    container-use config env set DEBUG true
-    container-use config env set LOG_LEVEL info
-    container-use config env set NODE_ENV development
-
-    # Good - prefix with your app name
-    container-use config env set MYAPP_DATABASE_URL postgres://...
-    ```
-
-  </Accordion>
-
-  <Accordion title="Avoid Secrets in Environment Variables">
-    Don't put sensitive data in environment variables:
-    ```bash
-    # Avoid - sensitive data
-    container-use config env set API_KEY secret123
-    container-use config env set DATABASE_PASSWORD mypassword
-
-    # Good - configuration without secrets
-    container-use config env set API_ENDPOINT https://api.example.com
-    container-use config env set DATABASE_HOST localhost
-    ```
-
-  </Accordion>
-
-  <Accordion title="Use Environment Variables for Development Configuration">
-    Perfect for development-specific settings:
-    ```bash
-    # Enable debug modes
-    container-use config env set DEBUG true
-    container-use config env set VERBOSE 1
-
-    # Configure tool behavior
-    container-use config env set PYTHONDONTWRITEBYTECODE 1
-    container-use config env set PYTHONUNBUFFERED 1
-    ```
-
-  </Accordion>
-</AccordionGroup>
-
 ## Secrets
 
 Secrets allow your agents to access API keys, database credentials, and other sensitive data securely. **Secrets are resolved within the container environment - agents can use your credentials without the AI model ever seeing the actual values.**
@@ -272,62 +186,19 @@ Secrets allow your agents to access API keys, database credentials, and other se
   Learn about all secret types, configuration commands, and examples
 </Card>
 
-## Common Configuration Patterns
-
-### Full-Stack Web Application
-
-```bash
-# Node.js + PostgreSQL client
-container-use config base-image set node:18
-container-use config setup-command add "npm install"
-container-use config setup-command add "apt update && apt install -y postgresql-client"
-container-use config setup-command add "npm run build"
-container-use config env set NODE_ENV development
-container-use config env set DEBUG true
-```
-
-### Data Science Project
-
-```bash
-# Python with scientific computing
-container-use config base-image set python:3.11
-container-use config setup-command add "pip install -r requirements.txt"
-container-use config setup-command add "pip install jupyter pandas numpy matplotlib"
-container-use config setup-command add "python -m ipykernel install --user --name=myproject"
-container-use config env set PYTHONPATH /workdir
-container-use config env set JUPYTER_CONFIG_DIR /workdir/.jupyter
-```
-
-### Microservice Development
-
-```bash
-# Go with build tools
-container-use config base-image set golang:1.21
-container-use config setup-command add "go mod download"
-container-use config setup-command add "go install github.com/air-verse/air@latest"
-container-use config setup-command add "apt update && apt install -y curl jq"
-container-use config env set CGO_ENABLED 0
-container-use config env set GOOS linux
-```
-
-### Legacy Application
-
-```bash
-# Specific Ubuntu version with custom setup
-container-use config base-image set ubuntu:20.04
-container-use config setup-command add "apt update && apt install -y python2.7 python-pip"
-container-use config setup-command add "pip2 install -r legacy-requirements.txt"
-container-use config setup-command add "./scripts/legacy-setup.sh"
-container-use config env set PYTHONPATH /workdir
-container-use config env set LEGACY_MODE true
-```
-
 ## Viewing Your Configuration
 
 See your complete environment configuration:
 
 ```bash
+# Show your default configuration
 container-use config show
+
+# Show configuration for a specific environment
+container-use config show fancy-mallard
+
+# Output in JSON format
+container-use config show --json
 ```
 
 Example output:
@@ -345,46 +216,9 @@ Environment Variables:
   3.                   LOG_LEVEL=info
 ```
 
-## How Configuration Works
-
-Understanding the environment creation process:
-
-<Steps>
-  <Step title="Environment Creation Triggered">
-    Agent requests a new environment for your project
-  </Step>
-  <Step title="Base Image Loaded">
-    Container starts from your configured base image (or ubuntu:24.04 default)
-  </Step>
-  <Step title="Source Code Mounted">
-    Your project files are made available in the container at `/workdir`
-  </Step>
-  <Step title="Environment Variables Set">
-    All configured environment variables are made available in the container
-  </Step>
-  <Step title="Setup Commands Execute">
-    Each setup command runs in order, with any failures stopping the process
-  </Step>
-  <Step title="Agent Begins Work">
-    Agent starts working in the fully configured environment
-  </Step>
-</Steps>
-
 ## Configuration Storage
 
-Your environment configuration is stored in `.container-use/environment.json` in your project root:
-
-```json
-{
-  "base_image": "python:3.11",
-  "setup_commands": [
-    "pip install -r requirements.txt",
-    "pip install pytest black flake8"
-  ],
-  "env": ["PYTHONPATH=/workdir", "DEBUG=true", "LOG_LEVEL=info"],
-  "workdir": "/workdir"
-}
-```
+Your default environment configuration is stored in `.container-use/environment.json` in your project root.
 
 <Card title="Version Control" icon="git-branch">
   **Commit your `.container-use/` directory** to share environment configuration
@@ -392,8 +226,6 @@ Your environment configuration is stored in `.container-use/environment.json` in
 </Card>
 
 ## Troubleshooting
-
-### Setup Command Failures
 
 If a setup command fails, the environment creation stops:
 
@@ -405,33 +237,11 @@ container-use log <environment-id>
 # 1. Fix the command and try again
 container-use config setup-command remove "broken-command"
 container-use config setup-command add "fixed-command"
-
-# 2. Add missing dependencies
-container-use config setup-command add "apt update && apt install -y missing-package"
-```
-
-### Base Image Issues
-
-If your base image doesn't work:
-
-```bash
-# Reset to default and try again
-container-use config base-image reset
-container-use config show
-
-# Or try a different image
-container-use config base-image set python:3.11-slim
 ```
 
 ### Configuration Not Taking Effect
 
 Remember that configuration only applies to **new environments**:
-
-```bash
-# Delete old environment and create new one
-container-use delete <old-environment-id>
-# Start new agent session - will use new configuration
-```
 
 ## Next Steps
 
