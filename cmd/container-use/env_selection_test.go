@@ -14,7 +14,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		ctx := context.Background()
 		args := []string{"test-env"}
 
-		// Don't need a real repository for this test
 		envID, err := resolveEnvironmentID(ctx, nil, args)
 		require.NoError(t, err)
 		assert.Equal(t, "test-env", envID)
@@ -30,6 +29,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		assert.Equal(t, "test-env", envID)
 	})
 
-	// Note: Testing with empty args requires a real repository and is tested
-	// in the repository integration tests and environment integration tests
+	// Note: Full integration testing with repository logic is in 
+	// environment/integration/environment_selection_test.go
 }
