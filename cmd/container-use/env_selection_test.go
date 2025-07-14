@@ -91,8 +91,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create mock environment by simulating the git branch structure
-		// In a real scenario, we would create an environment through the repository API
-		// For this test, we'll create a branch in the container-use remote
 		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", "-b", "test-branch")
 		require.NoError(t, err)
 
@@ -115,9 +113,8 @@ func TestResolveEnvironmentID(t *testing.T) {
 		_, err = repository.RunGitCommand(ctx, repoDir, "push", "container-use", "test-branch:test-env")
 		require.NoError(t, err)
 
-		// Create environment state file in the worktree
-		worktreePath := configDir + "/worktrees/test-env"
-		err = createMockEnvironmentState(worktreePath, "test-env", "Test Environment")
+		// Create proper worktree and git notes state
+		err = createMockEnvironmentWithGitNotes(ctx, repo, "test-env", "Test Environment")
 		require.NoError(t, err)
 
 		// Test that single environment is auto-selected
@@ -176,9 +173,8 @@ func TestResolveEnvironmentID(t *testing.T) {
 		_, err = repository.RunGitCommand(ctx, repoDir, "push", "container-use", "feature-branch:test-env")
 		require.NoError(t, err)
 
-		// Create environment state file
-		worktreePath := configDir + "/worktrees/test-env"
-		err = createMockEnvironmentState(worktreePath, "test-env", "Test Environment")
+		// Create proper worktree and git notes state
+		err = createMockEnvironmentWithGitNotes(ctx, repo, "test-env", "Test Environment")
 		require.NoError(t, err)
 
 		// Test that no matching environments are found
@@ -310,14 +306,21 @@ func writeTestFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-func createMockEnvironmentState(worktreePath, envID, title string) error {
+func createMockEnvironmentWithGitNotes(ctx context.Context, repo *repository.Repository, envID, title string) error {
 	// Create worktree directory
-	err := os.MkdirAll(worktreePath, 0755)
+	worktreePath, err := repo.WorktreePath(envID)
 	if err != nil {
 		return err
 	}
 
-	// Create a mock environment state
+	// Create worktree using git worktree add
+	forkRepoPath := repo.SourcePath() + "/../.container-use/repos/" + repo.SourcePath()
+	_, err = repository.RunGitCommand(ctx, forkRepoPath, "worktree", "add", worktreePath, envID)
+	if err != nil {
+		return err
+	}
+
+	// Create mock environment state
 	state := &environment.State{
 		Container: "mock-container",
 		Title:     title,
@@ -330,8 +333,24 @@ func createMockEnvironmentState(worktreePath, envID, title string) error {
 		return err
 	}
 
-	// Write state to git notes (simulated)
-	// In a real scenario, this would be handled by the git notes system
-	// For testing, we'll just create a temporary file
-	return os.WriteFile(worktreePath+"/state.json", stateBytes, 0644)
+	// Create a temporary file with the state
+	tmpFile, err := os.CreateTemp("", "test-state-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.Write(stateBytes)
+	if err != nil {
+		return err
+	}
+	tmpFile.Close()
+
+	// Add the state as a git note
+	_, err = repository.RunGitCommand(ctx, worktreePath, "notes", "--ref", "container-use-state", "add", "-f", "-F", tmpFile.Name())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
