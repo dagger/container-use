@@ -13,9 +13,9 @@ import (
 )
 
 var terminalCmd = &cobra.Command{
-	Use:               "terminal [<env>]",
-	Short:             "Get a shell inside an environment's container",
-	Long:              `Open an interactive terminal in the exact container environment the agent used. Perfect for debugging, testing, or hands-on exploration.
+	Use:   "terminal [<env>]",
+	Short: "Get a shell inside an environment's container",
+	Long: `Open an interactive terminal in the exact container environment the agent used. Perfect for debugging, testing, or hands-on exploration.
 
 If no environment is specified, automatically selects from environments 
 that are descendants of the current HEAD.`,
@@ -58,7 +58,7 @@ container-use terminal`,
 			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
-		
+
 		envID, err := resolveEnvironmentID(ctx, repo, args)
 		if err != nil {
 			return err

@@ -60,13 +60,13 @@ func resolveEnvironmentID(ctx context.Context, repo *repository.Repository, args
 // isParentOfEnvironment checks if the current HEAD is a parent of the environment's HEAD
 func isParentOfEnvironment(ctx context.Context, repo *repository.Repository, currentHead, envID string) bool {
 	envRef := fmt.Sprintf("%s/%s", "container-use", envID)
-	
+
 	// Check if currentHead is an ancestor of envRef using git merge-base
 	mergeBase, err := repository.RunGitCommand(ctx, repo.SourcePath(), "merge-base", currentHead, envRef)
 	if err != nil {
 		return false
 	}
-	
+
 	mergeBase = strings.TrimSpace(mergeBase)
 	return mergeBase == currentHead
 }
@@ -74,26 +74,26 @@ func isParentOfEnvironment(ctx context.Context, repo *repository.Repository, cur
 // promptForEnvironmentSelection prompts the user to select from multiple environments
 func promptForEnvironmentSelection(envs []*environment.EnvironmentInfo) (string, error) {
 	var options []huh.Option[string]
-	
+
 	for _, env := range envs {
 		title := env.State.Title
 		if title == "" {
 			title = "No description"
 		}
-		
+
 		label := fmt.Sprintf("%s - %s", env.ID, title)
 		options = append(options, huh.NewOption(label, env.ID))
 	}
-	
+
 	var selectedID string
 	prompt := huh.NewSelect[string]().
 		Title("Select an environment:").
 		Options(options...).
 		Value(&selectedID)
-	
+
 	if err := prompt.Run(); err != nil {
 		return "", err
 	}
-	
+
 	return selectedID, nil
 }

@@ -21,7 +21,7 @@ func TestResolveEnvironmentID(t *testing.T) {
 		// When args are provided, should return the first arg directly
 		ctx := context.Background()
 		args := []string{"test-env"}
-		
+
 		// Don't need a real repository for this test
 		envID, err := resolveEnvironmentID(ctx, nil, args)
 		require.NoError(t, err)
