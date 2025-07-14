@@ -15,8 +15,11 @@ import (
 // If no args are provided, it filters environments to those where the local repo head is a parent of the environment's head,
 // then either auto-selects if there's only one match or prompts the user to select from multiple options.
 func resolveEnvironmentID(ctx context.Context, repo *repository.Repository, args []string) (string, error) {
-	if len(args) > 0 {
+	if len(args) == 1 {
 		return args[0], nil
+	}
+	if len(args) > 1 {
+		return "", errors.New("too many arguments")
 	}
 
 	// Get current user repo head
