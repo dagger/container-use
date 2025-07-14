@@ -29,18 +29,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		assert.Contains(t, err.Error(), "too many arguments")
 	})
 
-	t.Run("WithNoArgs", func(t *testing.T) {
-		// When no args are provided, should try to resolve from repository
-		// This will fail with a nil repository but exercises the code path
-		ctx := context.Background()
-		args := []string{}
-
-		_, err := resolveEnvironmentID(ctx, nil, args)
-		assert.Error(t, err)
-		// Should not be the "too many arguments" error
-		assert.NotContains(t, err.Error(), "too many arguments")
-	})
-
-	// Note: Full integration testing with repository logic is in 
-	// environment/integration/environment_selection_test.go
+	// Note: Testing with no args requires a real repository and is tested 
+	// in environment/integration/environment_selection_test.go
 }
