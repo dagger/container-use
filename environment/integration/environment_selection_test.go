@@ -128,7 +128,7 @@ func TestEnvironmentSelection(t *testing.T) {
 			initialHead = strings.TrimSpace(initialHead)
 
 			// Create first environment from initial HEAD
-			env1 := user.CreateEnvironment("Environment 1", "Created from initial HEAD")
+			user.CreateEnvironment("Environment 1", "Created from initial HEAD")
 
 			// Make a commit on main
 			user.GitCommand("commit", "--allow-empty", "-m", "New commit on main")
@@ -141,7 +141,7 @@ func TestEnvironmentSelection(t *testing.T) {
 			// Create second environment from new HEAD
 			env2 := user.CreateEnvironment("Environment 2", "Created from new HEAD")
 
-			// List descendants from initial HEAD - should only include env1
+			// List descendants from initial HEAD - should include both environments
 			descendantsFromInitial, err := repo.ListDescendantEnvironments(ctx, initialHead)
 			require.NoError(t, err)
 			assert.Len(t, descendantsFromInitial, 2) // Both environments are descendants of initial HEAD
