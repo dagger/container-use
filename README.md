@@ -7,7 +7,7 @@
     <a href="https://opensource.org/licenses/Apache-2.0">
       <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg">
     </a>
-    <a href="https://discord.gg/YXbtwRQv">
+    <a href="https://container-use.com/discord">
       <img src="https://img.shields.io/discord/707636530424053791?logo=discord&logoColor=white&label=Discord&color=7289DA" alt="Discord">
     </a>
   </p>
@@ -29,7 +29,7 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ---
 
-🦺 This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation. But also expect rapid iteration and responsiveness to feedback. Please submit issues and/or reach out to us on [Discord](https://discord.gg/Nf42dydvrX) in the #container-use channel.
+🦺 This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation. But also expect rapid iteration and responsiveness to feedback. Please submit issues and/or reach out to us on [Discord](https://container-use.com/discord) in the #container-use channel.
 
 ---
 
