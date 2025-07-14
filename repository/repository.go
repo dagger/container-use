@@ -272,6 +272,37 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 	return envs, nil
 }
 
+// ListDescendantEnvironments returns environments that are descendants of the given commit.
+// This filters environments to only those where the provided commit is an ancestor
+// of the environment's current HEAD. Environments are sorted by most recently updated first.
+func (r *Repository) ListDescendantEnvironments(ctx context.Context, ancestorCommit string) ([]*environment.EnvironmentInfo, error) {
+	allEnvs, err := r.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var filteredEnvs []*environment.EnvironmentInfo
+	for _, env := range allEnvs {
+		if r.isDescendantOfCommit(ctx, ancestorCommit, env.ID) {
+			filteredEnvs = append(filteredEnvs, env)
+		}
+	}
+
+	return filteredEnvs, nil
+}
+
+// isDescendantOfCommit checks if the environment is a descendant of the given commit
+// using git merge-base --is-ancestor which is the canonical way to check ancestry
+func (r *Repository) isDescendantOfCommit(ctx context.Context, ancestorCommit, envID string) bool {
+	envRef := fmt.Sprintf("container-use/%s", envID)
+
+	// Use git merge-base --is-ancestor to check if ancestorCommit is an ancestor of envRef
+	// This returns exit code 0 if ancestorCommit is an ancestor of envRef
+	_, err := RunGitCommand(ctx, r.userRepoPath, "merge-base", "--is-ancestor", ancestorCommit, envRef)
+
+	return err == nil
+}
+
 // Update saves the provided environment to the repository.
 // Writes configuration and source code changes to the worktree and history + state to git notes.
 func (r *Repository) Update(ctx context.Context, env *environment.Environment, explanation string) error {
