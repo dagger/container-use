@@ -14,19 +14,25 @@ var (
 )
 
 var mergeCmd = &cobra.Command{
-	Use:   "merge <env>",
+	Use:   "merge [<env>]",
 	Short: "Accept an environment's work into your branch",
 	Long: `Merge an environment's changes into your current git branch.
 This makes the agent's work permanent in your repository.
-Your working directory will be automatically stashed and restored.`,
-	Args:              cobra.ExactArgs(1),
+Your working directory will be automatically stashed and restored.
+
+If no environment is specified, automatically selects from environments 
+that are descendants of the current HEAD.`,
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Accept agent's work into current branch
 container-use merge backend-api
 
 # Merge and delete the environment after successful merge
 container-use merge -d backend-api
-container-use merge --delete backend-api`,
+container-use merge --delete backend-api
+
+# Auto-select environment
+container-use merge`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 
@@ -36,13 +42,16 @@ container-use merge --delete backend-api`,
 			return err
 		}
 
-		env := args[0]
+		envID, err := resolveEnvironmentID(ctx, repo, args)
+		if err != nil {
+			return err
+		}
 
-		if err := repo.Merge(ctx, env, os.Stdout); err != nil {
+		if err := repo.Merge(ctx, envID, os.Stdout); err != nil {
 			return fmt.Errorf("failed to merge environment: %w", err)
 		}
 
-		return deleteAfterMerge(ctx, repo, env, mergeDelete, "merged")
+		return deleteAfterMerge(ctx, repo, envID, mergeDelete, "merged")
 	},
 }
 
