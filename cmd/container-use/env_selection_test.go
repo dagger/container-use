@@ -81,6 +81,11 @@ func TestResolveEnvironmentID(t *testing.T) {
 		_, err := repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Initial commit")
 		require.NoError(t, err)
 
+		// Get the default branch name
+		defaultBranch, err := repository.RunGitCommand(ctx, repoDir, "branch", "--show-current")
+		require.NoError(t, err)
+		defaultBranch = defaultBranch[:len(defaultBranch)-1] // Remove newline
+
 		repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
 		require.NoError(t, err)
 
@@ -101,8 +106,8 @@ func TestResolveEnvironmentID(t *testing.T) {
 		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "-m", "Add test file")
 		require.NoError(t, err)
 
-		// Switch back to main
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", "main")
+		// Switch back to default branch
+		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", defaultBranch)
 		require.NoError(t, err)
 
 		// Push test-branch to container-use remote (simulating environment creation)
@@ -142,6 +147,11 @@ func TestResolveEnvironmentID(t *testing.T) {
 		_, err := repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Initial commit")
 		require.NoError(t, err)
 
+		// Get the default branch name
+		defaultBranch, err := repository.RunGitCommand(ctx, repoDir, "branch", "--show-current")
+		require.NoError(t, err)
+		defaultBranch = defaultBranch[:len(defaultBranch)-1] // Remove newline
+
 		repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
 		require.NoError(t, err)
 
@@ -153,12 +163,12 @@ func TestResolveEnvironmentID(t *testing.T) {
 		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Feature commit")
 		require.NoError(t, err)
 
-		// Switch back to main
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", "main")
+		// Switch back to default branch
+		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", defaultBranch)
 		require.NoError(t, err)
 
-		// Make a different commit on main (creating divergence)
-		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Main commit")
+		// Make a different commit on default branch (creating divergence)
+		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Default branch commit")
 		require.NoError(t, err)
 
 		// Push feature-branch to container-use remote as an environment
@@ -207,6 +217,11 @@ func TestIsParentOfEnvironment(t *testing.T) {
 		require.NoError(t, err)
 		currentHead = currentHead[:len(currentHead)-1] // Remove newline
 
+		// Get the default branch name
+		defaultBranch, err := repository.RunGitCommand(ctx, repoDir, "branch", "--show-current")
+		require.NoError(t, err)
+		defaultBranch = defaultBranch[:len(defaultBranch)-1] // Remove newline
+
 		repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
 		require.NoError(t, err)
 
@@ -222,8 +237,8 @@ func TestIsParentOfEnvironment(t *testing.T) {
 		_, err = repository.RunGitCommand(ctx, repoDir, "push", "container-use", "child-branch:test-env")
 		require.NoError(t, err)
 
-		// Switch back to main
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", "main")
+		// Switch back to default branch
+		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", defaultBranch)
 		require.NoError(t, err)
 
 		// Test that current HEAD is parent of environment
@@ -252,6 +267,11 @@ func TestIsParentOfEnvironment(t *testing.T) {
 		_, err := repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Initial commit")
 		require.NoError(t, err)
 
+		// Get the default branch name
+		defaultBranch, err := repository.RunGitCommand(ctx, repoDir, "branch", "--show-current")
+		require.NoError(t, err)
+		defaultBranch = defaultBranch[:len(defaultBranch)-1] // Remove newline
+
 		repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
 		require.NoError(t, err)
 
@@ -266,11 +286,11 @@ func TestIsParentOfEnvironment(t *testing.T) {
 		_, err = repository.RunGitCommand(ctx, repoDir, "push", "container-use", "branch1:test-env")
 		require.NoError(t, err)
 
-		// Switch back to main and make a different commit
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", "main")
+		// Switch back to default branch and make a different commit
+		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", defaultBranch)
 		require.NoError(t, err)
 
-		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Main commit")
+		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Default branch commit")
 		require.NoError(t, err)
 
 		currentHead, err := repository.RunGitCommand(ctx, repoDir, "rev-parse", "HEAD")
