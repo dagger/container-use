@@ -9,8 +9,8 @@ import (
 )
 
 func TestResolveEnvironmentID(t *testing.T) {
-	t.Run("WithProvidedArgs", func(t *testing.T) {
-		// When args are provided, should return the first arg directly
+	t.Run("WithSingleArg", func(t *testing.T) {
+		// When one arg is provided, should return it directly
 		ctx := context.Background()
 		args := []string{"test-env"}
 
@@ -20,15 +20,27 @@ func TestResolveEnvironmentID(t *testing.T) {
 	})
 
 	t.Run("WithMultipleArgs", func(t *testing.T) {
-		// When multiple args are provided, should return the first arg
+		// When multiple args are provided, should return an error
 		ctx := context.Background()
 		args := []string{"test-env", "other-arg"}
 
-		envID, err := resolveEnvironmentID(ctx, nil, args)
-		require.NoError(t, err)
-		assert.Equal(t, "test-env", envID)
+		_, err := resolveEnvironmentID(ctx, nil, args)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "too many arguments")
 	})
 
-	// Note: Full integration testing with repository logic is in
+	t.Run("WithNoArgs", func(t *testing.T) {
+		// When no args are provided, should try to resolve from repository
+		// This will fail with a nil repository but exercises the code path
+		ctx := context.Background()
+		args := []string{}
+
+		_, err := resolveEnvironmentID(ctx, nil, args)
+		assert.Error(t, err)
+		// Should not be the "too many arguments" error
+		assert.NotContains(t, err.Error(), "too many arguments")
+	})
+
+	// Note: Full integration testing with repository logic is in 
 	// environment/integration/environment_selection_test.go
 }
