@@ -9,10 +9,10 @@ import (
 )
 
 var inspectCmd = &cobra.Command{
-	Use:               "inspect <env>",
+	Use:               "inspect [<env>]",
 	Short:             "Inspect an environment",
 	Long:              "This is an internal command used by the CLI to inspect an environment. It is not meant to be used by users.",
-	Args:              cobra.ExactArgs(1),
+	Args:              cobra.MaximumNArgs(1),
 	Hidden:            true,
 	ValidArgsFunction: suggestEnvironments,
 	RunE: func(app *cobra.Command, args []string) error {
@@ -22,7 +22,12 @@ var inspectCmd = &cobra.Command{
 			return err
 		}
 
-		envInfo, err := repo.Info(ctx, args[0])
+		envID, err := resolveEnvironmentID(ctx, repo, args)
+		if err != nil {
+			return err
+		}
+
+		envInfo, err := repo.Info(ctx, envID)
 		if err != nil {
 			return err
 		}
