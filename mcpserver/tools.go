@@ -29,7 +29,7 @@ func openRepository(ctx context.Context, request mcp.CallToolRequest) (*reposito
 	}
 	repo, err := repository.Open(ctx, source)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to open repository: %w", err)
 	}
 	return repo, nil
 }
@@ -49,7 +49,7 @@ func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*reposit
 	}
 	env, err := repo.Get(ctx, dag, envID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("unable to get environment: %w", err)
 	}
 	return repo, env, nil
 }
@@ -105,7 +105,11 @@ func wrapTool(tool *Tool) *Tool {
 			defer func() {
 				slog.Info("Tool finished", "tool", tool.Definition.Name)
 			}()
-			return tool.Handler(ctx, request)
+			response, err := tool.Handler(ctx, request)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			return response, nil
 		},
 	}
 }
@@ -221,7 +225,7 @@ var EnvironmentOpenTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		_, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 		return EnvironmentToCallResult(env)
 	},
@@ -248,7 +252,7 @@ Environment configuration is managed by the user via cu config commands.`,
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, err := openRepository(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
+			return nil, err
 		}
 		title, err := request.RequireString("title")
 		if err != nil {
@@ -257,22 +261,22 @@ Environment configuration is managed by the user via cu config commands.`,
 
 		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
-			return mcp.NewToolResultErrorFromErr("dagger client not found in context", nil), nil
+			return nil, fmt.Errorf("dagger client not found in context")
 		}
 
 		env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to create environment", err), nil
+			return nil, fmt.Errorf("failed to create environment: %w", err)
 		}
 
 		out, err := marshalEnvironment(env)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal environment: %w", err)
 		}
 
 		dirty, status, err := repo.IsDirty(ctx)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to check if environment is dirty", err), nil
+			return nil, fmt.Errorf("unable to check if environment is dirty: %w", err)
 		}
 
 		if !dirty {
@@ -311,7 +315,7 @@ var EnvironmentUpdateMetadataTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		// Update title if provided
@@ -320,12 +324,12 @@ var EnvironmentUpdateMetadataTool = &Tool{
 		}
 
 		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
 		}
 
 		out, err := marshalEnvironment(env)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
+			return nil, fmt.Errorf("failed to marshal environment: %w", err)
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Environment metadata updated successfully.\n%s", out)), nil
 	},
@@ -370,14 +374,14 @@ var EnvironmentConfigTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		updatedConfig := env.State.Config.Copy()
 
 		newConfig, ok := request.GetArguments()["config"].(map[string]any)
 		if !ok {
-			return mcp.NewToolResultError("invalid config"), nil
+			return nil, errors.New("invalid config")
 		}
 
 		if baseImage, ok := newConfig["base_image"].(string); ok {
@@ -399,16 +403,16 @@ var EnvironmentConfigTool = &Tool{
 		}
 
 		if err := env.UpdateConfig(ctx, updatedConfig); err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
 		}
 
 		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
+			return nil, fmt.Errorf("failed to update repository: %w", err)
 		}
 
 		out, err := marshalEnvironment(env)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to marshal environment", err), nil
+			return nil, fmt.Errorf("failed to marshal environment: %w", err)
 		}
 
 		message := fmt.Sprintf(`SUCCESS: Configuration successfully applied. Environment has been restarted, all previous commands have been lost.
@@ -436,11 +440,11 @@ var EnvironmentListTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, err := openRepository(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the repository", err), nil
+			return nil, err
 		}
 		envInfos, err := repo.List(ctx)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("invalid source", err), nil
+			return nil, fmt.Errorf("invalid source: %w", err)
 		}
 
 		// Convert EnvironmentInfo slice to EnvironmentResponse slice
@@ -494,17 +498,17 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		command := request.GetString("command", "")
 		shell := request.GetString("shell", "sh")
 
-		updateRepo := func() (*mcp.CallToolResult, error) {
+		updateRepo := func() error {
 			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to update repository", err), err
+				return fmt.Errorf("failed to update repository: %w", err)
 			}
-			return nil, nil
+			return nil
 		}
 
 		background := request.GetBool("background", false)
@@ -517,11 +521,11 @@ Failure to do so will result in the tool being stuck, awaiting for the command t
 			}
 			endpoints, runErr := env.RunBackground(ctx, command, shell, ports, request.GetBool("use_entrypoint", false))
 			// We want to update the repository even if the command failed.
-			if resp, err := updateRepo(); err != nil {
-				return resp, nil
+			if err := updateRepo(); err != nil {
+				return nil, err
 			}
 			if runErr != nil {
-				return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
+				return nil, fmt.Errorf("failed to run command: %w", runErr)
 			}
 
 			out, err := json.Marshal(endpoints)
@@ -541,11 +545,11 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 
 		stdout, runErr := env.Run(ctx, command, shell, request.GetBool("use_entrypoint", false))
 		// We want to update the repository even if the command failed.
-		if resp, err := updateRepo(); err != nil {
-			return resp, nil
+		if err := updateRepo(); err != nil {
+			return nil, err
 		}
 		if runErr != nil {
-			return mcp.NewToolResultErrorFromErr("failed to run command", runErr), nil
+			return nil, fmt.Errorf("failed to run command: %w", runErr)
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.State.Config.Workdir)), nil
@@ -583,7 +587,7 @@ var EnvironmentFileReadTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		_, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		targetFile, err := request.RequireString("target_file")
@@ -596,7 +600,7 @@ var EnvironmentFileReadTool = &Tool{
 
 		fileContents, err := env.FileRead(ctx, targetFile, shouldReadEntireFile, startLineOneIndexedInclusive, endLineOneIndexedInclusive)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to read file", err), nil
+			return nil, fmt.Errorf("failed to read file: %w", err)
 		}
 
 		return mcp.NewToolResultText(fileContents), nil
@@ -625,7 +629,7 @@ var EnvironmentFileListTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		_, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		path, err := request.RequireString("path")
@@ -635,7 +639,7 @@ var EnvironmentFileListTool = &Tool{
 
 		out, err := env.FileList(ctx, path)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to list directory", err), nil
+			return nil, fmt.Errorf("failed to list directory: %w", err)
 		}
 
 		return mcp.NewToolResultText(out), nil
@@ -668,7 +672,7 @@ var EnvironmentFileWriteTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		targetFile, err := request.RequireString("target_file")
@@ -681,11 +685,11 @@ var EnvironmentFileWriteTool = &Tool{
 		}
 
 		if err := env.FileWrite(ctx, request.GetString("explanation", ""), targetFile, contents); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
+			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 
 		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote", targetFile)), nil
@@ -714,7 +718,7 @@ var EnvironmentFileDeleteTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 
 		targetFile, err := request.RequireString("target_file")
@@ -723,11 +727,11 @@ var EnvironmentFileDeleteTool = &Tool{
 		}
 
 		if err := env.FileDelete(ctx, request.GetString("explanation", ""), targetFile); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to delete file", err), nil
+			return nil, fmt.Errorf("failed to delete file: %w", err)
 		}
 
 		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
+			return nil, fmt.Errorf("failed to update env: %w", err)
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully and committed to container-use/ remote", targetFile)), nil
@@ -752,7 +756,7 @@ var EnvironmentCheckpointTool = &Tool{
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		_, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 		destination, err := request.RequireString("destination")
 		if err != nil {
@@ -761,7 +765,7 @@ var EnvironmentCheckpointTool = &Tool{
 
 		endpoint, err := env.Checkpoint(ctx, destination)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to checkpoint", err), nil
+			return nil, fmt.Errorf("failed to checkpoint environment: %w", err)
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Checkpoint pushed to %q. You MUST use the full content addressed (@sha256:...) reference in `docker` commands. The entrypoint is set to `sh`, keep that in mind when giving commands to the container.", endpoint)), nil
 	},
@@ -816,7 +820,7 @@ Supported schemas are:
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			return nil, err
 		}
 		serviceName, err := request.RequireString("name")
 		if err != nil {
@@ -846,16 +850,16 @@ Supported schemas are:
 			Secrets:      secrets,
 		})
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to add service", err), nil
+			return nil, fmt.Errorf("failed to add service: %w", err)
 		}
 
 		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to update env", err), nil
+			return nil, fmt.Errorf("failed to update env: %w", err)
 		}
 
 		output, err := json.Marshal(service)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to marshal service", err), nil
+			return nil, fmt.Errorf("failed to marshal service: %w", err)
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
