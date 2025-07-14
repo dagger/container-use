@@ -57,7 +57,7 @@ func TestResolveEnvironmentID(t *testing.T) {
 		// Should return error when no environments exist
 		_, err = resolveEnvironmentID(ctx, repo, []string{})
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no environments found that are descendants of the current HEAD")
+		assert.Contains(t, err.Error(), "no environments found")
 	})
 
 	t.Run("SingleMatchingEnvironment", func(t *testing.T) {
@@ -188,7 +188,7 @@ func TestResolveEnvironmentID(t *testing.T) {
 	})
 }
 
-func TestGetDescendantEnvironments(t *testing.T) {
+func TestIsDescendantOfHead(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -243,9 +243,8 @@ func TestGetDescendantEnvironments(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test that current HEAD is parent of environment
-		descendantEnvs, err := getDescendantEnvironments(ctx, repo, currentHead)
-		require.NoError(t, err)
-		assert.Contains(t, descendantEnvs, "test-env")
+		isDescendant := isDescendantOfHead(ctx, repo, currentHead, "test-env")
+		assert.True(t, isDescendant)
 	})
 
 	t.Run("CurrentHeadIsNotParent", func(t *testing.T) {
@@ -300,9 +299,8 @@ func TestGetDescendantEnvironments(t *testing.T) {
 		currentHead = strings.TrimSpace(currentHead)
 
 		// Test that current HEAD is not parent of environment
-		descendantEnvs, err := getDescendantEnvironments(ctx, repo, currentHead)
-		require.NoError(t, err)
-		assert.NotContains(t, descendantEnvs, "test-env")
+		isDescendant := isDescendantOfHead(ctx, repo, currentHead, "test-env")
+		assert.False(t, isDescendant)
 	})
 }
 
