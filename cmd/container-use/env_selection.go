@@ -26,22 +26,10 @@ func resolveEnvironmentID(ctx context.Context, repo *repository.Repository, args
 	}
 	currentHead = strings.TrimSpace(currentHead)
 
-	// Get all environments
-	envs, err := repo.List(ctx)
+	// Get environments that are descendants of current HEAD
+	filteredEnvs, err := repo.ListDescendantEnvironments(ctx, currentHead)
 	if err != nil {
-		return "", fmt.Errorf("failed to list environments: %w", err)
-	}
-
-	if len(envs) == 0 {
-		return "", errors.New("no environments found")
-	}
-
-	// Filter environments where local repo head is a parent of the environment's current head
-	var filteredEnvs []*environment.EnvironmentInfo
-	for _, env := range envs {
-		if isDescendantOfHead(ctx, repo, currentHead, env.ID) {
-			filteredEnvs = append(filteredEnvs, env)
-		}
+		return "", fmt.Errorf("failed to list descendant environments: %w", err)
 	}
 
 	if len(filteredEnvs) == 0 {
@@ -55,19 +43,6 @@ func resolveEnvironmentID(ctx context.Context, repo *repository.Repository, args
 
 	// Multiple environments - prompt user to select
 	return promptForEnvironmentSelection(filteredEnvs)
-}
-
-// isDescendantOfHead checks if the environment is a descendant of the current HEAD
-// using git merge-base --is-ancestor which is the canonical way to check ancestry
-func isDescendantOfHead(ctx context.Context, repo *repository.Repository, currentHead, envID string) bool {
-	envRef := fmt.Sprintf("container-use/%s", envID)
-
-	// Use git merge-base --is-ancestor to check if currentHead is an ancestor of envRef
-	// This returns exit code 0 if currentHead is an ancestor of envRef
-	_, err := repository.RunGitCommand(ctx, repo.SourcePath(),
-		"merge-base", "--is-ancestor", currentHead, envRef)
-
-	return err == nil
 }
 
 // promptForEnvironmentSelection prompts the user to select from multiple environments
