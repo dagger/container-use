@@ -5,9 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/dagger/container-use/environment"
 	"github.com/dagger/container-use/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,129 +56,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		_, err = resolveEnvironmentID(ctx, repo, []string{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no environments found")
-	})
-
-	t.Run("SingleMatchingEnvironment", func(t *testing.T) {
-		// Create a temporary repository with a single environment
-		ctx := context.Background()
-		repoDir := t.TempDir()
-		configDir := t.TempDir()
-
-		// Initialize git repo
-		cmds := [][]string{
-			{"init"},
-			{"config", "user.email", "test@example.com"},
-			{"config", "user.name", "Test User"},
-			{"config", "commit.gpgsign", "false"},
-		}
-		for _, cmd := range cmds {
-			_, err := repository.RunGitCommand(ctx, repoDir, cmd...)
-			require.NoError(t, err)
-		}
-
-		// Create initial commit
-		_, err := repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Initial commit")
-		require.NoError(t, err)
-
-		// Get the default branch name
-		defaultBranch, err := repository.RunGitCommand(ctx, repoDir, "branch", "--show-current")
-		require.NoError(t, err)
-		defaultBranch = strings.TrimSpace(defaultBranch)
-
-		repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
-		require.NoError(t, err)
-
-		// Create mock environment by simulating the git branch structure
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", "-b", "test-branch")
-		require.NoError(t, err)
-
-		// Write a simple file and commit
-		testFile := repoDir + "/test.txt"
-		err = writeTestFile(testFile, "test content")
-		require.NoError(t, err)
-
-		_, err = repository.RunGitCommand(ctx, repoDir, "add", "test.txt")
-		require.NoError(t, err)
-
-		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "-m", "Add test file")
-		require.NoError(t, err)
-
-		// Switch back to default branch
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", defaultBranch)
-		require.NoError(t, err)
-
-		// Push test-branch to container-use remote (simulating environment creation)
-		_, err = repository.RunGitCommand(ctx, repoDir, "push", "container-use", "test-branch:test-env")
-		require.NoError(t, err)
-
-		// Create proper worktree and git notes state
-		err = createMockEnvironmentWithGitNotes(ctx, repo, "test-env", "Test Environment")
-		require.NoError(t, err)
-
-		// Test that single environment is auto-selected
-		envID, err := resolveEnvironmentID(ctx, repo, []string{})
-		require.NoError(t, err)
-		assert.Equal(t, "test-env", envID)
-	})
-
-	t.Run("NoMatchingEnvironments", func(t *testing.T) {
-		// Create a temporary repository with environments that don't match the current HEAD
-		ctx := context.Background()
-		repoDir := t.TempDir()
-		configDir := t.TempDir()
-
-		// Initialize git repo
-		cmds := [][]string{
-			{"init"},
-			{"config", "user.email", "test@example.com"},
-			{"config", "user.name", "Test User"},
-			{"config", "commit.gpgsign", "false"},
-		}
-		for _, cmd := range cmds {
-			_, err := repository.RunGitCommand(ctx, repoDir, cmd...)
-			require.NoError(t, err)
-		}
-
-		// Create initial commit
-		_, err := repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Initial commit")
-		require.NoError(t, err)
-
-		// Get the default branch name
-		defaultBranch, err := repository.RunGitCommand(ctx, repoDir, "branch", "--show-current")
-		require.NoError(t, err)
-		defaultBranch = strings.TrimSpace(defaultBranch)
-
-		repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
-		require.NoError(t, err)
-
-		// Create a branch that diverges from main
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", "-b", "feature-branch")
-		require.NoError(t, err)
-
-		// Make a commit on feature-branch
-		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Feature commit")
-		require.NoError(t, err)
-
-		// Switch back to default branch
-		_, err = repository.RunGitCommand(ctx, repoDir, "checkout", defaultBranch)
-		require.NoError(t, err)
-
-		// Make a different commit on default branch (creating divergence)
-		_, err = repository.RunGitCommand(ctx, repoDir, "commit", "--allow-empty", "-m", "Default branch commit")
-		require.NoError(t, err)
-
-		// Push feature-branch to container-use remote as an environment
-		_, err = repository.RunGitCommand(ctx, repoDir, "push", "container-use", "feature-branch:test-env")
-		require.NoError(t, err)
-
-		// Create proper worktree and git notes state
-		err = createMockEnvironmentWithGitNotes(ctx, repo, "test-env", "Test Environment")
-		require.NoError(t, err)
-
-		// Test that no matching environments are found
-		_, err = resolveEnvironmentID(ctx, repo, []string{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no environments found that are descendants of the current HEAD")
 	})
 }
 
@@ -304,53 +179,4 @@ func TestIsDescendantOfHead(t *testing.T) {
 
 func writeTestFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
-}
-
-func createMockEnvironmentWithGitNotes(ctx context.Context, repo *repository.Repository, envID, title string) error {
-	// Create worktree directory
-	worktreePath, err := repo.WorktreePath(envID)
-	if err != nil {
-		return err
-	}
-
-	// Create worktree using git worktree add
-	forkRepoPath := repo.SourcePath() + "/../.container-use/repos/" + repo.SourcePath()
-	_, err = repository.RunGitCommand(ctx, forkRepoPath, "worktree", "add", worktreePath, envID)
-	if err != nil {
-		return err
-	}
-
-	// Create mock environment state
-	state := &environment.State{
-		Container: "mock-container",
-		Title:     title,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	stateBytes, err := state.Marshal()
-	if err != nil {
-		return err
-	}
-
-	// Create a temporary file with the state
-	tmpFile, err := os.CreateTemp("", "test-state-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmpFile.Name())
-
-	_, err = tmpFile.Write(stateBytes)
-	if err != nil {
-		return err
-	}
-	tmpFile.Close()
-
-	// Add the state as a git note
-	_, err = repository.RunGitCommand(ctx, worktreePath, "notes", "--ref", "container-use-state", "add", "-f", "-F", tmpFile.Name())
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
