@@ -61,12 +61,12 @@ func resolveEnvironmentID(ctx context.Context, repo *repository.Repository, args
 // using git merge-base --is-ancestor which is the canonical way to check ancestry
 func isDescendantOfHead(ctx context.Context, repo *repository.Repository, currentHead, envID string) bool {
 	envRef := fmt.Sprintf("container-use/%s", envID)
-	
+
 	// Use git merge-base --is-ancestor to check if currentHead is an ancestor of envRef
 	// This returns exit code 0 if currentHead is an ancestor of envRef
-	_, err := repository.RunGitCommand(ctx, repo.SourcePath(), 
+	_, err := repository.RunGitCommand(ctx, repo.SourcePath(),
 		"merge-base", "--is-ancestor", currentHead, envRef)
-	
+
 	return err == nil
 }
 
