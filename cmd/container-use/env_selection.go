@@ -68,9 +68,9 @@ func resolveEnvironmentID(ctx context.Context, repo *repository.Repository, args
 func getDescendantEnvironments(ctx context.Context, repo *repository.Repository, currentHead string) ([]string, error) {
 	// Use git for-each-ref to get all container-use branches with their commit hashes
 	// Format: <commit-hash> <refname>
-	output, err := repository.RunGitCommand(ctx, repo.SourcePath(), 
-		"for-each-ref", 
-		"--format=%(objectname) %(refname:short)", 
+	output, err := repository.RunGitCommand(ctx, repo.SourcePath(),
+		"for-each-ref",
+		"--format=%(objectname) %(refname:short)",
 		"refs/remotes/container-use/")
 	if err != nil {
 		return nil, err
@@ -87,15 +87,15 @@ func getDescendantEnvironments(ctx context.Context, repo *repository.Repository,
 		if line == "" {
 			continue
 		}
-		
+
 		parts := strings.Fields(line)
 		if len(parts) != 2 {
 			continue
 		}
-		
+
 		commit := parts[0]
 		refname := parts[1]
-		
+
 		// Extract environment ID from refname (container-use/env-id -> env-id)
 		if strings.HasPrefix(refname, "container-use/") {
 			envID := strings.TrimPrefix(refname, "container-use/")
@@ -113,10 +113,10 @@ func getDescendantEnvironments(ctx context.Context, repo *repository.Repository,
 	var descendantEnvs []string
 	for i, envID := range candidateEnvs {
 		envCommit := candidateCommits[i]
-		
+
 		// Check if currentHead is an ancestor of envCommit
 		// git merge-base --is-ancestor returns 0 if currentHead is an ancestor of envCommit
-		_, err := repository.RunGitCommand(ctx, repo.SourcePath(), 
+		_, err := repository.RunGitCommand(ctx, repo.SourcePath(),
 			"merge-base", "--is-ancestor", currentHead, envCommit)
 		if err == nil {
 			// currentHead is an ancestor of envCommit, so envCommit is a descendant
