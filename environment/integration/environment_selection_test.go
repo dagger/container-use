@@ -20,7 +20,7 @@ func TestEnvironmentSelection(t *testing.T) {
 	t.Run("SingleDescendantEnvironment", func(t *testing.T) {
 		WithRepository(t, "single-descendant", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 			ctx := context.Background()
-			
+
 			// Get current HEAD
 			currentHead, err := repository.RunGitCommand(ctx, repo.SourcePath(), "rev-parse", "HEAD")
 			require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestEnvironmentSelection(t *testing.T) {
 	t.Run("MultipleDescendantEnvironments", func(t *testing.T) {
 		WithRepository(t, "multiple-descendants", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 			ctx := context.Background()
-			
+
 			// Get current HEAD
 			currentHead, err := repository.RunGitCommand(ctx, repo.SourcePath(), "rev-parse", "HEAD")
 			require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestEnvironmentSelection(t *testing.T) {
 	t.Run("NoDescendantEnvironments", func(t *testing.T) {
 		WithRepository(t, "no-descendants", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 			ctx := context.Background()
-			
+
 			// Create an environment first
 			env := user.CreateEnvironment("Test Environment", "Testing no descendants")
 
@@ -94,7 +94,7 @@ func TestEnvironmentSelection(t *testing.T) {
 	t.Run("EnvironmentsSortedByUpdateTime", func(t *testing.T) {
 		WithRepository(t, "sorted-envs", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 			ctx := context.Background()
-			
+
 			// Get current HEAD
 			currentHead, err := repository.RunGitCommand(ctx, repo.SourcePath(), "rev-parse", "HEAD")
 			require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestEnvironmentSelection(t *testing.T) {
 	t.Run("MixedEnvironmentAncestry", func(t *testing.T) {
 		WithRepository(t, "mixed-ancestry", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 			ctx := context.Background()
-			
+
 			// Get initial HEAD
 			initialHead, err := repository.RunGitCommand(ctx, repo.SourcePath(), "rev-parse", "HEAD")
 			require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestEnvironmentSelection(t *testing.T) {
 			descendantsFromInitial, err := repo.ListDescendantEnvironments(ctx, initialHead)
 			require.NoError(t, err)
 			assert.Len(t, descendantsFromInitial, 2) // Both environments are descendants of initial HEAD
-			
+
 			// List descendants from new HEAD - should only include env2
 			descendantsFromNew, err := repo.ListDescendantEnvironments(ctx, newHead)
 			require.NoError(t, err)

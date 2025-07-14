@@ -29,6 +29,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		assert.Equal(t, "test-env", envID)
 	})
 
-	// Note: Full integration testing with repository logic is in 
+	// Note: Full integration testing with repository logic is in
 	// environment/integration/environment_selection_test.go
 }
