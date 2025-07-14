@@ -8,17 +8,23 @@ import (
 )
 
 var diffCmd = &cobra.Command{
-	Use:   "diff <env>",
+	Use:   "diff [<env>]",
 	Short: "Show what files an agent changed",
 	Long: `Display the code changes made by an agent in an environment.
-Shows a git diff between the environment's state and your current branch.`,
-	Args:              cobra.ExactArgs(1),
+Shows a git diff between the environment's state and your current branch.
+
+If no environment is specified, automatically selects from environments 
+that are descendants of the current HEAD.`,
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# See what changes the agent made
 container-use diff fancy-mallard
 
 # Quick assessment before merging
-container-use diff backend-api`,
+container-use diff backend-api
+
+# Auto-select environment
+container-use diff`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 
@@ -28,7 +34,12 @@ container-use diff backend-api`,
 			return err
 		}
 
-		return repo.Diff(ctx, args[0], os.Stdout)
+		envID, err := resolveEnvironmentID(ctx, repo, args)
+		if err != nil {
+			return err
+		}
+
+		return repo.Diff(ctx, envID, os.Stdout)
 	},
 }
 
