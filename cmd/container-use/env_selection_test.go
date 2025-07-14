@@ -29,6 +29,6 @@ func TestResolveEnvironmentID(t *testing.T) {
 		assert.Contains(t, err.Error(), "too many arguments")
 	})
 
-	// Note: Testing with no args requires a real repository and is tested 
+	// Note: Testing with no args requires a real repository and is tested
 	// in environment/integration/environment_selection_test.go
 }
