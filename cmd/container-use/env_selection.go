@@ -22,7 +22,7 @@ func resolveEnvironmentID(ctx context.Context, repo *repository.Repository, args
 		return "", errors.New("too many arguments")
 	}
 
-	// Get current user repo head
+	// Get current user repo head - this could easily go inside ListDescendantEnvironments, but keeping it outside simplifies testing
 	currentHead, err := repository.RunGitCommand(ctx, repo.SourcePath(), "rev-parse", "HEAD")
 	if err != nil {
 		return "", fmt.Errorf("failed to get current HEAD: %w", err)
