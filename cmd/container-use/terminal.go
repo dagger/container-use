@@ -13,16 +13,22 @@ import (
 )
 
 var terminalCmd = &cobra.Command{
-	Use:               "terminal <env>",
+	Use:               "terminal [<env>]",
 	Short:             "Get a shell inside an environment's container",
-	Long:              `Open an interactive terminal in the exact container environment the agent used. Perfect for debugging, testing, or hands-on exploration.`,
-	Args:              cobra.ExactArgs(1),
+	Long:              `Open an interactive terminal in the exact container environment the agent used. Perfect for debugging, testing, or hands-on exploration.
+
+If no environment is specified, automatically selects from environments 
+that are descendants of the current HEAD.`,
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
 	Example: `# Drop into environment's container
 container-use terminal fancy-mallard
 
 # Debug agent's work interactively
-container-use terminal backend-api`,
+container-use terminal backend-api
+
+# Auto-select environment
+container-use terminal`,
 	RunE: func(app *cobra.Command, args []string) error {
 		ctx := app.Context()
 
@@ -52,7 +58,13 @@ container-use terminal backend-api`,
 			return fmt.Errorf("failed to connect to dagger: %w", err)
 		}
 		defer dag.Close()
-		env, err := repo.Get(ctx, dag, args[0])
+		
+		envID, err := resolveEnvironmentID(ctx, repo, args)
+		if err != nil {
+			return err
+		}
+
+		env, err := repo.Get(ctx, dag, envID)
 		if err != nil {
 			return err
 		}
