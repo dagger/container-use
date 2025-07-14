@@ -85,7 +85,11 @@ func (c *ConfigureClaude) updateSettingsLocal(config ClaudeSettingsLocal) ([]byt
 	// This should be revisited, and we should merge this with what the user already has?
 	config.Permissions.Deny = []string{
 		"LS",
+		"Glob",
+		"Grep",
 		"Read",
+		"NotebookRead",
+		"NotebookEdit",
 		"Edit",
 		"MultiEdit",
 		"Write",
