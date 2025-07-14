@@ -66,3 +66,149 @@ func TestRepositoryOpen(t *testing.T) {
 		assert.Equal(t, repo.forkRepoPath, strings.TrimSpace(remote))
 	})
 }
+
+// TestIsDescendantOfCommit tests the ancestry checking logic
+func TestIsDescendantOfCommit(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("descendant_relationship", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configDir := t.TempDir()
+
+		// Initialize a git repo
+		_, err := RunGitCommand(ctx, tempDir, "init")
+		require.NoError(t, err)
+
+		// Set git config
+		_, err = RunGitCommand(ctx, tempDir, "config", "user.email", "test@example.com")
+		require.NoError(t, err)
+		_, err = RunGitCommand(ctx, tempDir, "config", "user.name", "Test User")
+		require.NoError(t, err)
+
+		// Make initial commit
+		_, err = RunGitCommand(ctx, tempDir, "commit", "--allow-empty", "-m", "Initial commit")
+		require.NoError(t, err)
+
+		// Get the initial commit hash
+		initialCommit, err := RunGitCommand(ctx, tempDir, "rev-parse", "HEAD")
+		require.NoError(t, err)
+		initialCommit = strings.TrimSpace(initialCommit)
+
+		// Open repository
+		repo, err := OpenWithBasePath(ctx, tempDir, configDir)
+		require.NoError(t, err)
+
+		// Create a branch and make a commit (simulating environment creation)
+		_, err = RunGitCommand(ctx, tempDir, "checkout", "-b", "test-env")
+		require.NoError(t, err)
+		_, err = RunGitCommand(ctx, tempDir, "commit", "--allow-empty", "-m", "Environment commit")
+		require.NoError(t, err)
+
+		// Push to container-use remote
+		_, err = RunGitCommand(ctx, tempDir, "push", "container-use", "test-env:test-env")
+		require.NoError(t, err)
+
+		// Check if the environment is a descendant of the initial commit
+		isDescendant := repo.isDescendantOfCommit(ctx, initialCommit, "test-env")
+		assert.True(t, isDescendant, "Environment should be a descendant of initial commit")
+	})
+
+	t.Run("non_descendant_relationship", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configDir := t.TempDir()
+
+		// Initialize a git repo
+		_, err := RunGitCommand(ctx, tempDir, "init")
+		require.NoError(t, err)
+
+		// Set git config
+		_, err = RunGitCommand(ctx, tempDir, "config", "user.email", "test@example.com")
+		require.NoError(t, err)
+		_, err = RunGitCommand(ctx, tempDir, "config", "user.name", "Test User")
+		require.NoError(t, err)
+
+		// Make initial commit
+		_, err = RunGitCommand(ctx, tempDir, "commit", "--allow-empty", "-m", "Initial commit")
+		require.NoError(t, err)
+
+		// Open repository
+		repo, err := OpenWithBasePath(ctx, tempDir, configDir)
+		require.NoError(t, err)
+
+		// Create a branch and make a commit (simulating environment creation)
+		_, err = RunGitCommand(ctx, tempDir, "checkout", "-b", "test-env")
+		require.NoError(t, err)
+		_, err = RunGitCommand(ctx, tempDir, "commit", "--allow-empty", "-m", "Environment commit")
+		require.NoError(t, err)
+
+		// Push to container-use remote
+		_, err = RunGitCommand(ctx, tempDir, "push", "container-use", "test-env:test-env")
+		require.NoError(t, err)
+
+		// Go back to main and make a divergent commit
+		defaultBranch, err := RunGitCommand(ctx, tempDir, "branch", "--show-current")
+		require.NoError(t, err)
+		defaultBranch = strings.TrimSpace(defaultBranch)
+		if defaultBranch != "test-env" {
+			_, err = RunGitCommand(ctx, tempDir, "checkout", defaultBranch)
+			require.NoError(t, err)
+		} else {
+			// If we're still on test-env, checkout main/master
+			_, err = RunGitCommand(ctx, tempDir, "checkout", "-")
+			require.NoError(t, err)
+		}
+		_, err = RunGitCommand(ctx, tempDir, "commit", "--allow-empty", "-m", "Divergent commit")
+		require.NoError(t, err)
+
+		// Get the new HEAD
+		newHead, err := RunGitCommand(ctx, tempDir, "rev-parse", "HEAD")
+		require.NoError(t, err)
+		newHead = strings.TrimSpace(newHead)
+
+		// Check if the environment is a descendant of the new HEAD (it shouldn't be)
+		isDescendant := repo.isDescendantOfCommit(ctx, newHead, "test-env")
+		assert.False(t, isDescendant, "Environment should not be a descendant of divergent commit")
+	})
+}
+
+// TestListDescendantEnvironments tests the filtering of environments by ancestry
+func TestListDescendantEnvironments(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test that requires environment creation")
+	}
+
+	ctx := context.Background()
+
+	t.Run("no_environments", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configDir := t.TempDir()
+
+		// Initialize a git repo
+		_, err := RunGitCommand(ctx, tempDir, "init")
+		require.NoError(t, err)
+
+		// Set git config
+		_, err = RunGitCommand(ctx, tempDir, "config", "user.email", "test@example.com")
+		require.NoError(t, err)
+		_, err = RunGitCommand(ctx, tempDir, "config", "user.name", "Test User")
+		require.NoError(t, err)
+
+		// Make initial commit
+		_, err = RunGitCommand(ctx, tempDir, "commit", "--allow-empty", "-m", "Initial commit")
+		require.NoError(t, err)
+
+		// Get the initial commit hash
+		initialCommit, err := RunGitCommand(ctx, tempDir, "rev-parse", "HEAD")
+		require.NoError(t, err)
+		initialCommit = strings.TrimSpace(initialCommit)
+
+		// Open repository
+		repo, err := OpenWithBasePath(ctx, tempDir, configDir)
+		require.NoError(t, err)
+
+		// List descendant environments (should be empty)
+		descendants, err := repo.ListDescendantEnvironments(ctx, initialCommit)
+		require.NoError(t, err)
+		assert.Empty(t, descendants, "Should have no descendant environments")
+	})
+}
