@@ -208,19 +208,9 @@ func EnvironmentInfoToCallResult(envInfo *environment.EnvironmentInfo) (*mcp.Cal
 }
 
 var EnvironmentOpenTool = &Tool{
-	Definition: mcp.NewTool("environment_open",
-		mcp.WithDescription("Opens an existing environment. Return format is same as environment_create."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being opened."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Path to the source git repository for the environment. Prefer absolute paths from available context, but if you don't have one, you can try '.'"),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment to open."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_open",
+		"Opens an existing environment. Return format is same as environment_create.",
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		_, env, err := openEnvironment(ctx, request)
@@ -232,20 +222,13 @@ var EnvironmentOpenTool = &Tool{
 }
 
 var EnvironmentCreateTool = &Tool{
-	Definition: mcp.NewTool("environment_create",
-		mcp.WithDescription(`Creates a new development environment.
+	Definition: newRepositoryTool(
+		"environment_create",
+		`Creates a new development environment.
 The environment is the result of a the setups commands on top of the base image.
 Environment configuration is managed by the user via cu config commands.`,
-		),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being created."),
-		),
 		mcp.WithString("title",
 			mcp.Description("Short description of the work that is happening in this environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
 			mcp.Required(),
 		),
 	),
@@ -295,19 +278,9 @@ You MUST tell the user: To include these changes in the environment, they need t
 }
 
 var EnvironmentUpdateMetadataTool = &Tool{
-	Definition: mcp.NewTool("environment_update_metadata",
-		mcp.WithDescription("Update environment metadata such as title. This updates the descriptive information about what work is being done in the environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this metadata is being updated."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment to update."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_update_metadata",
+		"Update environment metadata such as title. This updates the descriptive information about what work is being done in the environment.",
 		mcp.WithString("title",
 			mcp.Description("Updated title describing the work being done in this environment."),
 		),
@@ -336,21 +309,11 @@ var EnvironmentUpdateMetadataTool = &Tool{
 }
 
 var EnvironmentConfigTool = &Tool{
-	Definition: mcp.NewTool("environment_config",
-		mcp.WithDescription("Make environment config changes such as base image and setup commands."+
+	Definition: newEnvironmentTool(
+		"environment_config",
+		"Make environment config changes such as base image and setup commands."+
 			"If the environment is missing any tools or instructions, you MUST call this function to update the environment."+
-			"You MUST update the environment with any useful tools. You will be resumed with no other context than the information provided here"),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment configuration is being requested."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this request."),
-			mcp.Required(),
-		),
+			"You MUST update the environment with any useful tools. You will be resumed with no other context than the information provided here",
 		mcp.WithObject("config",
 			mcp.Required(),
 			mcp.Properties(map[string]any{
@@ -427,15 +390,9 @@ TELL THE USER: To make these changes persistent, they will have to run "cu confi
 }
 
 var EnvironmentListTool = &Tool{
-	Definition: mcp.NewTool("environment_list",
-		mcp.WithDescription("List available environments"),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this environment is being listed."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("The source directory of the environment."), //  This can be a local folder (e.g. file://) or a URL to a git repository (e.g. https://github.com/user/repo.git, git@github.com:user/repo.git)"),
-			mcp.Required(),
-		),
+	Definition: newRepositoryTool(
+		"environment_list",
+		"List available environments",
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, err := openRepository(ctx, request)
@@ -462,19 +419,9 @@ var EnvironmentListTool = &Tool{
 }
 
 var EnvironmentRunCmdTool = &Tool{
-	Definition: mcp.NewTool("environment_run_cmd",
-		mcp.WithDescription("Run a terminal command inside a NEW container within the environment."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this command is being run."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_run_cmd",
+		"Run a terminal command inside a NEW container within the environment.",
 		mcp.WithString("command",
 			mcp.Description("The terminal command to execute. If empty, the environment's default command is used."),
 		),
@@ -557,19 +504,9 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 }
 
 var EnvironmentFileReadTool = &Tool{
-	Definition: mcp.NewTool("environment_file_read",
-		mcp.WithDescription("Read the contents of a file, specifying a line range or the entire file."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this file is being read."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_file_read",
+		"Read the contents of a file, specifying a line range or the entire file.",
 		mcp.WithString("target_file",
 			mcp.Description("Path of the file to read, absolute or relative to the workdir"),
 			mcp.Required(),
@@ -608,19 +545,9 @@ var EnvironmentFileReadTool = &Tool{
 }
 
 var EnvironmentFileListTool = &Tool{
-	Definition: mcp.NewTool("environment_file_list",
-		mcp.WithDescription("List the contents of a directory"),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this directory is being listed."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_file_list",
+		"List the contents of a directory",
 		mcp.WithString("path",
 			mcp.Description("Path of the directory to list contents of, absolute or relative to the workdir"),
 			mcp.Required(),
@@ -647,19 +574,9 @@ var EnvironmentFileListTool = &Tool{
 }
 
 var EnvironmentFileWriteTool = &Tool{
-	Definition: mcp.NewTool("environment_file_write",
-		mcp.WithDescription("Write the contents of a file."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this file is being written."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_file_write",
+		"Write the contents of a file.",
 		mcp.WithString("target_file",
 			mcp.Description("Path of the file to write, absolute or relative to the workdir."),
 			mcp.Required(),
@@ -697,19 +614,9 @@ var EnvironmentFileWriteTool = &Tool{
 }
 
 var EnvironmentFileDeleteTool = &Tool{
-	Definition: mcp.NewTool("environment_file_delete",
-		mcp.WithDescription("Deletes a file at the specified path."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this file is being deleted."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_file_delete",
+		"Deletes a file at the specified path.",
 		mcp.WithString("target_file",
 			mcp.Description("Path of the file to delete, absolute or relative to the workdir."),
 			mcp.Required(),
@@ -739,15 +646,9 @@ var EnvironmentFileDeleteTool = &Tool{
 }
 
 var EnvironmentCheckpointTool = &Tool{
-	Definition: mcp.NewTool("environment_checkpoint",
-		mcp.WithDescription("Checkpoints an environment in its current state as a container."),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this checkpoint is being created."),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_checkpoint",
+		"Checkpoints an environment in its current state as a container.",
 		mcp.WithString("destination",
 			mcp.Description("Container image destination to checkpoint to (e.g. registry.com/user/image:tag"),
 			mcp.Required(),
@@ -772,19 +673,9 @@ var EnvironmentCheckpointTool = &Tool{
 }
 
 var EnvironmentAddServiceTool = &Tool{
-	Definition: mcp.NewTool("environment_add_service",
-		mcp.WithDescription("Add a service to the environment (e.g. database, cache, etc.)"),
-		mcp.WithString("explanation",
-			mcp.Description("One sentence explanation for why this service is being added."),
-		),
-		mcp.WithString("environment_source",
-			mcp.Description("Absolute path to the source git repository for the environment."),
-			mcp.Required(),
-		),
-		mcp.WithString("environment_id",
-			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
-			mcp.Required(),
-		),
+	Definition: newEnvironmentTool(
+		"environment_add_service",
+		"Add a service to the environment (e.g. database, cache, etc.)",
 		mcp.WithString("name",
 			mcp.Description("The name of the service to start."),
 			mcp.Required(),
