@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
@@ -420,5 +421,110 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
 		return err
 	}
 
-	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--autostash", "--squash", "--", "container-use/"+envInfo.ID)
+	// Create patch directory if it doesn't exist
+	configPath := os.ExpandEnv("$HOME/.config/container-use")
+	patchDir := filepath.Join(configPath, "patches")
+	if err := os.MkdirAll(patchDir, 0755); err != nil {
+		return fmt.Errorf("failed to create patch directory: %w", err)
+	}
+
+	// Create a unique patch filename using timestamp and environment ID
+	patchFile := filepath.Join(patchDir, fmt.Sprintf("user-changes-%s-%d.patch", envInfo.ID, time.Now().Unix()))
+
+	// Check if there are any unstaged changes
+	diffCmd := exec.CommandContext(ctx, "git", "diff")
+	diffCmd.Dir = r.userRepoPath
+	diffOutput, err := diffCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to check for unstaged changes: %w", err)
+	}
+
+	hasUnstagedChanges := len(diffOutput) > 0
+
+	if hasUnstagedChanges {
+		// Create a patch of only unstaged changes
+		fmt.Fprintf(w, "Saving unstaged user changes to %s...\n", patchFile)
+
+		// Create the patch from unstaged changes only
+		patchCmd := exec.CommandContext(ctx, "git", "diff")
+		patchCmd.Dir = r.userRepoPath
+		patchOutput, err := patchCmd.Output()
+		if err != nil {
+			return fmt.Errorf("failed to create patch: %w", err)
+		}
+
+		// Write patch to file
+		if err := os.WriteFile(patchFile, patchOutput, 0644); err != nil {
+			return fmt.Errorf("failed to write patch file: %w", err)
+		}
+
+		// Reset to clean state
+		fmt.Fprintf(w, "Resetting to clean state...\n")
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset", "--hard", "HEAD"); err != nil {
+			return fmt.Errorf("failed to reset: %w", err)
+		}
+	}
+
+	// Apply the merge without autostash
+	fmt.Fprintf(w, "Applying environment changes...\n")
+	if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--squash", "--", "container-use/"+envInfo.ID); err != nil {
+		// If merge fails, try to restore user changes
+		if hasUnstagedChanges {
+			fmt.Fprintf(w, "Merge failed, restoring user changes...\n")
+			applyCmd := exec.CommandContext(ctx, "git", "apply", patchFile)
+			applyCmd.Dir = r.userRepoPath
+			applyCmd.Stdout = w
+			applyCmd.Stderr = w
+			applyCmd.Run() // Ignore error as patch might partially apply
+		}
+		return fmt.Errorf("failed to merge: %w", err)
+	}
+
+	// Apply user changes back
+	if hasUnstagedChanges {
+		fmt.Fprintf(w, "Restoring user changes...\n")
+
+		// 1. Temporarily commit the agent's changes
+		commitCmd := exec.CommandContext(ctx, "git", "commit", "-m", "temp: agent changes")
+		commitCmd.Dir = r.userRepoPath
+		if err := commitCmd.Run(); err != nil {
+			fmt.Fprintf(w, "Warning: Failed to commit agent changes: %v\n", err)
+			return nil
+		}
+
+		// 2. Apply the user's patch
+		applyCmd := exec.CommandContext(ctx, "git", "apply", patchFile)
+		applyCmd.Dir = r.userRepoPath
+		applyCmd.Stdout = w
+		applyCmd.Stderr = w
+		if err := applyCmd.Run(); err != nil {
+			fmt.Fprintf(w, "Warning: Failed to apply some user changes. Patch saved at: %s\n", patchFile)
+			fmt.Fprintf(w, "You can manually apply it with: git apply %s\n", patchFile)
+			// Try to recover by doing soft reset
+			resetCmd := exec.CommandContext(ctx, "git", "reset", "--soft", "HEAD~1")
+			resetCmd.Dir = r.userRepoPath
+			resetCmd.Run()
+			return nil
+		}
+
+		// 3. Reset to unstage everything
+		resetCmd := exec.CommandContext(ctx, "git", "reset")
+		resetCmd.Dir = r.userRepoPath
+		if err := resetCmd.Run(); err != nil {
+			fmt.Fprintf(w, "Warning: Failed to reset: %v\n", err)
+		}
+
+		// 4. Soft reset to bring agent changes back to staging
+		softResetCmd := exec.CommandContext(ctx, "git", "reset", "--soft", "HEAD~1")
+		softResetCmd.Dir = r.userRepoPath
+		if err := softResetCmd.Run(); err != nil {
+			fmt.Fprintf(w, "Warning: Failed to restore agent changes to staging: %v\n", err)
+		}
+
+		// Clean up patch file on successful application
+		os.Remove(patchFile)
+		fmt.Fprintf(w, "User changes successfully restored as unstaged changes.\n")
+	}
+
+	return nil
 }
