@@ -54,6 +54,7 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 		{"config", "user.email", "test@example.com"},
 		{"config", "user.name", "Test User"},
 		{"config", "commit.gpgsign", "false"},
+		{"config", "protocol.file.allow", "always"}, // Allow file protocol for tests
 	}
 
 	for _, cmd := range cmds {

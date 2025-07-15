@@ -145,12 +145,53 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 		return "", err
 	}
 
+	// Initialize submodules once in the worktree
+	if err := r.initializeSubmodules(ctx, worktreePath); err != nil {
+		return "", fmt.Errorf("failed to initialize submodules: %w", err)
+	}
+
 	_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
 	if err != nil {
 		return "", err
 	}
 
 	return worktreePath, nil
+}
+
+// initializeSubmodules initializes and updates submodules in the worktree
+func (r *Repository) initializeSubmodules(ctx context.Context, worktreePath string) error {
+	// Check if .gitmodules exists
+	gitmodulesPath := filepath.Join(worktreePath, ".gitmodules")
+	if _, err := os.Stat(gitmodulesPath); os.IsNotExist(err) {
+		// No submodules, nothing to do
+		return nil
+	}
+
+	slog.Info("Initializing submodules", "worktree", worktreePath)
+
+	// Copy protocol.file.allow config from user repo to worktree if it exists
+	// This is needed for tests that use file:// URLs
+	if allowFile, err := RunGitCommand(ctx, r.userRepoPath, "config", "--get", "protocol.file.allow"); err == nil {
+		allowFile = strings.TrimSpace(allowFile)
+		if allowFile != "" {
+			_, err := RunGitCommand(ctx, worktreePath, "config", "protocol.file.allow", allowFile)
+			if err != nil {
+				slog.Warn("Failed to copy protocol.file.allow config", "err", err)
+			}
+		}
+	}
+
+	// Initialize submodules
+	if _, err := RunGitCommand(ctx, worktreePath, "submodule", "init"); err != nil {
+		return fmt.Errorf("failed to initialize submodules: %w", err)
+	}
+
+	// Update submodules recursively
+	if _, err := RunGitCommand(ctx, worktreePath, "submodule", "update", "--recursive"); err != nil {
+		return fmt.Errorf("failed to update submodules: %w", err)
+	}
+
+	return nil
 }
 
 func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, explanation string) (rerr error) {
@@ -174,6 +215,7 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
+
 	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
@@ -202,19 +244,71 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	_, err = env.Workdir().
-		WithNewFile(".git", worktreePointer).
-		Export(
-			ctx,
-			worktreePath,
-			dagger.DirectoryExportOpts{Wipe: true},
-		)
+	// Start with the basic .git file
+	exportDir := env.Workdir().WithNewFile(".git", worktreePointer)
+
+	// Template in submodule .git files
+	exportDir, err = r.templateSubmoduleGitFiles(ctx, exportDir, worktreePath)
+	if err != nil {
+		return fmt.Errorf("failed to template submodule git files: %w", err)
+	}
+
+	_, err = exportDir.Export(
+		ctx,
+		worktreePath,
+		dagger.DirectoryExportOpts{Wipe: true},
+	)
 	if err != nil {
 		return err
 	}
 
 	return nil
 }
+
+// templateSubmoduleGitFiles templates submodule .git files back into the export directory
+func (r *Repository) templateSubmoduleGitFiles(ctx context.Context, dir *dagger.Directory, worktreePath string) (*dagger.Directory, error) {
+	// Check if .gitmodules exists in the container
+	gitmodulesContent, err := dir.File(".gitmodules").Contents(ctx)
+	if err != nil {
+		// No .gitmodules, no submodules to template
+		return dir, nil
+	}
+
+	// Parse submodule paths from .gitmodules
+	submodulePaths := r.parseSubmodulePathsFromContent(gitmodulesContent)
+
+	for _, submodulePath := range submodulePaths {
+		// Read the .git file content from the worktree
+		gitFilePath := filepath.Join(worktreePath, submodulePath, ".git")
+		gitFileContent, err := os.ReadFile(gitFilePath)
+		if err != nil {
+			slog.Warn("Failed to read submodule .git file", "path", gitFilePath, "err", err)
+			continue // Skip if can't read
+		}
+
+		// Template the .git file back into the container export
+		dir = dir.WithNewFile(filepath.Join(submodulePath, ".git"), string(gitFileContent))
+	}
+
+	return dir, nil
+}
+
+// parseSubmodulePathsFromContent parses .gitmodules content and returns submodule paths
+func (r *Repository) parseSubmodulePathsFromContent(gitmodulesContent string) []string {
+	var paths []string
+	lines := strings.Split(gitmodulesContent, "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "path = ") {
+			path := strings.TrimPrefix(line, "path = ")
+			paths = append(paths, path)
+		}
+	}
+
+	return paths
+}
+
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 	fullRef := fmt.Sprintf("refs/notes/%s", ref)
 	fetch := func() error {
