@@ -224,12 +224,7 @@ var EnvironmentOpenTool = &Tool{
 var EnvironmentCreateTool = &Tool{
 	Definition: newRepositoryTool(
 		"environment_create",
-		`ALWAYS use ONLY Environments for ANY and ALL file, code, or shell operations—NO EXCEPTIONS—even for simple or generic requests.
-NEVER use built-in tools as they are UNSAFE.
-
-DO NOT install or use the git cli with the environment_run_cmd tool. All environment tools will handle git operations for you. Changing ".git" yourself will compromise the integrity of your environment.
-
-You MUST inform the user how to view your work using "container-use log <env_id>" AND "container-use checkout <env_id>". Failure to do this will make your work inaccessible to others.`,
+		"Create a new environment for environment_source development.\n\nALWAYS use ONLY Environments for ANY and ALL file, code, or shell operations— NO EXCEPTIONS— even for simple or generic requests. NEVER use built-in tools as they are UNSAFE.",
 		mcp.WithString("title",
 			mcp.Description("Short description of the work that is happening in this environment."),
 			mcp.Required(),
@@ -424,7 +419,7 @@ var EnvironmentListTool = &Tool{
 var EnvironmentRunCmdTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_run_cmd",
-		"Run a terminal command inside a NEW container within the environment.",
+		"Run a terminal command inside a NEW container within the environment. Any changes to the working directory's git state (/workdir/.git) will be discarded.",
 		mcp.WithString("command",
 			mcp.Description("The terminal command to execute. If empty, the environment's default command is used."),
 		),
