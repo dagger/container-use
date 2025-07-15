@@ -31,12 +31,7 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, dag *dagger.Client, id, title, worktree string, initialSourceDir *dagger.Directory) (*Environment, error) {
-	config := DefaultConfig()
-	if err := config.Load(worktree); err != nil {
-		return nil, err
-	}
-
+func New(ctx context.Context, dag *dagger.Client, id, title string, config *EnvironmentConfig, initialSourceDir *dagger.Directory) (*Environment, error) {
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
 			ID: id,
