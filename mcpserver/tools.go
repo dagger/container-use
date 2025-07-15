@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"dagger.io/dagger"
@@ -143,6 +144,8 @@ func init() {
 		EnvironmentAddServiceTool,
 
 		EnvironmentCheckpointTool,
+
+		EnvironmentSyncFromUserTool,
 	)
 }
 
@@ -822,5 +825,46 @@ Supported schemas are:
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
+	},
+}
+
+var EnvironmentSyncFromUserTool = &Tool{
+	Definition: newEnvironmentTool(
+		"environment_sync_from_user",
+		"Apply the user's unstaged changes to the environment and apply the environment's to the user's local worktree. ONLY RUN WHEN EXPLICITLY REQUESTED BY THE USER.",
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+
+		// Use a string builder to capture output
+		patch, err := repo.DiffUserLocalChanges(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate patch: %w", err)
+		}
+		if len(patch) == 0 {
+			return mcp.NewToolResultText("No unstaged changes to pull."), nil
+		}
+
+		if err := env.ApplyPatch(ctx, patch); err != nil {
+			return nil, fmt.Errorf("failed to pull changes to environment: %w", err)
+		}
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
+		}
+
+		if err := repo.ResetUserLocalChanges(ctx); err != nil {
+			return nil, fmt.Errorf("unable to reset user's worktree: %w", err)
+		}
+
+		var buf strings.Builder
+		if err := repo.Apply(ctx, env.ID, &buf); err != nil {
+			return nil, fmt.Errorf("unable to apply changes to user's worktree: %w\n\nlogs:\n%s", err, buf.String())
+		}
+
+		return mcp.NewToolResultText("Patch applied successfully to the environment:\n\n```patch\n" + string(patch) + "\n```"), nil
 	},
 }

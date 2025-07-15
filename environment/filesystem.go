@@ -114,14 +114,18 @@ func (env *Environment) FileSearchReplace(ctx context.Context, explanation, targ
 
 	// Apply the changes using `patch` so we don't have to spit out the entire
 	// contents
-	err = env.apply(ctx, env.container().
+	return env.ApplyPatch(ctx, godiffpatch.GeneratePatch(targetFile, contents, newContents))
+}
+
+func (env *Environment) ApplyPatch(ctx context.Context, patch string) error {
+	err := env.apply(ctx, env.container().
 		WithExec([]string{"patch", "-p1"}, dagger.ContainerWithExecOpts{
-			Stdin: godiffpatch.GeneratePatch(targetFile, contents, newContents),
+			Stdin: patch,
 		}))
 	if err != nil {
 		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
 	}
-	env.Notes.Add("Edit %s", targetFile)
+	env.Notes.Add("Apply patch")
 	return nil
 }
 

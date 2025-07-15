@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
@@ -415,68 +414,39 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--no-ff", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
 
-func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
+func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) (rerr error) {
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	// Create patch directory if it doesn't exist
-	configPath := os.ExpandEnv("$HOME/.config/container-use")
-	patchDir := filepath.Join(configPath, "patches")
-	if err := os.MkdirAll(patchDir, 0755); err != nil {
-		return fmt.Errorf("failed to create patch directory: %w", err)
-	}
-
-	// Create a unique patch filename using timestamp and environment ID
-	patchFile := filepath.Join(patchDir, fmt.Sprintf("user-changes-%s-%d.patch", envInfo.ID, time.Now().Unix()))
-
-	// Check if there are any unstaged changes
-	diffCmd := exec.CommandContext(ctx, "git", "diff")
-	diffCmd.Dir = r.userRepoPath
-	diffOutput, err := diffCmd.Output()
+	diffOutput, err := r.DiffUserLocalChanges(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to check for unstaged changes: %w", err)
 	}
 
 	hasUnstagedChanges := len(diffOutput) > 0
 
-	if hasUnstagedChanges {
-		// Create a patch of only unstaged changes
-		fmt.Fprintf(w, "Saving unstaged user changes to %s...\n", patchFile)
-
-		// Create the patch from unstaged changes only
-		patchCmd := exec.CommandContext(ctx, "git", "diff")
-		patchCmd.Dir = r.userRepoPath
-		patchOutput, err := patchCmd.Output()
-		if err != nil {
-			return fmt.Errorf("failed to create patch: %w", err)
+	fmt.Fprintf(w, "Creating virtual stash as backup...\n")
+	stashID, err := RunGitCommand(ctx, r.userRepoPath, "stash", "create")
+	if err != nil {
+		return fmt.Errorf("failed to stash changes: %w", err)
+	}
+	defer func() {
+		if rerr != nil {
+			fmt.Fprintf(w, "ERROR: %s\n", rerr)
+			fmt.Fprintf(w, "Your prior changes can be restored with `git stash apply %s`\n", stashID)
 		}
+	}()
 
-		// Write patch to file
-		if err := os.WriteFile(patchFile, patchOutput, 0644); err != nil {
-			return fmt.Errorf("failed to write patch file: %w", err)
-		}
-
-		// Reset to clean state
-		fmt.Fprintf(w, "Resetting to clean state...\n")
-		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset", "--hard", "HEAD"); err != nil {
-			return fmt.Errorf("failed to reset: %w", err)
-		}
+	// Reset to clean state
+	if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset", "--hard", "HEAD"); err != nil {
+		return fmt.Errorf("failed to reset: %w", err)
 	}
 
 	// Apply the merge without autostash
 	fmt.Fprintf(w, "Applying environment changes...\n")
 	if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--squash", "--", "container-use/"+envInfo.ID); err != nil {
-		// If merge fails, try to restore user changes
-		if hasUnstagedChanges {
-			fmt.Fprintf(w, "Merge failed, restoring user changes...\n")
-			applyCmd := exec.CommandContext(ctx, "git", "apply", patchFile)
-			applyCmd.Dir = r.userRepoPath
-			applyCmd.Stdout = w
-			applyCmd.Stderr = w
-			applyCmd.Run() // Ignore error as patch might partially apply
-		}
 		return fmt.Errorf("failed to merge: %w", err)
 	}
 
@@ -485,46 +455,48 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
 		fmt.Fprintf(w, "Restoring user changes...\n")
 
 		// 1. Temporarily commit the agent's changes
-		commitCmd := exec.CommandContext(ctx, "git", "commit", "-m", "temp: agent changes")
-		commitCmd.Dir = r.userRepoPath
-		if err := commitCmd.Run(); err != nil {
-			fmt.Fprintf(w, "Warning: Failed to commit agent changes: %v\n", err)
-			return nil
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "commit", "-m", "temp: agent changes"); err != nil {
+			return fmt.Errorf("failed to commit agent changes: %w", err)
 		}
 
 		// 2. Apply the user's patch
-		applyCmd := exec.CommandContext(ctx, "git", "apply", patchFile)
+		applyCmd := exec.CommandContext(ctx, "git", "apply", "-")
 		applyCmd.Dir = r.userRepoPath
+		applyCmd.Stdin = strings.NewReader(diffOutput)
 		applyCmd.Stdout = w
 		applyCmd.Stderr = w
 		if err := applyCmd.Run(); err != nil {
-			fmt.Fprintf(w, "Warning: Failed to apply some user changes. Patch saved at: %s\n", patchFile)
-			fmt.Fprintf(w, "You can manually apply it with: git apply %s\n", patchFile)
-			// Try to recover by doing soft reset
-			resetCmd := exec.CommandContext(ctx, "git", "reset", "--soft", "HEAD~1")
-			resetCmd.Dir = r.userRepoPath
-			resetCmd.Run()
-			return nil
+			return fmt.Errorf("failed to apply user changes: %w", err)
 		}
 
-		// 3. Reset to unstage everything
-		resetCmd := exec.CommandContext(ctx, "git", "reset")
-		resetCmd.Dir = r.userRepoPath
-		if err := resetCmd.Run(); err != nil {
-			fmt.Fprintf(w, "Warning: Failed to reset: %v\n", err)
+		// 3. Reset to unstage the user's changes
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset"); err != nil {
+			return fmt.Errorf("failed to reset user changes: %w", err)
 		}
 
 		// 4. Soft reset to bring agent changes back to staging
-		softResetCmd := exec.CommandContext(ctx, "git", "reset", "--soft", "HEAD~1")
-		softResetCmd.Dir = r.userRepoPath
-		if err := softResetCmd.Run(); err != nil {
-			fmt.Fprintf(w, "Warning: Failed to restore agent changes to staging: %v\n", err)
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset", "--soft", "HEAD~1"); err != nil {
+			return fmt.Errorf("failed to restore agent changes to staging: %w", err)
 		}
 
 		// Clean up patch file on successful application
-		os.Remove(patchFile)
 		fmt.Fprintf(w, "User changes successfully restored as unstaged changes.\n")
 	}
 
+	return nil
+}
+
+func (r *Repository) DiffUserLocalChanges(ctx context.Context) (string, error) {
+	diff, err := RunGitCommand(ctx, r.userRepoPath, "diff")
+	if err != nil {
+		return "", fmt.Errorf("failed to get user diff: %w", err)
+	}
+	return diff, nil
+}
+
+func (r *Repository) ResetUserLocalChanges(ctx context.Context) error {
+	if _, err := RunGitCommand(ctx, r.userRepoPath, "restore", "."); err != nil {
+		return fmt.Errorf("failed to reset unstaged changes: %w", err)
+	}
 	return nil
 }
