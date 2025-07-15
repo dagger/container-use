@@ -25,14 +25,6 @@ DAGGER MODULE (more details in .dagger/):
 - Build: 'dagger call build export --path ./container-use'
 - Test: 'dagger call test' or 'dagger call test --integration=false'
 
-AVAILABLE TOOLS:
-- Go 1.24.5 (matches go.mod requirements)
-- Docker v28.3.2 (for container runtime needed by the tool)
-- Dagger v0.18.11 (matches dagger.json)
-- Git v2.30.2 with test user configured (test dependency, NOT for version control)
-- golangci-lint v1.61.0 (Go linter with various checks)
-- jq v1.6 (JSON processor for formatting stdio test responses)
-
 PROJECT STRUCTURE:
 - cmd/container-use: Main CLI application entry point
 - environment/: Core environment management logic
