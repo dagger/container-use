@@ -51,9 +51,12 @@ Set up a Python project environment:
 # Set the base image to Python 3.11
 container-use config base-image set python:3.11
 
-# Add setup commands for your project
-container-use config setup-command add "pip install -r requirements.txt"
-container-use config setup-command add "pip install pytest black flake8"
+# Add setup commands for system dependencies
+container-use config setup-command add "apt-get update && apt-get install -y build-essential"
+
+# Add install commands for project dependencies
+container-use config install-command add "pip install -r requirements.txt"
+container-use config install-command add "pip install pytest black flake8"
 
 # Set environment variables
 container-use config env set PYTHONPATH /workdir
@@ -134,12 +137,12 @@ container-use config base-image reset
 
 ## Setup Commands
 
-Setup commands are shell commands that run when creating a new environment, after the base image is ready but before the agent starts working.
+Setup commands run when creating a new environment, after pulling the base image but before copying your code. Use these for system-level dependencies and tools.
 
 ### Adding Setup Commands
 
 ```bash
-container-use config setup-command add "pip install -r requirements.txt"
+container-use config setup-command add "apt-get update && apt-get install -y build-essential"
 ```
 
 ### Managing Setup Commands
@@ -149,10 +152,34 @@ container-use config setup-command add "pip install -r requirements.txt"
 container-use config setup-command list
 
 # Remove a specific command
-container-use config setup-command remove "pip install pytest black flake8"
+container-use config setup-command remove "apt-get install -y build-essential"
 
 # Clear all setup commands
 container-use config setup-command clear
+```
+
+## Install Commands
+
+Install commands run after copying your code to the environment. Use these for project dependencies and build steps.
+
+### Adding Install Commands
+
+```bash
+container-use config install-command add "go mod download"
+container-use config install-command add "npm install"
+```
+
+### Managing Install Commands
+
+```bash
+# List all install commands
+container-use config install-command list
+
+# Remove a specific command
+container-use config install-command remove "npm install"
+
+# Clear all install commands
+container-use config install-command clear
 ```
 
 ## Environment Variables
@@ -207,9 +234,10 @@ Example output:
 Base Image:            python:3.11
 Workdir:               /workdir
 Setup Commands:
+  1.                   apt-get update && apt-get install -y build-essential
+Install Commands:
   1.                   pip install -r requirements.txt
   2.                   pip install pytest black flake8
-  3.                   ./scripts/dev-setup.sh
 Environment Variables:
   1.                   PYTHONPATH=/workdir
   2.                   DEBUG=true
