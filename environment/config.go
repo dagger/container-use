@@ -23,12 +23,13 @@ func DefaultConfig() *EnvironmentConfig {
 }
 
 type EnvironmentConfig struct {
-	Workdir       string         `json:"workdir,omitempty"`
-	BaseImage     string         `json:"base_image,omitempty"`
-	SetupCommands []string       `json:"setup_commands,omitempty"`
-	Env           KVList         `json:"env,omitempty"`
-	Secrets       KVList         `json:"secrets,omitempty"`
-	Services      ServiceConfigs `json:"services,omitempty"`
+	Workdir         string         `json:"workdir,omitempty"`
+	BaseImage       string         `json:"base_image,omitempty"`
+	SetupCommands   []string       `json:"setup_commands,omitempty"`
+	InstallCommands []string       `json:"install_commands,omitempty"`
+	Env             KVList         `json:"env,omitempty"`
+	Secrets         KVList         `json:"secrets,omitempty"`
+	Services        ServiceConfigs `json:"services,omitempty"`
 }
 
 type ServiceConfig struct {

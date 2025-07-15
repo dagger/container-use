@@ -167,32 +167,41 @@ func (env *Environment) buildBase(ctx context.Context, baseSourceDir *dagger.Dir
 		return nil, err
 	}
 
-	for _, command := range env.State.Config.SetupCommands {
-		var err error
+	runCommands := func(commands []string) error {
+		for _, command := range commands {
+			var err error
 
-		container = container.WithExec([]string{"sh", "-c", command})
+			container = container.WithExec([]string{"sh", "-c", command})
 
-		exitCode, err := container.ExitCode(ctx)
-		if err != nil {
-			var exitErr *dagger.ExecError
-			if errors.As(err, &exitErr) {
-				env.Notes.AddCommand(command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-				return nil, fmt.Errorf("setup command failed with exit code %d.\nstdout: %s\nstderr: %s\n%w", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr, err)
+			exitCode, err := container.ExitCode(ctx)
+			if err != nil {
+				var exitErr *dagger.ExecError
+				if errors.As(err, &exitErr) {
+					env.Notes.AddCommand(command, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
+					return fmt.Errorf("exit code %d.\nstdout: %s\nstderr: %s\n%w", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr, err)
+				}
+
+				return err
+			}
+			stdout, err := container.Stdout(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get stdout: %w", err)
 			}
 
-			return nil, fmt.Errorf("failed to execute setup command: %w", err)
-		}
-		stdout, err := container.Stdout(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get stdout: %w", err)
+			stderr, err := container.Stderr(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get stderr: %w", err)
+			}
+
+			env.Notes.AddCommand(command, exitCode, stdout, stderr)
 		}
 
-		stderr, err := container.Stderr(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get stderr: %w", err)
-		}
+		return nil
+	}
 
-		env.Notes.AddCommand(command, exitCode, stdout, stderr)
+	// Run setup commands without the source directory for caching purposes
+	if err := runCommands(env.State.Config.SetupCommands); err != nil {
+		return nil, fmt.Errorf("setup command failed: %w", err)
 	}
 
 	env.Services, err = env.startServices(ctx)
@@ -204,6 +213,11 @@ func (env *Environment) buildBase(ctx context.Context, baseSourceDir *dagger.Dir
 	}
 
 	container = container.WithDirectory(".", baseSourceDir)
+
+	// Run the install commands after the source directory is set up
+	if err := runCommands(env.State.Config.InstallCommands); err != nil {
+		return nil, fmt.Errorf("install command failed: %w", err)
+	}
 
 	return container, nil
 }

@@ -446,6 +446,27 @@ func TestEnvironmentConfigurationPersists(t *testing.T) {
 		})
 	})
 
+	t.Run("InstallCommandsPersist", func(t *testing.T) {
+		WithRepository(t, "install_commands", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+			newEnv := user.CreateEnvironment("Test with install", "Creating environment with install commands")
+
+			installCmds := []string{
+				"npm install --save-dev jest",
+				"echo 'Dependencies installed' > /install.log",
+			}
+			updatedConfig := newEnv.State.Config.Copy()
+			updatedConfig.BaseImage = "node:18"
+			updatedConfig.InstallCommands = installCmds
+
+			user.UpdateEnvironment(newEnv.ID, "Test with install", "Install project dependencies", updatedConfig)
+
+			// Reload config
+			newEnv = user.GetEnvironment(newEnv.ID)
+			newConfig := newEnv.State.Config.Copy()
+			assert.Equal(t, installCmds, newConfig.InstallCommands, "Install commands should persist")
+		})
+	})
+
 	t.Run("EnvironmentVariable", func(t *testing.T) {
 		t.Run("Persistence", func(t *testing.T) {
 			WithRepository(t, "envvar_persistence", SetupNodeRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {

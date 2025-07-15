@@ -123,6 +123,15 @@ container-use config show my-env
 			fmt.Fprintf(tw, "Setup Commands:\t(none)\n")
 		}
 
+		if len(config.InstallCommands) > 0 {
+			fmt.Fprintf(tw, "Install Commands:\t\n")
+			for i, cmd := range config.InstallCommands {
+				fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
+			}
+		} else {
+			fmt.Fprintf(tw, "Install Commands:\t(none)\n")
+		}
+
 		envKeys := config.Env.Keys()
 		if len(envKeys) > 0 {
 			fmt.Fprintf(tw, "Environment Variables:\t\n")
@@ -316,6 +325,89 @@ var configSetupCommandClearCmd = &cobra.Command{
 	},
 }
 
+// Install command object commands
+var configInstallCommandCmd = &cobra.Command{
+	Use:   "install-command",
+	Short: "Manage install commands",
+	Long:  `Manage install commands that are run after copying code to environments.`,
+}
+
+var configInstallCommandAddCmd = &cobra.Command{
+	Use:   "add <command>",
+	Short: "Add an install command",
+	Long:  `Add a command to be run after copying code to new environments (e.g., "go mod download").`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		command := args[0]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.InstallCommands = append(config.InstallCommands, command)
+			fmt.Printf("Install command added: %s\n", command)
+			return nil
+		})
+	},
+}
+
+var configInstallCommandRemoveCmd = &cobra.Command{
+	Use:   "remove <command>",
+	Short: "Remove an install command",
+	Long:  `Remove an install command from the environment configuration.`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		command := args[0]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			found := false
+			newCommands := make([]string, 0, len(config.InstallCommands))
+			for _, existing := range config.InstallCommands {
+				if existing != command {
+					newCommands = append(newCommands, existing)
+				} else {
+					found = true
+				}
+			}
+
+			if !found {
+				return fmt.Errorf("install command not found: %s", command)
+			}
+
+			config.InstallCommands = newCommands
+			fmt.Printf("Install command removed: %s\n", command)
+			return nil
+		})
+	},
+}
+
+var configInstallCommandListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all install commands",
+	Long:  `List all install commands that will be run after copying code to environments.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return withConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			if len(config.InstallCommands) == 0 {
+				fmt.Println("No install commands configured")
+				return nil
+			}
+
+			for i, command := range config.InstallCommands {
+				fmt.Printf("%d. %s\n", i+1, command)
+			}
+			return nil
+		})
+	},
+}
+
+var configInstallCommandClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Clear all install commands",
+	Long:  `Remove all install commands from the environment configuration.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.InstallCommands = []string{}
+			fmt.Println("All install commands cleared")
+			return nil
+		})
+	},
+}
+
 // Environment variable object commands
 var configEnvCmd = &cobra.Command{
 	Use:   "env",
@@ -476,6 +568,12 @@ func init() {
 	configSetupCommandCmd.AddCommand(configSetupCommandListCmd)
 	configSetupCommandCmd.AddCommand(configSetupCommandClearCmd)
 
+	// Add install-command commands
+	configInstallCommandCmd.AddCommand(configInstallCommandAddCmd)
+	configInstallCommandCmd.AddCommand(configInstallCommandRemoveCmd)
+	configInstallCommandCmd.AddCommand(configInstallCommandListCmd)
+	configInstallCommandCmd.AddCommand(configInstallCommandClearCmd)
+
 	// Add env commands
 	configEnvCmd.AddCommand(configEnvSetCmd)
 	configEnvCmd.AddCommand(configEnvUnsetCmd)
@@ -491,6 +589,7 @@ func init() {
 	// Add object commands to config
 	configCmd.AddCommand(configBaseImageCmd)
 	configCmd.AddCommand(configSetupCommandCmd)
+	configCmd.AddCommand(configInstallCommandCmd)
 	configCmd.AddCommand(configEnvCmd)
 	configCmd.AddCommand(configSecretCmd)
 	configCmd.AddCommand(configShowCmd)
