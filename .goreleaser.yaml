@@ -57,7 +57,8 @@ homebrew_casks:
       template: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     homepage: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use"
     description: "Containerized environments for coding agents"
-    manpage: man/container-use.1
+    manpages:
+      - man/container-use.1
     completions:
       bash: "completions/container-use.bash"
       zsh: "completions/container-use.zsh"

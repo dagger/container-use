@@ -168,7 +168,12 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
 	}
 
-	env, err := environment.New(ctx, dag, id, description, worktree, baseSourceDir)
+	config := environment.DefaultConfig()
+	if err := config.Load(r.userRepoPath); err != nil {
+		return nil, err
+	}
+
+	env, err := environment.New(ctx, dag, id, description, config, baseSourceDir)
 	if err != nil {
 		return nil, err
 	}

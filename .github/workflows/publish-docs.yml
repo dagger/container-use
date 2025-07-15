@@ -1,0 +1,38 @@
+name: Publish Docs
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Tag or branch to publish to docs branch"
+        required: true
+
+jobs:
+  publish-docs:
+    name: Publish Docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Publish to docs branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ "${{ github.event_name }}" = "release" ]; then
+            SOURCE="${GITHUB_REF#refs/tags/}"
+          else
+            SOURCE="${{ github.event.inputs.source }}"
+          fi
+
+          SOURCE_SHA=$(git rev-parse $SOURCE)
+          git push -f https://github-actions[bot]:${{ secrets.RELEASE_GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$SOURCE_SHA:refs/heads/docs"
+        env:
+          RELEASE_GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}

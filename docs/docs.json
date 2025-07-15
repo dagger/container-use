@@ -8,6 +8,12 @@
     "dark": "#0D9373"
   },
   "favicon": "/images/container-use.png",
+  "redirects": [
+    {
+      "source": "/discord",
+      "destination": "https://discord.gg/NQDJTBC6Qk"
+    }
+  ],
   "navigation": {
     "tabs": [
       {
@@ -47,7 +53,7 @@
         },
         {
           "anchor": "Discord",
-          "href": "https://discord.gg/YXbtwRQv",
+          "href": "https://container-use.com/discord",
           "icon": "discord"
         }
       ]
@@ -61,7 +67,7 @@
     "links": [
       {
         "label": "Support",
-        "href": "https://discord.gg/YXbtwRQv"
+		"href": "https://container-use.com/discord"
       }
     ],
     "primary": {
@@ -73,7 +79,7 @@
   "footer": {
     "socials": {
       "github": "https://github.com/dagger/container-use",
-      "discord": "https://discord.gg/YXbtwRQv"
+      "discord": "https://container-use.com/discord"
     }
   }
 }

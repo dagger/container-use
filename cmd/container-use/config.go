@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -58,51 +59,138 @@ var configCmd = &cobra.Command{
 These settings are stored in .container-use/environment.json and apply to all new environments.`,
 }
 
+func init() {
+	configShowCmd.Flags().Bool("json", false, "Dump the configuration in JSON")
+}
+
 var configShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Show all environment configuration",
-	Long:  `Display all current environment configuration including base image and setup commands.`,
+	Use:   "show [<env>]",
+	Short: "Show environment configuration",
+	Long: `Display environment configuration including base image and setup commands.
+Without an environment argument, shows the default configuration used for new environments.
+With an environment argument, shows the configuration for that specific environment.`,
+	Example: `# Show the default environment configuration
+container-use config show
+
+# Show the configuration for a specific environment
+container-use config show my-env
+`,
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: suggestEnvironments,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return withConfig(cmd, func(config *environment.EnvironmentConfig) error {
-			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			defer tw.Flush()
+		ctx := cmd.Context()
 
-			fmt.Fprintf(tw, "Base Image:\t%s\n", config.BaseImage)
-			fmt.Fprintf(tw, "Workdir:\t%s\n", config.Workdir)
+		repo, err := repository.Open(ctx, ".")
+		if err != nil {
+			return fmt.Errorf("failed to open repository: %w", err)
+		}
 
-			if len(config.SetupCommands) > 0 {
-				fmt.Fprintf(tw, "Setup Commands:\t\n")
-				for i, cmd := range config.SetupCommands {
-					fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
-				}
-			} else {
-				fmt.Fprintf(tw, "Setup Commands:\t(none)\n")
+		var config *environment.EnvironmentConfig
+
+		// If no environment is specified, use the default configuration
+		if len(args) == 0 {
+			config = environment.DefaultConfig()
+			if err := config.Load(repo.SourcePath()); err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
 			}
-
-			envKeys := config.Env.Keys()
-			if len(envKeys) > 0 {
-				fmt.Fprintf(tw, "Environment Variables:\t\n")
-				for i, key := range envKeys {
-					value := config.Env.Get(key)
-					fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
-				}
-			} else {
-				fmt.Fprintf(tw, "Environment Variables:\t(none)\n")
+		} else {
+			envID := args[0]
+			env, err := repo.Info(ctx, envID)
+			if err != nil {
+				return err
 			}
+			config = env.State.Config
+		}
 
-			secretKeys := config.Secrets.Keys()
-			if len(secretKeys) > 0 {
-				fmt.Fprintf(tw, "Secrets:\t\n")
-				for i, key := range secretKeys {
-					value := config.Secrets.Get(key)
-					fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
-				}
-			} else {
-				fmt.Fprintf(tw, "Secrets:\t(none)\n")
+		if ok, _ := cmd.Flags().GetBool("json"); ok {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(config)
+		}
+
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		defer tw.Flush()
+
+		fmt.Fprintf(tw, "Base Image:\t%s\n", config.BaseImage)
+		fmt.Fprintf(tw, "Workdir:\t%s\n", config.Workdir)
+
+		if len(config.SetupCommands) > 0 {
+			fmt.Fprintf(tw, "Setup Commands:\t\n")
+			for i, cmd := range config.SetupCommands {
+				fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
 			}
+		} else {
+			fmt.Fprintf(tw, "Setup Commands:\t(none)\n")
+		}
 
-			return nil
-		})
+		if len(config.InstallCommands) > 0 {
+			fmt.Fprintf(tw, "Install Commands:\t\n")
+			for i, cmd := range config.InstallCommands {
+				fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
+			}
+		} else {
+			fmt.Fprintf(tw, "Install Commands:\t(none)\n")
+		}
+
+		envKeys := config.Env.Keys()
+		if len(envKeys) > 0 {
+			fmt.Fprintf(tw, "Environment Variables:\t\n")
+			for i, key := range envKeys {
+				value := config.Env.Get(key)
+				fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
+			}
+		} else {
+			fmt.Fprintf(tw, "Environment Variables:\t(none)\n")
+		}
+
+		secretKeys := config.Secrets.Keys()
+		if len(secretKeys) > 0 {
+			fmt.Fprintf(tw, "Secrets:\t\n")
+			for i, key := range secretKeys {
+				value := config.Secrets.Get(key)
+				fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
+			}
+		} else {
+			fmt.Fprintf(tw, "Secrets:\t(none)\n")
+		}
+
+		return nil
+	},
+}
+
+var configImportCmd = &cobra.Command{
+	Use:   "import <env>",
+	Short: "Import configuration from an environment",
+	Long: `Import configuration from an existing environment and set it as the default.
+This copies the environment's base image, setup commands, environment variables,
+and secrets to be used as defaults for new environments.`,
+	Example: `# Import configuration from an environment
+container-use config import my-env
+
+# View the configuration before importing
+container-use config show my-env
+container-use config import my-env`,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: suggestEnvironments,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
+
+		repo, err := repository.Open(ctx, ".")
+		if err != nil {
+			return fmt.Errorf("failed to open repository: %w", err)
+		}
+
+		envID := args[0]
+		env, err := repo.Info(ctx, envID)
+		if err != nil {
+			return err
+		}
+		if err := env.State.Config.Save(repo.SourcePath()); err != nil {
+			return fmt.Errorf("failed to save configuration: %w", err)
+		}
+
+		fmt.Printf("Configuration imported from environment '%s'\n", envID)
+		return nil
 	},
 }
 
@@ -232,6 +320,89 @@ var configSetupCommandClearCmd = &cobra.Command{
 		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
 			config.SetupCommands = []string{}
 			fmt.Println("All setup commands cleared")
+			return nil
+		})
+	},
+}
+
+// Install command object commands
+var configInstallCommandCmd = &cobra.Command{
+	Use:   "install-command",
+	Short: "Manage install commands",
+	Long:  `Manage install commands that are run after copying code to environments.`,
+}
+
+var configInstallCommandAddCmd = &cobra.Command{
+	Use:   "add <command>",
+	Short: "Add an install command",
+	Long:  `Add a command to be run after copying code to new environments (e.g., "go mod download").`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		command := args[0]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.InstallCommands = append(config.InstallCommands, command)
+			fmt.Printf("Install command added: %s\n", command)
+			return nil
+		})
+	},
+}
+
+var configInstallCommandRemoveCmd = &cobra.Command{
+	Use:   "remove <command>",
+	Short: "Remove an install command",
+	Long:  `Remove an install command from the environment configuration.`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		command := args[0]
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			found := false
+			newCommands := make([]string, 0, len(config.InstallCommands))
+			for _, existing := range config.InstallCommands {
+				if existing != command {
+					newCommands = append(newCommands, existing)
+				} else {
+					found = true
+				}
+			}
+
+			if !found {
+				return fmt.Errorf("install command not found: %s", command)
+			}
+
+			config.InstallCommands = newCommands
+			fmt.Printf("Install command removed: %s\n", command)
+			return nil
+		})
+	},
+}
+
+var configInstallCommandListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all install commands",
+	Long:  `List all install commands that will be run after copying code to environments.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return withConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			if len(config.InstallCommands) == 0 {
+				fmt.Println("No install commands configured")
+				return nil
+			}
+
+			for i, command := range config.InstallCommands {
+				fmt.Printf("%d. %s\n", i+1, command)
+			}
+			return nil
+		})
+	},
+}
+
+var configInstallCommandClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Clear all install commands",
+	Long:  `Remove all install commands from the environment configuration.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return updateConfig(cmd, func(config *environment.EnvironmentConfig) error {
+			config.InstallCommands = []string{}
+			fmt.Println("All install commands cleared")
 			return nil
 		})
 	},
@@ -397,6 +568,12 @@ func init() {
 	configSetupCommandCmd.AddCommand(configSetupCommandListCmd)
 	configSetupCommandCmd.AddCommand(configSetupCommandClearCmd)
 
+	// Add install-command commands
+	configInstallCommandCmd.AddCommand(configInstallCommandAddCmd)
+	configInstallCommandCmd.AddCommand(configInstallCommandRemoveCmd)
+	configInstallCommandCmd.AddCommand(configInstallCommandListCmd)
+	configInstallCommandCmd.AddCommand(configInstallCommandClearCmd)
+
 	// Add env commands
 	configEnvCmd.AddCommand(configEnvSetCmd)
 	configEnvCmd.AddCommand(configEnvUnsetCmd)
@@ -412,9 +589,11 @@ func init() {
 	// Add object commands to config
 	configCmd.AddCommand(configBaseImageCmd)
 	configCmd.AddCommand(configSetupCommandCmd)
+	configCmd.AddCommand(configInstallCommandCmd)
 	configCmd.AddCommand(configEnvCmd)
 	configCmd.AddCommand(configSecretCmd)
 	configCmd.AddCommand(configShowCmd)
+	configCmd.AddCommand(configImportCmd)
 
 	// Add agent command
 	configCmd.AddCommand(agent.AgentCmd)
