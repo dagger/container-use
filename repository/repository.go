@@ -471,13 +471,30 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) (rerr er
 	if hasUnstagedChanges {
 		fmt.Fprintf(w, "Restoring user changes...\n")
 
-		// 1. Temporarily commit the agent's changes
-		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "commit", "-m", "temp: agent changes"); err != nil {
+		// 1. Temporarily commit the agent's changes (if any)
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w,
+			"commit",
+			// it's simpler/safer to just keep this path unconditional than check if there
+			// were staged stuff before, so just allow an empty commit; we'll be
+			// getting rid of it immediately anyway
+			"--allow-empty",
+			"-m", "temp: agent changes (you should not see this)",
+		); err != nil {
 			return fmt.Errorf("failed to commit agent changes: %w", err)
 		}
 
-		// 2. Apply the user's patch
-		applyCmd := exec.CommandContext(ctx, "git", "apply", "-")
+		// 2. Apply the user's patch, using 3-way merge with --check beforehand to
+		// avoid leaving conflict markers
+		var checkOut strings.Builder
+		checkCmd := exec.CommandContext(ctx, "git", "apply", "--3way", "--check", "-")
+		checkCmd.Dir = r.userRepoPath
+		checkCmd.Stdin = strings.NewReader(diffOutput)
+		checkCmd.Stdout = &checkOut
+		checkCmd.Stderr = &checkOut
+		if err := checkCmd.Run(); err != nil {
+			return fmt.Errorf("conflict detected when re-applying user changes:\n%s", checkOut.String())
+		}
+		applyCmd := exec.CommandContext(ctx, "git", "apply", "--3way", "-")
 		applyCmd.Dir = r.userRepoPath
 		applyCmd.Stdin = strings.NewReader(diffOutput)
 		applyCmd.Stdout = w
