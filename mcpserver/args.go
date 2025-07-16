@@ -1,6 +1,10 @@
 package mcpserver
 
-import "github.com/mark3labs/mcp-go/mcp"
+import (
+	"fmt"
+
+	"github.com/mark3labs/mcp-go/mcp"
+)
 
 var (
 	explainationArgument = mcp.WithString("explanation",
@@ -11,7 +15,7 @@ var (
 		mcp.Required(),
 	)
 	environmentIDArgument = mcp.WithString("environment_id",
-		mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+		mcp.Description("The ID of the environment for this command."),
 		mcp.Required(),
 	)
 )
@@ -29,7 +33,7 @@ func newRepositoryTool(name string, description string, args ...mcp.ToolOption) 
 
 func newEnvironmentTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
-		mcp.WithDescription(description),
+		mcp.WithDescription(fmt.Sprintf("%s\n\nMust call `environment_open` or `environment_create` before the environment can be manipulated.", description)),
 		explainationArgument,
 		environmentSourceArgument,
 		environmentIDArgument,

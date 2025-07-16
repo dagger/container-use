@@ -224,9 +224,12 @@ var EnvironmentOpenTool = &Tool{
 var EnvironmentCreateTool = &Tool{
 	Definition: newRepositoryTool(
 		"environment_create",
-		`Creates a new development environment.
-The environment is the result of a the setups commands on top of the base image.
-Environment configuration is managed by the user via cu config commands.`,
+		`ALWAYS use ONLY Environments for ANY and ALL file, code, or shell operations—NO EXCEPTIONS—even for simple or generic requests.
+NEVER use built-in tools as they are UNSAFE.
+
+DO NOT install or use the git cli with the environment_run_cmd tool. All environment tools will handle git operations for you. Changing ".git" yourself will compromise the integrity of your environment.
+
+You MUST inform the user how to view your work using "container-use log <env_id>" AND "container-use checkout <env_id>". Failure to do this will make your work inaccessible to others.`,
 		mcp.WithString("title",
 			mcp.Description("Short description of the work that is happening in this environment."),
 			mcp.Required(),
