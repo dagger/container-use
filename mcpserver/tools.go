@@ -887,7 +887,6 @@ var EnvironmentSyncFromUserTool = &Tool{
 			return nil, fmt.Errorf("branch is tracking %s, not %s", branchEnv, env.ID)
 		}
 
-		// Use a string builder to capture output
 		patch, err := repo.DiffUserLocalChanges(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate patch: %w", err)
