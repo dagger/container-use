@@ -513,6 +513,26 @@ func (r *Repository) DiffUserLocalChanges(ctx context.Context) (string, error) {
 	return diff, nil
 }
 
+func (r *Repository) TrackEnvironment(ctx context.Context, branch, envID string) error {
+	_, err := RunGitCommand(ctx, r.userRepoPath, "config", "branch."+branch+".environment", envID)
+	if err != nil {
+		return fmt.Errorf("failed to set branch tracking env: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) TrackedEnvironment(ctx context.Context, branch string) (string, error) {
+	envID, err := RunGitCommand(ctx, r.userRepoPath, "config", "get", "--default=", "branch."+branch+".environment")
+	if err != nil {
+		return "", fmt.Errorf("failed to get branch tracking env: %w", err)
+	}
+	envID = strings.TrimSpace(envID)
+	if envID == "" {
+		return "", fmt.Errorf("branch %s is not tracking an environment", branch)
+	}
+	return envID, nil
+}
+
 func (r *Repository) ResetUserLocalChanges(ctx context.Context) error {
 	if _, err := RunGitCommand(ctx, r.userRepoPath, "restore", "."); err != nil {
 		return fmt.Errorf("failed to reset unstaged changes: %w", err)

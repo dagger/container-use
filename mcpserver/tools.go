@@ -313,42 +313,6 @@ var EnvironmentUpdateMetadataTool = &Tool{
 	},
 }
 
-var EnvironmentEnableTrackingTool = &Tool{
-	Definition: newEnvironmentTool(
-		"environment_enable_tracking",
-		"Enable branch tracking for an environment. When enabled, environment changes will be automatically synced to the user's working tree when on the tracked branch. CRITICAL: This is an opt-in feature that can only be enabled by explicit user request.",
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, env, err := openEnvironment(ctx, request)
-		if err != nil {
-			return nil, err
-		}
-
-		// Get the current branch from the user's repository
-		currentBranch, err := repository.RunGitCommand(ctx, repo.SourcePath(), "branch", "--show-current")
-		if err != nil {
-			return nil, fmt.Errorf("unable to determine current branch: %w", err)
-		}
-		currentBranch = strings.TrimSpace(currentBranch)
-		if currentBranch == "" {
-			return nil, fmt.Errorf("not on a branch (detached HEAD state) - cannot enable tracking")
-		}
-
-		// Set the tracking branch to the current branch
-		env.State.TrackingBranch = currentBranch
-
-		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return nil, fmt.Errorf("unable to update the environment: %w", err)
-		}
-
-		out, err := marshalEnvironment(env)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal environment: %w", err)
-		}
-		return mcp.NewToolResultText(fmt.Sprintf("Branch tracking enabled for branch '%s'. Environment changes will now be synced to the working tree when on this branch.\n%s", currentBranch, out)), nil
-	},
-}
-
 var EnvironmentConfigTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_config",
@@ -865,6 +829,41 @@ Supported schemas are:
 	},
 }
 
+var EnvironmentEnableTrackingTool = &Tool{
+	Definition: newEnvironmentTool(
+		"environment_enable_tracking",
+		"Enable branch tracking for an environment. When enabled, environment changes will be automatically synced to the user's working tree when on the tracked branch. CRITICAL: This is an opt-in feature that can only be enabled by explicit user request.",
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get the current branch and tie it to an environment
+		currentBranch, err := repo.CurrentUserBranch(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current branch: %w", err)
+		}
+		if err := repo.TrackEnvironment(ctx, currentBranch, env.ID); err != nil {
+			return nil, fmt.Errorf("unable to set current branch tracking environment: %w", err)
+		}
+
+		// Set the tracking branch to the current branch
+		env.State.TrackingBranch = currentBranch
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
+		}
+
+		out, err := marshalEnvironment(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal environment: %w", err)
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Branch tracking enabled for branch '%s'. Environment changes will now be synced to the working tree when on this branch.\n%s", currentBranch, out)), nil
+	},
+}
+
 var EnvironmentSyncFromUserTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_sync_from_user",
@@ -874,6 +873,18 @@ var EnvironmentSyncFromUserTool = &Tool{
 		repo, env, err := openEnvironment(ctx, request)
 		if err != nil {
 			return nil, err
+		}
+
+		currentBranch, err := repo.CurrentUserBranch(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current branch: %w", err)
+		}
+		branchEnv, err := repo.TrackedEnvironment(ctx, currentBranch)
+		if err != nil {
+			return nil, err
+		}
+		if branchEnv != env.ID {
+			return nil, fmt.Errorf("branch is tracking %s, not %s", branchEnv, env.ID)
 		}
 
 		// Use a string builder to capture output

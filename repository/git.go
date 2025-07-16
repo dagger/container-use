@@ -282,16 +282,25 @@ func (r *Repository) addGitNote(ctx context.Context, env *environment.Environmen
 	return r.propagateGitNotes(ctx, gitNotesLogRef)
 }
 
-func (r *Repository) currentUserBranch(ctx context.Context) (string, error) {
-	return RunGitCommand(ctx, r.userRepoPath, "branch", "--show-current")
-}
-
-func (r *Repository) mergeBase(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
-	currentBranch, err := r.currentUserBranch(ctx)
+func (r *Repository) CurrentUserBranch(ctx context.Context) (string, error) {
+	currentBranch, err := RunGitCommand(ctx, r.userRepoPath, "branch", "--show-current")
 	if err != nil {
 		return "", err
 	}
-	currentBranch = strings.TrimSpace(currentBranch)
+	// TODO(vito): pretty sure this is redundant, but consolidating from other
+	// places
+	branch := strings.TrimSpace(currentBranch)
+	if branch == "" {
+		return "", fmt.Errorf("no current branch (detached HEAD?)")
+	}
+	return branch, nil
+}
+
+func (r *Repository) mergeBase(ctx context.Context, env *environment.EnvironmentInfo) (string, error) {
+	currentBranch, err := r.CurrentUserBranch(ctx)
+	if err != nil {
+		return "", err
+	}
 	if currentBranch == "" {
 		currentBranch = "HEAD"
 	}
