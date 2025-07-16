@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"dagger.io/dagger"
@@ -130,6 +131,7 @@ func init() {
 		EnvironmentOpenTool,
 		EnvironmentCreateTool,
 		EnvironmentUpdateMetadataTool,
+		EnvironmentEnableTrackingTool,
 		EnvironmentConfigTool,
 
 		EnvironmentRunCmdTool,
@@ -137,11 +139,14 @@ func init() {
 		EnvironmentFileReadTool,
 		EnvironmentFileListTool,
 		EnvironmentFileWriteTool,
+		EnvironmentFilePatchTool,
 		EnvironmentFileDeleteTool,
 
 		EnvironmentAddServiceTool,
 
 		EnvironmentCheckpointTool,
+
+		EnvironmentSyncFromUserTool,
 	)
 }
 
@@ -613,6 +618,73 @@ var EnvironmentFileWriteTool = &Tool{
 	},
 }
 
+var EnvironmentFilePatchTool = &Tool{
+	Definition: mcp.NewTool("environment_file_patch",
+		mcp.WithDescription("Find and replace text in a file."),
+		mcp.WithString("explanation",
+			mcp.Description("One sentence explanation for why this file is being edited."),
+		),
+		mcp.WithString("environment_source",
+			mcp.Description("Absolute path to the source git repository for the environment."),
+			mcp.Required(),
+		),
+		mcp.WithString("environment_id",
+			mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+			mcp.Required(),
+		),
+		mcp.WithString("target_file",
+			mcp.Description("Path of the file to write, absolute or relative to the workdir."),
+			mcp.Required(),
+		),
+		mcp.WithString("search_text",
+			mcp.Description("The text to find and replace."),
+			mcp.Required(),
+		),
+		mcp.WithString("replace_text",
+			mcp.Description("The text to insert."),
+			mcp.Required(),
+		),
+		mcp.WithString("which_match",
+			mcp.Description("The ID of the match to replace, if there were multiple matches."),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		targetFile, err := request.RequireString("target_file")
+		if err != nil {
+			return nil, err
+		}
+		search, err := request.RequireString("search_text")
+		if err != nil {
+			return nil, err
+		}
+		replace, err := request.RequireString("replace_text")
+		if err != nil {
+			return nil, err
+		}
+
+		if err := env.FileSearchReplace(ctx,
+			request.GetString("explanation", ""),
+			targetFile,
+			search,
+			replace,
+			request.GetString("which_match", ""),
+		); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
+		}
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/ remote", targetFile)), nil
+	},
+}
+
 var EnvironmentFileDeleteTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_file_delete",
@@ -754,5 +826,92 @@ Supported schemas are:
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
+	},
+}
+
+var EnvironmentEnableTrackingTool = &Tool{
+	Definition: newEnvironmentTool(
+		"environment_enable_tracking",
+		"Enable branch tracking for an environment. When enabled, environment changes will be automatically synced to the user's working tree when on the tracked branch. CRITICAL: This is an opt-in feature that can only be enabled by explicit user request.",
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get the current branch and tie it to an environment
+		currentBranch, err := repo.CurrentUserBranch(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current branch: %w", err)
+		}
+		if err := repo.TrackEnvironment(ctx, currentBranch, env.ID); err != nil {
+			return nil, fmt.Errorf("unable to set current branch tracking environment: %w", err)
+		}
+
+		// Set the tracking branch to the current branch
+		env.State.TrackingBranch = currentBranch
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
+		}
+
+		out, err := marshalEnvironment(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal environment: %w", err)
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Branch tracking enabled for branch '%s'. Environment changes will now be synced to the working tree when on this branch.\n%s", currentBranch, out)), nil
+	},
+}
+
+var EnvironmentSyncFromUserTool = &Tool{
+	Definition: newEnvironmentTool(
+		"environment_sync_from_user",
+		"Apply the user's unstaged changes to the environment and apply the environment's to the user's local worktree. ONLY RUN WHEN EXPLICITLY REQUESTED BY THE USER.",
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+
+		currentBranch, err := repo.CurrentUserBranch(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current branch: %w", err)
+		}
+		branchEnv, err := repo.TrackedEnvironment(ctx, currentBranch)
+		if err != nil {
+			return nil, err
+		}
+		if branchEnv != env.ID {
+			return nil, fmt.Errorf("branch is tracking %s, not %s", branchEnv, env.ID)
+		}
+
+		patch, err := repo.DiffUserLocalChanges(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate patch: %w", err)
+		}
+		if len(patch) == 0 {
+			return mcp.NewToolResultText("No unstaged changes to pull."), nil
+		}
+
+		if err := env.ApplyPatch(ctx, patch); err != nil {
+			return nil, fmt.Errorf("failed to pull changes to environment: %w", err)
+		}
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
+		}
+
+		if err := repo.ResetUserLocalChanges(ctx); err != nil {
+			return nil, fmt.Errorf("unable to reset user's worktree: %w", err)
+		}
+
+		var buf strings.Builder
+		if err := repo.Apply(ctx, env.ID, &buf); err != nil {
+			return nil, fmt.Errorf("unable to apply changes to user's worktree: %w\n\nlogs:\n%s", err, buf.String())
+		}
+
+		return mcp.NewToolResultText("Patch applied successfully to the environment:\n\n```patch\n" + string(patch) + "\n```"), nil
 	},
 }

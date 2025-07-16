@@ -314,6 +314,23 @@ func (r *Repository) Update(ctx context.Context, env *environment.Environment, e
 	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
 		return err
 	}
+
+	// Check if branch tracking is enabled and we're on the tracked branch
+	if env.State.TrackingBranch != "" {
+		currentBranch, err := r.CurrentUserBranch(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to check current branch for tracking: %w", err)
+		} else {
+			if currentBranch == env.State.TrackingBranch {
+				// Apply environment changes to the user's working tree
+				var logs strings.Builder
+				if err := r.Apply(ctx, env.ID, &logs); err != nil {
+					return fmt.Errorf("failed to apply tracking changes to working tree: %w\n\nlogs:\n%s\n", err, logs.String())
+				}
+			}
+		}
+	}
+
 	if note := env.Notes.Pop(); note != "" {
 		return r.addGitNote(ctx, env, note)
 	}
@@ -445,11 +462,126 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--no-ff", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
 
-func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
+func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) (rerr error) {
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--autostash", "--squash", "--", "container-use/"+envInfo.ID)
+	diffOutput, err := r.DiffUserLocalChanges(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check for unstaged changes: %w", err)
+	}
+
+	hasUnstagedChanges := len(diffOutput) > 0
+
+	fmt.Fprintf(w, "Creating virtual stash as backup...\n")
+	stashID, err := RunGitCommand(ctx, r.userRepoPath, "stash", "create")
+	if err != nil {
+		return fmt.Errorf("failed to stash changes: %w", err)
+	}
+	defer func() {
+		if rerr != nil {
+			fmt.Fprintf(w, "ERROR: %s\n", rerr)
+			fmt.Fprintf(w, "Your prior changes can be restored with `git stash apply %s`\n", stashID)
+		}
+	}()
+
+	// Reset to clean state
+	if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset", "--hard", "HEAD"); err != nil {
+		return fmt.Errorf("failed to reset: %w", err)
+	}
+
+	// Apply the merge without autostash
+	fmt.Fprintf(w, "Applying environment changes...\n")
+	if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--squash", "--", "container-use/"+envInfo.ID); err != nil {
+		return fmt.Errorf("failed to merge: %w", err)
+	}
+
+	// Apply user changes back
+	if hasUnstagedChanges {
+		fmt.Fprintf(w, "Restoring user changes...\n")
+
+		// 1. Temporarily commit the agent's changes (if any)
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w,
+			"commit",
+			// it's simpler/safer to just keep this path unconditional than check if there
+			// were staged stuff before, so just allow an empty commit; we'll be
+			// getting rid of it immediately anyway
+			"--allow-empty",
+			"-m", "temp: agent changes (you should not see this)",
+		); err != nil {
+			return fmt.Errorf("failed to commit agent changes: %w", err)
+		}
+
+		// 2. Apply the user's patch, using 3-way merge with --check beforehand to
+		// avoid leaving conflict markers
+		var checkOut strings.Builder
+		checkCmd := exec.CommandContext(ctx, "git", "apply", "--3way", "--check", "-")
+		checkCmd.Dir = r.userRepoPath
+		checkCmd.Stdin = strings.NewReader(diffOutput)
+		checkCmd.Stdout = &checkOut
+		checkCmd.Stderr = &checkOut
+		if err := checkCmd.Run(); err != nil {
+			return fmt.Errorf("conflict detected when re-applying user changes:\n%s", checkOut.String())
+		}
+		applyCmd := exec.CommandContext(ctx, "git", "apply", "--3way", "-")
+		applyCmd.Dir = r.userRepoPath
+		applyCmd.Stdin = strings.NewReader(diffOutput)
+		applyCmd.Stdout = w
+		applyCmd.Stderr = w
+		if err := applyCmd.Run(); err != nil {
+			return fmt.Errorf("failed to apply user changes: %w", err)
+		}
+
+		// 3. Reset to unstage the user's changes
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset"); err != nil {
+			return fmt.Errorf("failed to reset user changes: %w", err)
+		}
+
+		// 4. Soft reset to bring agent changes back to staging
+		if err := RunInteractiveGitCommand(ctx, r.userRepoPath, w, "reset", "--soft", "HEAD~1"); err != nil {
+			return fmt.Errorf("failed to restore agent changes to staging: %w", err)
+		}
+
+		// Clean up patch file on successful application
+		fmt.Fprintf(w, "User changes successfully restored as unstaged changes.\n")
+	}
+
+	return nil
+}
+
+func (r *Repository) DiffUserLocalChanges(ctx context.Context) (string, error) {
+	diff, err := RunGitCommand(ctx, r.userRepoPath, "diff", "--binary")
+	if err != nil {
+		return "", fmt.Errorf("failed to get user diff: %w", err)
+	}
+	return diff, nil
+}
+
+func (r *Repository) TrackEnvironment(ctx context.Context, branch, envID string) error {
+	_, err := RunGitCommand(ctx, r.userRepoPath, "config", "branch."+branch+".environment", envID)
+	if err != nil {
+		return fmt.Errorf("failed to set branch tracking env: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) TrackedEnvironment(ctx context.Context, branch string) (string, error) {
+	envID, err := RunGitCommand(ctx, r.userRepoPath, "config", "get", "--default=", "branch."+branch+".environment")
+	if err != nil {
+		return "", fmt.Errorf("failed to get branch tracking env: %w", err)
+	}
+	envID = strings.TrimSpace(envID)
+	if envID == "" {
+		return "", fmt.Errorf("branch %s is not tracking an environment", branch)
+	}
+	return envID, nil
+}
+
+func (r *Repository) ResetUserLocalChanges(ctx context.Context) error {
+	if _, err := RunGitCommand(ctx, r.userRepoPath, "restore", "."); err != nil {
+		return fmt.Errorf("failed to reset unstaged changes: %w", err)
+	}
+	return nil
 }
