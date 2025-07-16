@@ -506,7 +506,7 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) (rerr er
 }
 
 func (r *Repository) DiffUserLocalChanges(ctx context.Context) (string, error) {
-	diff, err := RunGitCommand(ctx, r.userRepoPath, "diff")
+	diff, err := RunGitCommand(ctx, r.userRepoPath, "diff", "--binary")
 	if err != nil {
 		return "", fmt.Errorf("failed to get user diff: %w", err)
 	}
