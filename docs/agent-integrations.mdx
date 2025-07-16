@@ -494,6 +494,46 @@ Add to `~/.gemini/settings.json` or `.gemini/settings.json`:
   Configuration](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/configuration.md)
 </Info>
 
+## JetBrains Junie
+
+### Add MCP Configuration
+
+Add or edit the MCP configuration in Settings under Tools → Junie → MCP Settings, or edit `~/.junie/mcp/mcp.json`:
+
+```json
+{
+  "mcpServers":
+  {
+    "container-use": {
+      "command": "container-use",
+      "args": ["stdio"],
+      "env": {},
+      "timeout": 60000
+    }
+  }
+}
+```
+
+<Info>
+    MCP support in Beta starting with Junie plugin `2xx.204.xx`
+</Info>
+
+### Add Agent Rules
+
+Save agent instructions to your project root:
+
+```sh
+mkdir -p ./.junie && curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> .junie/guidelines.md
+```
+
+<Info>
+    Learn more: [Junie Guidelines](https://www.jetbrains.com/help/junie/customize-guidelines.html)
+</Info>
+
+### Trust MCP Tools (Optional)
+
+In the settings, under Tools → Junie → Action Allowlist: add _MCP Rule_.
+
 ## Verification
 
 After setting up your agent, verify Container Use is working:
