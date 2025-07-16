@@ -283,6 +283,25 @@ func (r *Repository) Update(ctx context.Context, env *environment.Environment, e
 	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
 		return err
 	}
+
+	// Check if branch tracking is enabled and we're on the tracked branch
+	if env.State.TrackingBranch != "" {
+		currentBranch, err := RunGitCommand(ctx, r.userRepoPath, "branch", "--show-current")
+		if err != nil {
+			// Log the error but don't fail the update
+			slog.Warn("Failed to check current branch for tracking", "error", err)
+		} else {
+			currentBranch = strings.TrimSpace(currentBranch)
+			if currentBranch == env.State.TrackingBranch {
+				// Apply environment changes to the user's working tree
+				if err := r.Apply(ctx, env.ID, io.Discard); err != nil {
+					// Log the error but don't fail the update to avoid breaking the environment
+					slog.Warn("Failed to apply tracking changes to working tree", "error", err, "branch", currentBranch)
+				}
+			}
+		}
+	}
+
 	if note := env.Notes.Pop(); note != "" {
 		return r.addGitNote(ctx, env, note)
 	}
