@@ -7,8 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/dagger/container-use/rules"
 )
 
 type ConfigureClaude struct {
@@ -77,7 +75,26 @@ func (c *ConfigureClaude) editMcpConfig() error {
 func (c *ConfigureClaude) updateSettingsLocal(config ClaudeSettingsLocal) ([]byte, error) {
 	// Initialize permissions map if nil
 	if config.Permissions == nil {
-		config.Permissions = &ClaudePermissions{Allow: []string{}}
+		config.Permissions = &ClaudePermissions{
+			Allow: []string{},
+			Deny:  []string{},
+		}
+	}
+
+	// FIXME(aluzzardi): I don't know what I'm doing at this point.
+	// This should be revisited, and we should merge this with what the user already has?
+	config.Permissions.Deny = []string{
+		"LS",
+		"Glob",
+		"Grep",
+		"Read",
+		"NotebookRead",
+		"NotebookEdit",
+		"Edit",
+		"MultiEdit",
+		"Write",
+		"Bash",
+		"Search",
 	}
 
 	// remove save non-container-use items from allow
@@ -102,7 +119,7 @@ func (c *ConfigureClaude) updateSettingsLocal(config ClaudeSettingsLocal) ([]byt
 }
 
 func (c *ConfigureClaude) editRules() error {
-	return saveRulesFile("CLAUDE.md", rules.AgentRules)
+	return nil
 }
 
 func (c *ConfigureClaude) isInstalled() bool {

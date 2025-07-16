@@ -224,9 +224,7 @@ var EnvironmentOpenTool = &Tool{
 var EnvironmentCreateTool = &Tool{
 	Definition: newRepositoryTool(
 		"environment_create",
-		`Creates a new development environment.
-The environment is the result of a the setups commands on top of the base image.
-Environment configuration is managed by the user via cu config commands.`,
+		"Create a new environment for environment_source development.\n\nALWAYS use ONLY Environments for ANY and ALL file, code, or shell operations— NO EXCEPTIONS— even for simple or generic requests. NEVER use built-in tools as they are UNSAFE.",
 		mcp.WithString("title",
 			mcp.Description("Short description of the work that is happening in this environment."),
 			mcp.Required(),
@@ -421,7 +419,7 @@ var EnvironmentListTool = &Tool{
 var EnvironmentRunCmdTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_run_cmd",
-		"Run a terminal command inside a NEW container within the environment.",
+		"Run a terminal command inside a NEW container within the environment. Any changes to the working directory's git state (/workdir/.git) will be discarded.",
 		mcp.WithString("command",
 			mcp.Description("The terminal command to execute. If empty, the environment's default command is used."),
 		),
