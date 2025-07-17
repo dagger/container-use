@@ -227,16 +227,17 @@ To lock the Zed agent out of your host system, you can create a dedicated agent 
       "context_servers": {
         "container-use": {
           "tools": {
-            "environment_create": true,
             "environment_add_service": true,
-            "environment_update": true,
-            "environment_run_cmd": true,
-            "environment_open": true,
-            "environment_file_write": true,
-            "environment_file_read": true,
-            "environment_file_list": true,
+            "environment_checkpoint": true,
+            "environment_config": true,
+            "environment_create": true,
             "environment_file_delete": true,
-            "environment_checkpoint": true
+            "environment_file_list": true,
+            "environment_file_read": true,
+            "environment_file_write": true,
+            "environment_open": true,
+            "environment_run_cmd": true,
+            "environment_update_metadata": true
           }
         }
       }
