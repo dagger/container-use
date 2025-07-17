@@ -182,18 +182,19 @@ First add the agent rules file, either as `.rules` in the root of your project o
 curl -o .rules https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
 ```
 
-Then configure the Container Use MCP server in the Zed `settings.json`:
+Then, choose one of the methods to add the Container Use MCP server in Zed:
+
+1. **Extension**: Visit the [Container Use extension page](https://zed.dev/extensions/container-use-mcp-server), open it in Zed, and hit install. Then, follow the configuration instructions that will appear on the modal.
+2. **Settings**: Add the following snippet on your `settings.json`:
 
 ```json
 "context_servers": {
   "container-use": {
     "source": "custom",
-    "command": {
-      "path": "container-use",
-      "args": ["stdio"],
-      "env": {}
-    }
-  }
+    "command": "container-use",
+    "args": ["stdio"],
+    "env": {}
+  },
 }
 ```
 
@@ -226,16 +227,17 @@ To lock the Zed agent out of your host system, you can create a dedicated agent 
       "context_servers": {
         "container-use": {
           "tools": {
-            "environment_create": true,
             "environment_add_service": true,
-            "environment_update": true,
-            "environment_run_cmd": true,
-            "environment_open": true,
-            "environment_file_write": true,
-            "environment_file_read": true,
-            "environment_file_list": true,
+            "environment_checkpoint": true,
+            "environment_config": true,
+            "environment_create": true,
             "environment_file_delete": true,
-            "environment_checkpoint": true
+            "environment_file_list": true,
+            "environment_file_read": true,
+            "environment_file_write": true,
+            "environment_open": true,
+            "environment_run_cmd": true,
+            "environment_update_metadata": true
           }
         }
       }
