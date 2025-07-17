@@ -79,7 +79,7 @@ func TestRepositoryApply(t *testing.T) {
 
 		// Apply the environment (squash merge)
 		var applyOutput bytes.Buffer
-		err = repo.Apply(ctx, env.ID, &applyOutput)
+		err = repo.Apply(ctx, env.ID, &applyOutput, true)
 		require.NoError(t, err, "Apply should succeed: %s", applyOutput.String())
 
 		// Verify we're still on the initial branch
@@ -146,7 +146,7 @@ func TestRepositoryApplyNonExistent(t *testing.T) {
 
 		// Try to apply non-existent environment
 		var applyOutput bytes.Buffer
-		err := repo.Apply(ctx, "non-existent-env", &applyOutput)
+		err := repo.Apply(ctx, "non-existent-env", &applyOutput, true)
 		assert.Error(t, err, "Applying non-existent environment should fail")
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -203,7 +203,7 @@ func TestRepositoryApplyWithConflicts(t *testing.T) {
 
 		// Try to apply - this should fail due to conflict
 		var applyOutput bytes.Buffer
-		err = repo.Apply(ctx, env.ID, &applyOutput)
+		err = repo.Apply(ctx, env.ID, &applyOutput, true)
 
 		// The apply should fail due to conflict
 		assert.Error(t, err, "Apply should fail due to conflict")

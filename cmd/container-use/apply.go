@@ -43,7 +43,7 @@ git commit -m "Add backend API implementation"`,
 
 		env := args[0]
 
-		if err := repo.Apply(ctx, env, os.Stdout); err != nil {
+		if err := repo.Apply(ctx, env, os.Stdout, false); err != nil {
 			return fmt.Errorf("failed to apply environment: %w", err)
 		}
 

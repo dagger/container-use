@@ -293,7 +293,7 @@ func (r *Repository) Update(ctx context.Context, env *environment.Environment, e
 			if currentBranch == env.State.TrackingBranch {
 				// Apply environment changes to the user's working tree
 				var logs strings.Builder
-				if err := r.Apply(ctx, env.ID, &logs); err != nil {
+				if err := r.Apply(ctx, env.ID, &logs, false); err != nil {
 					return fmt.Errorf("failed to apply tracking changes to working tree: %w\n\nlogs:\n%s\n", err, logs.String())
 				}
 			}
@@ -431,7 +431,7 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--no-ff", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
 
-func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) (rerr error) {
+func (r *Repository) Apply(ctx context.Context, id string, w io.Writer, discard bool) (rerr error) {
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
@@ -468,7 +468,7 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) (rerr er
 	}
 
 	// Apply user changes back
-	if hasUnstagedChanges {
+	if hasUnstagedChanges && !discard {
 		fmt.Fprintf(w, "Restoring user changes...\n")
 
 		// 1. Temporarily commit the agent's changes

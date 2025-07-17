@@ -867,7 +867,7 @@ var EnvironmentEnableTrackingTool = &Tool{
 var EnvironmentSyncFromUserTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_sync_from_user",
-		"Apply the user's unstaged changes to the environment and apply the environment's to the user's local worktree. ONLY RUN WHEN EXPLICITLY REQUESTED BY THE USER.",
+		"Apply the user's unstaged changes to the environment. ONLY RUN WHEN EXPLICITLY REQUESTED BY THE USER.",
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
@@ -899,17 +899,12 @@ var EnvironmentSyncFromUserTool = &Tool{
 			return nil, fmt.Errorf("failed to pull changes to environment: %w", err)
 		}
 
-		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return nil, fmt.Errorf("unable to update the environment: %w", err)
-		}
-
 		if err := repo.ResetUserLocalChanges(ctx); err != nil {
 			return nil, fmt.Errorf("unable to reset user's worktree: %w", err)
 		}
 
-		var buf strings.Builder
-		if err := repo.Apply(ctx, env.ID, &buf); err != nil {
-			return nil, fmt.Errorf("unable to apply changes to user's worktree: %w\n\nlogs:\n%s", err, buf.String())
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return nil, fmt.Errorf("unable to update the environment: %w", err)
 		}
 
 		return mcp.NewToolResultText("Patch applied successfully to the environment:\n\n```patch\n" + string(patch) + "\n```"), nil
