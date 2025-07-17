@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"syscall"
 
 	"github.com/charmbracelet/fang"
 	"github.com/dagger/container-use/repository"
@@ -45,7 +44,7 @@ func main() {
 		rootCmd,
 		fang.WithVersion(version),
 		fang.WithCommit(commit),
-		fang.WithNotifySignal(os.Interrupt, os.Kill, syscall.SIGTERM),
+		fang.WithNotifySignal(getNotifySignals()...),
 	); err != nil {
 		os.Exit(1)
 	}
