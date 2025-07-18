@@ -6,15 +6,13 @@ icon: gear
 
 ## Overview
 
-Environment configuration in Container Use works in two layers:
+Environment configuration works in two layers:
 
-1. **Default Configuration**: The foundation environment that all agents start from
-2. **Agent Environment Adaptation**: Changes agents make to their environment during work (ephemeral until imported)
-
-Instead of using the generic environment, you can specify exactly what base image, dependencies, and setup your project needs as defaults. Agents can then adapt their environment as they discover additional requirements during their work.
+1. **Default Configuration**: Your project's baseline environment that all agents start from
+2. **Agent Adaptations**: Changes agents make during work (ephemeral until imported)
 
 <Note>
-  **Agent configuration changes are ephemeral** - they only exist within the agent's environment until you explicitly import them using `container-use config import`.
+  Configuration changes only apply to **new environments**. Agent modifications remain in their environment until you import them with `container-use config import`.
 </Note>
 
 ## The Configuration Workflow
@@ -37,11 +35,7 @@ Instead of using the generic environment, you can specify exactly what base imag
   </Step>
 </Steps>
 
-## Default Environment Configuration
-
-Configure the baseline environment that all agents will start from when working on your project.
-
-By default, environments use a basic Ubuntu image with essential tools (git, curl, ...).
+## Default Configuration
 
 ### Quick Start
 
@@ -68,208 +62,96 @@ container-use config show
 
 Now all new agent environments will start with Python 3.11, your dependencies pre-installed, and environment variables configured.
 
-## Agent Environment Adaptation
+## Working with Configurations
 
-During their work, agents can modify their environment configuration when they discover they need different tools, base images, or setup commands. These changes are **ephemeral** - they only exist within the agent's environment until you explicitly import them.
-
-Agent environment adaptation allows for:
-
-- **Dynamic Discovery**: Agents can discover and install exactly what they need
-- **Optimal Environments**: Agents can fine-tune their environment for the specific task
-- **Learning Opportunities**: You can see what tools/configurations agents find useful
-- **No Disruption**: Changes don't affect your defaults until you choose to import them
-
-<Card title="Ephemeral by Design" icon="clock">
-  Agent configuration changes are **ephemeral** - they exist only within the agent's environment. This ensures your defaults remain stable while allowing agents to experiment and adapt.
-</Card>
-
-## Viewing Agent Configuration Changes
-
-After an agent completes work, you can inspect any configuration changes it made to its environment.
-
-### View Agent Configuration
+### View Configurations
 
 ```bash
-# See the configuration for a specific environment
-container-use config view fancy-mallard
-
-# Compare with your defaults
-container-use config show        # Your defaults
-container-use config view fancy-mallard  # Agent's configuration
-```
-
-## Importing Agent Configurations
-
-When an agent makes useful configuration changes, you can import them to become your new defaults for future environments.
-
-```bash
-# Import all configuration changes from an environment
-container-use config import fancy-mallard
-
-# View the updated configuration
-container-use config show
-```
-
-## Base Image Configuration
-
-The base image is the foundation of your environment - the container image that everything else builds on top of.
-
-### Setting a Base Image
-
-```bash
-# Popular base images
-container-use config base-image set python:3.11
-```
-
-### Viewing Current Base Image
-
-```bash
-container-use config base-image get
-# Output: python:3.11
-```
-
-### Resetting to Default
-
-```bash
-container-use config base-image reset
-# Resets to ubuntu:24.04
-```
-
-## Setup Commands
-
-Setup commands run when creating a new environment, after pulling the base image but before copying your code. Use these for system-level dependencies and tools.
-
-### Adding Setup Commands
-
-```bash
-container-use config setup-command add "apt-get update && apt-get install -y build-essential"
-```
-
-### Managing Setup Commands
-
-```bash
-# List all setup commands
-container-use config setup-command list
-
-# Remove a specific command
-container-use config setup-command remove "apt-get install -y build-essential"
-
-# Clear all setup commands
-container-use config setup-command clear
-```
-
-## Install Commands
-
-Install commands run after copying your code to the environment. Use these for project dependencies and build steps.
-
-### Adding Install Commands
-
-```bash
-container-use config install-command add "go mod download"
-container-use config install-command add "npm install"
-```
-
-### Managing Install Commands
-
-```bash
-# List all install commands
-container-use config install-command list
-
-# Remove a specific command
-container-use config install-command remove "npm install"
-
-# Clear all install commands
-container-use config install-command clear
-```
-
-## Environment Variables
-
-Environment variables are set in all new environments and can be used to configure your application, development tools, and runtime behavior.
-
-### Setting Environment Variables
-
-```bash
-container-use config env set NODE_ENV development
-```
-
-### Managing Environment Variables
-
-```bash
-# List all environment variables
-container-use config env list
-
-# Remove a specific variable by key
-container-use config env unset DEBUG
-
-# Clear all environment variables
-container-use config env clear
-```
-
-## Secrets
-
-Secrets allow your agents to access API keys, database credentials, and other sensitive data securely. **Secrets are resolved within the container environment - agents can use your credentials without the AI model ever seeing the actual values.**
-
-<Card title="Complete Secrets Guide" icon="key" href="/secrets">
-  Learn about all secret types, configuration commands, and examples
-</Card>
-
-## Viewing Your Configuration
-
-See your complete environment configuration:
-
-```bash
-# Show your default configuration
+# View your default configuration
 container-use config show
 
-# Show configuration for a specific environment
+# View an agent's modified configuration
 container-use config show fancy-mallard
 
-# Output in JSON format
+# Output as JSON
 container-use config show --json
 ```
 
-Example output:
+### Import Agent Changes
 
+When agents make useful changes, import them as your new defaults:
+
+```bash
+container-use config import fancy-mallard
 ```
-Base Image:            python:3.11
-Workdir:               /workdir
-Setup Commands:
-  1.                   apt-get update && apt-get install -y build-essential
-Install Commands:
-  1.                   pip install -r requirements.txt
-  2.                   pip install pytest black flake8
-Environment Variables:
-  1.                   PYTHONPATH=/workdir
-  2.                   DEBUG=true
-  3.                   LOG_LEVEL=info
+
+## Configuration Commands
+
+### Base Image
+
+```bash
+container-use config base-image set python:3.11
+container-use config base-image get
+container-use config base-image reset  # Resets to ubuntu:24.04
 ```
+
+### Setup Commands
+
+Run after pulling base image, before copying code:
+
+```bash
+container-use config setup-command add "apt-get update && apt-get install -y build-essential"
+container-use config setup-command list
+container-use config setup-command remove "apt-get install -y build-essential"
+container-use config setup-command clear
+```
+
+### Install Commands
+
+Run after copying code:
+
+```bash
+container-use config install-command add "npm install"
+container-use config install-command list
+container-use config install-command remove "npm install"
+container-use config install-command clear
+```
+
+### Environment Variables
+
+```bash
+container-use config env set NODE_ENV development
+container-use config env list
+container-use config env unset NODE_ENV
+container-use config env clear
+```
+
+### Secrets
+
+Configure secure access to API keys and credentials. See the [complete secrets guide](/secrets) for all secret types and examples.
+
+```bash
+container-use config secret set API_KEY
+container-use config secret list
+container-use config secret unset API_KEY
+container-use config secret clear
+```
+
 
 ## Configuration Storage
 
-Your default environment configuration is stored in `.container-use/environment.json` in your project root.
-
-<Card title="Version Control" icon="git-branch">
-  **Commit your `.container-use/` directory** to share environment configuration
-  with your team. Everyone will get the same environment setup.
-</Card>
+Configuration is stored in `.container-use/environment.json`. Commit this directory to share setup with your team.
 
 ## Troubleshooting
 
-If a setup command fails, the environment creation stops:
+If environment creation fails, check logs and fix the problematic command:
 
 ```bash
-# Check what went wrong
 container-use log <environment-id>
-
-# Common fixes:
-# 1. Fix the command and try again
 container-use config setup-command remove "broken-command"
 container-use config setup-command add "fixed-command"
 ```
 
-### Configuration Not Taking Effect
-
-Remember that configuration only applies to **new environments**:
 
 ## Next Steps
 

@@ -2,12 +2,13 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Container Use",
+  "description": "Sandboxed dev environments for agents to work safely in parallel. Powered by Dagger.",
   "colors": {
     "primary": "#0D9373",
     "light": "#07C983",
     "dark": "#0D9373"
   },
-  "favicon": "/images/container-use.png",
+  "favicon": "/images/dagger-icon.png",
   "redirects": [
     {
       "source": "/discord",
