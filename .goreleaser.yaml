@@ -102,6 +102,34 @@ homebrew_casks:
           FileUtils.rm_f "#{HOMEBREW_PREFIX}/share/zsh/site-functions/_cu"
           FileUtils.rm_f "#{HOMEBREW_PREFIX}/share/fish/vendor_completions.d/cu.fish"
 
+# https://goreleaser.com/customization/nix/
+nix:
+  - name: container-use
+    repository:
+      owner: "{{ .Env.GH_ORG_NAME }}"
+      name: nix
+    commit_author:
+      name: container-use-bot
+      email: noreply@dagger.io
+    url_template: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/{{ .Env.GH_ORG_NAME }}/container-use"
+    description: "Containerized environments for coding agents"
+    license: "asl20"
+    post_install: |
+      installShellCompletion --cmd container-use \
+        --bash <($out/bin/container-use completion bash) \
+        --fish <($out/bin/container-use completion fish) \
+        --zsh <($out/bin/container-use completion zsh)
+      
+      # Create cu symlink for backward compatibility
+      ln -sf $out/bin/container-use $out/bin/cu
+      
+      # Install cu completions for backward compatibility
+      installShellCompletion --cmd cu \
+        --bash <($out/bin/cu completion bash) \
+        --fish <($out/bin/cu completion fish) \
+        --zsh <($out/bin/cu completion zsh)
+
 checksum:
   name_template: "checksums.txt"
 
