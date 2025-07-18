@@ -172,15 +172,15 @@ func TestCommitWorktreeChanges(t *testing.T) {
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
-	os.MkdirAll(filepath.Dir(path), 0o755)
-	err := os.WriteFile(path, []byte(content), 0o644)
+	os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.WriteFile(path, []byte(content), 0644)
 	require.NoError(t, err)
 }
 
 func writeBinaryFile(t *testing.T, dir, name string, size int) {
 	t.Helper()
 	path := filepath.Join(dir, name)
-	os.MkdirAll(filepath.Dir(path), 0o755)
+	os.MkdirAll(filepath.Dir(path), 0755)
 
 	// Create binary content
 	data := make([]byte, size)
@@ -188,13 +188,13 @@ func writeBinaryFile(t *testing.T, dir, name string, size int) {
 		data[i] = byte(i % 256)
 	}
 
-	err := os.WriteFile(path, data, 0o644)
+	err := os.WriteFile(path, data, 0644)
 	require.NoError(t, err)
 }
 
 func createDir(t *testing.T, dir, name string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
-	err := os.MkdirAll(path, 0o755)
+	err := os.MkdirAll(path, 0755)
 	require.NoError(t, err)
 }

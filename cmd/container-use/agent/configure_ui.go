@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,13 +36,28 @@ var agents = []Agent{
 	{
 		Key:         "codex",
 		Name:        "OpenAI Codex",
-		Description: "OpenAI's lightweight coding agent that runs in your terminal",
+		Description: "OpenAI's lightweight coding agent that runs in your terminal (Linux/macOS/WSL)",
 	},
 	{
 		Key:         "amazonq",
 		Name:        "Amazon Q Developer",
-		Description: "Amazon's agentic chat experience in your terminal",
+		Description: "Amazon's agentic chat experience in your terminal (Linux/macOS/WSL)",
 	},
+}
+
+// getSupportedAgents returns agents that are supported on the current platform
+func getSupportedAgents() []Agent {
+	if runtime.GOOS == "windows" {
+		// Filter out Windows-incompatible agents
+		var supportedAgents []Agent
+		for _, agent := range agents {
+			if agent.Key != "codex" && agent.Key != "amazonq" {
+				supportedAgents = append(supportedAgents, agent)
+			}
+		}
+		return supportedAgents
+	}
+	return agents
 }
 
 // AgentSelectorModel represents the bubbletea model for agent selection
@@ -63,6 +79,7 @@ func (m AgentSelectorModel) Init() tea.Cmd {
 
 // Update handles incoming messages and updates the model
 func (m AgentSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	supportedAgents := getSupportedAgents()
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -74,11 +91,11 @@ func (m AgentSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.cursor < len(agents)-1 {
+			if m.cursor < len(supportedAgents)-1 {
 				m.cursor++
 			}
 		case "enter", " ":
-			m.selected = agents[m.cursor].Key
+			m.selected = supportedAgents[m.cursor].Key
 			m.quit = true
 			return m, tea.Quit
 		}
@@ -137,8 +154,19 @@ func (m AgentSelectorModel) View() string {
 	s.WriteString(headerStyle.Render("Select an agent to configure:"))
 	s.WriteString("\n\n")
 
+	// Show WSL note for Windows users
+	if runtime.GOOS == "windows" {
+		wslNoteStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFA500")).
+			Padding(0, 1).
+			Italic(true)
+		s.WriteString(wslNoteStyle.Render("Note: OpenAI Codex and Amazon Q Developer are available in WSL"))
+		s.WriteString("\n\n")
+	}
+
 	// Agent list TODO: filter or sort agents based on if they are installed (ConfigurableAgent.isInstalled())
-	for i, agent := range agents {
+	supportedAgents := getSupportedAgents()
+	for i, agent := range supportedAgents {
 		cursor := "  " // not selected
 		if m.cursor == i {
 			cursor = "▶ " // selected

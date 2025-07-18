@@ -133,7 +133,7 @@ func (r *Repository) ensureFork(ctx context.Context) error {
 	}
 
 	slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
-	if err := os.MkdirAll(r.forkRepoPath, 0o755); err != nil {
+	if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
 		return err
 	}
 	_, err = RunGitCommand(ctx, r.forkRepoPath, "init", "--bare")
