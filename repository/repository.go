@@ -151,6 +151,10 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
+	if err := r.createInitialCommit(ctx, worktree, id, description); err != nil {
+		return nil, fmt.Errorf("failed to create initial commit: %w", err)
+	}
+
 	worktreeHead, err := RunGitCommand(ctx, worktree, "rev-parse", "HEAD")
 	if err != nil {
 		return nil, err

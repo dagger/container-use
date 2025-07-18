@@ -153,6 +153,13 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 	return worktreePath, nil
 }
 
+// createInitialCommit creates an empty commit with the environment creation message - this prevents multiple environments from overwriting the container-use-state on the parent commit
+func (r *Repository) createInitialCommit(ctx context.Context, worktreePath, id, title string) error {
+	commitMessage := fmt.Sprintf("Create environment %s: %s", id, title)
+	_, err := RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", commitMessage)
+	return err
+}
+
 func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.Environment, explanation string) (rerr error) {
 	slog.Info("Propagating to worktree...",
 		"environment.id", env.ID,
