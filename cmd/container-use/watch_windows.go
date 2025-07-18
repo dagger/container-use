@@ -3,13 +3,16 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/dagger/container-use/repository"
 	"github.com/spf13/cobra"
@@ -20,10 +23,7 @@ var watchCmd = &cobra.Command{
 	Short: "Watch environment activity in real-time",
 	Long: `Continuously display environment activity as agents work.
 Shows new commits and environment changes updated every second.
-Press Ctrl+C to stop watching.
-
-This Windows-compatible implementation updates every second and clears
-the screen between updates for a clean display.`,
+Press Ctrl+C to stop watching.`,
 	Example: `# Watch all environment activity
 container-use watch
 
@@ -37,10 +37,9 @@ container-use watch`,
 			return err
 		}
 
-		// Display initial header
-		fmt.Printf("Container-use watch on %s - Press Ctrl+C to stop\n", runtime.GOOS)
-		fmt.Println("Watching: git log --remotes=container-use --oneline --graph --decorate")
-		fmt.Println(strings.Repeat("=", 70))
+		// Enter alternate screen buffer and hide cursor
+		fmt.Print("\x1b[?1049h\x1b[?25l")
+		defer fmt.Print("\x1b[?25h\x1b[?1049l") // restore screen + show cursor
 
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -64,31 +63,88 @@ container-use watch`,
 	},
 }
 
-// runGitLogWindows executes the git log command optimized for Windows
+// runGitLogWindows executes the git log command with output matching Unix watch format
 func runGitLogWindows(ctx context.Context) error {
-	// Clear screen using Windows cmd
-	clearCmd := exec.CommandContext(ctx, "cmd", "/c", "cls")
-	clearCmd.Stdout = os.Stdout
-	clearCmd.Run() // Ignore errors for clearing screen
+	var buf bytes.Buffer
 
-	// Display timestamp header
-	fmt.Printf("Last updated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Println(strings.Repeat("-", 50))
+	// Clear screen and move cursor to home position
+	buf.WriteString("\x1b[H\x1b[J")
 
-	// Run git log command (without --color=always for Windows compatibility)
+	// Get hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	// Format timestamp like Unix watch (Day Month DD HH:MM:SS YYYY)
+	timestamp := time.Now().Format("Mon Jan 2 15:04:05 2006")
+
+	// Create header that matches Unix watch format exactly
+	gitCommand := "git log --color=always --remotes=container-use --oneline --graph --decorate"
+	headerLine := fmt.Sprintf("Every 1.0s: %s", gitCommand)
+
+	// Get terminal width, fallback to 80 if unable to determine
+	terminalWidth := 80
+	if width, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && width > 0 {
+		terminalWidth = width
+	}
+
+	// Calculate spaces needed to right-align the hostname and timestamp
+	rightPart := fmt.Sprintf("%s: %s", hostname, timestamp)
+	spacesNeeded := terminalWidth - len(headerLine) - len(rightPart)
+
+	// Write the header line with responsive spacing
+	if spacesNeeded >= 1 {
+		// Enough space to fit on one line - right align
+		buf.WriteString(headerLine + strings.Repeat(" ", spacesNeeded) + rightPart + "\n")
+	} else {
+		// Not enough space - wrap to next line with minimum 1 space
+		buf.WriteString(headerLine + " " + rightPart + "\n")
+	}
+	buf.WriteString("\n") // Empty line after header to match Unix watch format
+
+	// Run git log command with same arguments as Unix version
 	cmd := exec.CommandContext(ctx, "git", "log",
+		"--color=always",
 		"--remotes=container-use",
 		"--oneline",
 		"--graph",
-		"--decorate",
-		"--max-count=20") // Limit output to prevent overwhelming the screen
+		"--decorate")
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Create pipe to capture output
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("failed to create pipe: %w", err)
+	}
 
-	if err := cmd.Run(); err != nil {
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		pw.Close()
+		pr.Close()
+		return fmt.Errorf("failed to start git log: %w", err)
+	}
+
+	// Close write end so we can read
+	pw.Close()
+
+	// Read all output into buffer
+	scanner := bufio.NewScanner(pr)
+	for scanner.Scan() {
+		buf.WriteString(scanner.Text() + "\n")
+	}
+
+	pr.Close()
+
+	// Wait for command to complete
+	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("git log failed: %w", err)
 	}
+
+	// Output everything at once for smooth rendering
+	os.Stdout.Write(buf.Bytes())
 
 	return nil
 }
