@@ -1,227 +1,82 @@
 ---
 title: Quickstart
-description: "Get Container Use up and running in minutes. Install, configure your agent, and create your first environment."
+description: "Get started with Container Use in 5 minutes."
 icon: rocket
 ---
 
-## Overview
+In this quickstart, you'll install Container Use, connect it to your coding agent, and experience the core workflow: agents work in isolated environments while your files stay untouched, then review and decide what to do with their work.
 
-Get Container Use running with your coding agent in just a few minutes. This guide will walk you through installation, agent setup, and creating your first environment.
+## 1. Install Container Use
 
-<Note>
-  Make sure you have [Docker](https://www.docker.com/get-started) and Git
-  installed before starting.
-</Note>
-
-## Installation
-
-Choose your preferred installation method:
+Make sure you have [Docker](https://www.docker.com/get-started) and Git installed before starting.
 
 <Tabs>
   <Tab title="Homebrew (macOS)">
-    ```sh
-    brew install dagger/tap/container-use
-    ```
 
-    This will:
-    - Install the latest `container-use` binary
-    - Add it to your `$PATH`
-    - Install shell completions automatically
-    ### Verify Installation
-    ```sh
-    container-use version
-    ```
+  ```sh
+  brew install dagger/tap/container-use
+  container-use version   # → confirms install
+  ```
 
   </Tab>
 
   <Tab title="Shell Script (All Platforms)">
-    ```sh
-    curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
-    ```
 
-    This script will:
-    - Check for Docker & Git (required dependencies)
-    - Detect your platform automatically
-    - Install the latest `container-use` binary to your `$PATH`
-    - Provide shell completion installation instructions
-
-    ### Verify Installation
-    ```sh
-    container-use version
-    ```
-
-    ### Shell Completions
-    After installation, follow the provided instructions to enable shell completions for your shell (bash, zsh, fish).
+  ```sh
+  curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
+  container-use version
+  ```
 
   </Tab>
 
   <Tab title="Build from Source">
-    <Note>
-      **For developers** - Build the latest version from source code.
-    </Note>
 
-    ### Prerequisites
-    - Go 1.21 or later
-    - Git
-    - Docker
-
-    ### Build Steps
-    ```sh
-    git clone https://github.com/dagger/container-use.git
-    cd container-use
-    go build -o container-use ./cmd/container-use
-    sudo mv container-use /usr/local/bin/
-    ```
-
-    For detailed build instructions, see the [CONTRIBUTING.md](https://github.com/dagger/container-use/blob/main/CONTRIBUTING.md#building) guide.
-    ### Verify Installation
-    ```sh
-    container-use version
-    ```
+  ```sh
+  git clone https://github.com/dagger/container-use.git
+  cd container-use
+  go build -o container-use ./cmd/container-use
+  sudo mv container-use /usr/local/bin/
+  container-use version
+  ```
 
   </Tab>
 </Tabs>
 
-<Card title="More Installation Options" icon="download" href="/installation">
-  See all installation methods including build from source
-</Card>
+## 2. Point your agent at Container Use
 
-## Agent Setup
+Container Use works with any MCP-compatible agent: Just add `container-use stdio` as an MCP server. This example uses Claude Code but you can view [instructions for other agents](/agent-integrations).
 
-Configure Container Use with your coding agent. Choose your agent below:
-
-<Note>All agents use the same MCP server command: `container-use stdio`</Note>
-
-<details>
-<summary>💡 Command Shortcut</summary>
-
-The `container-use` command is also available as `cu` for convenience. Both commands work identically:
-
-- `container-use stdio` (used in documentation)
-- `cu stdio` (shortcut)
-
-</details>
-
-<details>
-<summary>💡 No Paths Required</summary>
-
-Since `container-use` is a unique command name, you can use it directly in all configurations without specifying full paths. The command will be found automatically in your PATH after installation.
-
-</details>
-
-<Tabs>
-  <Tab title="Claude Code">
-    ### Add MCP Configuration
+<Steps>
+  <Step title="Add MCP Configuration">
     ```sh
     cd /path/to/repository
     claude mcp add container-use -- container-use stdio
     ```
+  </Step>
 
-    ### Add Agent Rules (Optional)
-    Save the CLAUDE.md file at the root of your repository:
+  <Step title="Add Agent Rules (Optional)">
+    Save CLAUDE.md file at the root of your repository:
 
     ```sh
     curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
     ```
+  </Step>
 
-    ### Trust Only Container Use Tools (Optional)
+  <Step title="Trust Only Container Use Tools (Optional)">
     For maximum security, restrict Claude Code to only use Container Use tools:
 
     ```sh
     claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_create,mcp__container-use__environment_add_service,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update
     ```
+  </Step>
+</Steps>
 
-    <Info>
-      Learn more: [Claude Code MCP Documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
-    </Info>
+## 3. Run your first parallel task
 
-  </Tab>
-
-  <Tab title="Cursor">
-    ### Install MCP Server
-    Use the one-click deeplink to install (requires Cursor and Container Use already installed):
-
-    [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY29udGFpbmVyLXVzZSBzdGRpbyJ9Cg%3D%3D)
-
-    ### Add Agent Rules
-    Add the rules file to your project or home directory:
-
-    ```sh
-    curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc
-    ```
-
-    <Info>
-      Learn more: [Cursor MCP Documentation](https://docs.cursor.com/context/model-context-protocol)
-    </Info>
-
-  </Tab>
-
-  <Tab title="Goose">
-    ### Method 1: Configuration File
-    Add to `~/.config/goose/config.yaml`:
-
-    ```yaml
-    extensions:
-      container-use:
-        name: container-use
-        type: stdio
-        enabled: true
-        cmd: container-use
-        args:
-        - stdio
-        envs: {}
-    ```
-
-    ### Method 2: Interactive Setup
-    ```sh
-    goose configure
-    ```
-    Then add a command line extension with `container-use stdio` as the command.
-
-    ### Method 3: Goose Desktop
-    Paste this URL into your browser:
-    ```
-    goose://extension?cmd=container-use&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments
-    ```
-
-    <Info>
-      Learn more: [Goose MCP Extensions](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
-    </Info>
-
-  </Tab>
-
-  <Tab title="Other Agents">
-    Container Use works with many coding agents through the Model Context Protocol (MCP).
-
-    <Card title="Complete Agent List" icon="list" href="/agent-integrations">
-      See setup guides for all supported agents including Amazon Q Developer, VSCode, Cline, Qodo Gen, and more
-    </Card>
-
-    ### Quick Setup for Any Agent
-    Most agents follow this pattern:
-
-    1. **Add MCP Server**: Configure your agent to use `container-use stdio` as an MCP server
-    2. **Add Rules** (Optional): Download agent rules from our repository
-    3. **Verify**: Ensure your agent recognizes Container Use tools
-
-    All agents use the same MCP server command: `container-use stdio`
-
-  </Tab>
-</Tabs>
-
-## Your First Environment
-
-Now let's create your first containerized environment and see Container Use in action!
-
-<Note>
-  🔒 **Secret Security**: When your agent uses API keys or credentials, secrets are resolved within the container environment - agents can use your credentials without the AI model ever seeing the actual values.
-</Note>
-
-### Setting Up a Demo Project
-
-Let's start with a fresh repository:
+Let's create a demo repository and ask your agent to build something:
 
 ```sh
+# start a demo repo
 mkdir hello
 cd hello
 git init
@@ -230,211 +85,54 @@ git add README.md
 git commit -m "initial commit"
 ```
 
-### Creating Your First Environment
-
-Ask your agent to create something simple:
-
-> Create a hello world app in python using flask
-
-Your agent will work in an isolated environment and respond with something like:
-
-```
-[agent creates the Flask app with styling and templates]
-
-✅ The application is now running and accessible at: http://127.0.0.1:58455
-🔍 You can view all the files using: `container-use checkout fancy-mallard`
-📋 You can view the development log using: `container-use log fancy-mallard`
+Now prompt your agent to do something:
+```text
+"Create a Flask hello‑world app in Python."
 ```
 
-Navigate to the provided URL to see your app running!
+After a short run you'll see something like:
 
-### Understanding What Happened
+```text
+✅ App running at http://127.0.0.1:58455
+🔍 View files:  container-use checkout <id>
+📋 Dev log:     container-use log <id>
+```
 
-Notice that your local directory is still empty:
+<Note>
+Replace `<id>` with your actual environment ID like `fancy-mallard`
+</Note>
+
+Notice your local directory is still empty, because the agent worked in an isolated environment:
 
 ```sh
 $ ls
 README.md
 ```
 
-This is because the agent worked in an **isolated environment**. Your local files are untouched.
+You can see all environments with `container-use list`.
 
-### Exploring Environments
+## 4. Review the work
 
-List all environments:
-
+See what the agent changed:
 ```sh
-$ container-use list
-ID                 TITLE                               CREATED        UPDATED
-fancy-mallard      Flask Hello World with Blue Design  2 minutes ago  1 minute ago
+container-use diff <id>
 ```
 
-### Viewing the Development Log
-
-See exactly what your agent did with `container-use log`:
-
+Check out the environment locally to explore:
 ```sh
-$ container-use log fancy-mallard
-9e3a5c9d  Write templates/index.html (2 minutes ago)
-$ python app.py &
-
-d94b6ab8  Write app.py (3 minutes ago)
-$ mkdir -p templates
+container-use checkout <id>
 ```
 
-### Reviewing the Code
+## 5. Accept or discard
 
-See exactly what files were created with `container-use diff`:
-
+Accept the work and keep the agent's commit history:
 ```sh
-$ container-use diff fancy-mallard
-diff --git a/app.py b/app.py
-new file mode 100644
-index 0000000..f88d1fb
---- /dev/null
-+++ b/app.py
-@@ -0,0 +1,10 @@
-+from flask import Flask, render_template
-+
-+app = Flask(__name__)
-+
-+@app.route('/')
-+def hello_world():
-+    return render_template('index.html')
-+
-+if __name__ == '__main__':
-+    app.run(host='0.0.0.0', port=5000)
-...
+container-use merge <id>
 ```
 
-### Exploring the Environment
-
-#### Option 1: Check Out Locally
-
-Bring the environment's work into your local Git workspace:
-
+Or stage the changes to create your own commit:
 ```sh
-$ container-use checkout fancy-mallard
-Switched to branch 'cu-fancy-mallard'
-
-$ ls
-README.md  app.py  templates/
+container-use apply <id>
 ```
 
-Now you can explore the files in your IDE, make changes, or continue development.
-
-#### Option 2: Drop Into the Container
-
-Get a terminal inside the exact environment your agent used:
-
-```sh
-$ container-use terminal fancy-mallard
-
-● Attaching terminal
-cu /workdir $ ls
-app.py  templates/
-
-cu /workdir $ python app.py
- * Running on all addresses (0.0.0.0)
- * Running on http://127.0.0.1:5000
-```
-
-This gives you the same Python environment, dependencies, and setup your agent used.
-
-### Accepting the Work
-
-Once you're satisfied with the agent's work, you have two options to accept it:
-
-<Tabs>
-  <Tab title="Merge (Default)">
-    Merge preserves the original commit history from the environment:
-
-    ```sh
-    $ git checkout main
-    $ container-use merge fancy-mallard
-    Updating 95bb17b..9e3a5c9
-    Fast-forward
-     app.py           | 10 ++++++++++
-     templates/index.html | 20 ++++++++++++++++++++
-     2 files changed, 30 insertions(+)
-     create mode 100644 app.py
-     create mode 100644 templates/index.html
-    ```
-
-    This maintains a complete history of the agent's work with individual commits.
-
-  </Tab>
-
-  <Tab title="Apply (Customizable)">
-    Apply stages the changes for you to commit manually, discarding the original commit sequence:
-
-    ```sh
-    $ git checkout main
-    $ container-use apply fancy-mallard
-    Applied changes from fancy-mallard to current branch
-
-    $ git status
-    Changes to be committed:
-      (use "git restore --staged <file>..." to unstage)
-        new file:   app.py
-        new file:   templates/index.html
-
-    $ git commit -m "Add Flask hello world application"
-    ```
-
-    This lets you review and customize the final commit before making it permanent.
-
-  </Tab>
-</Tabs>
-
-Choose **merge** when you want to preserve the agent's commit history, or **apply** when you want to create your own commit message and review the changes before committing.
-
-## Essential Commands
-
-Here are the key commands you'll use regularly:
-
-```sh
-# List all environments
-container-use list
-
-# View what an agent did
-container-use log <environment-id>
-
-# See the code changes
-container-use diff <environment-id>
-
-# Check out the environment locally
-container-use checkout <environment-id>
-
-# Get a terminal in the container
-container-use terminal <environment-id>
-
-# Merge the work into your branch (preserves commit history)
-container-use merge <environment-id>
-
-# Apply the work as staged changes (customize commit)
-container-use apply <environment-id>
-```
-
-## Success! 🎉
-
-You've successfully:
-
-- ✅ Installed Container Use
-- ✅ Configured your agent
-- ✅ Created your first environment
-- ✅ Explored the development process
-- ✅ Learned the essential commands
-
-Your coding agent now has its own containerized playground. No more babysitting - let your agents work safely and independently!
-
-## Next Steps
-
-<CardGroup cols={2}>
-  <Card title="Environment Workflow" icon="arrows-rotate" href="/environment-workflow">
-    Learn how to work with agent environments
-  </Card>
-  <Card title="Environment Configuration" icon="gear" href="/environment-configuration">
-    Configure your project's default environment setup
-  </Card>
-</CardGroup>
+🎉 That's it – you've run an agent in parallel, checked its work, and decided what to do with it.
