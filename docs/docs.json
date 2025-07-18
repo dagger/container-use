@@ -13,6 +13,10 @@
     {
       "source": "/discord",
       "destination": "https://discord.gg/NQDJTBC6Qk"
+    },
+    {
+      "source": "/installation",
+      "destination": "/quickstart"
     }
   ],
   "navigation": {
@@ -24,7 +28,6 @@
             "group": "Getting Started",
             "pages": [
               "introduction",
-              "installation",
               "quickstart"
             ]
         },
