@@ -39,6 +39,12 @@
             "secrets"
           ]
         },
+        {
+          "group": "Reference",
+          "pages": [
+            "cli-reference"
+          ]
+        },
           {
             "group": "Integrations",
             "pages": [

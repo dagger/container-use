@@ -4,8 +4,6 @@ description: "Set up and manage your project's environment configurations."
 icon: gear
 ---
 
-## Overview
-
 Environment configuration works in two layers:
 
 1. **Default Configuration**: Your project's baseline environment that all agents start from
@@ -28,7 +26,7 @@ Environment configuration works in two layers:
     During work, the agent may modify its environment configuration - adding tools, changing base images, or setting variables
   </Step>
   <Step title="View Agent Changes">
-    Use `container-use config view <env>` to see what configuration changes the agent made
+    Use `container-use config show <env>` to see what configuration changes the agent made
   </Step>
   <Step title="Import Useful Changes">
     Use `container-use config import <env>` to adopt the agent's configuration improvements as your new defaults
