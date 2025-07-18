@@ -1,10 +1,10 @@
 ---
-title: Agents
-description: "Complete setup guides for all supported coding agents. Configure Container Use with Claude Code, Cursor, VSCode, Goose, and more."
+title: Agent Integration
+description: "Setup guides for some popular coding agents."
 icon: robot
 ---
 
-Container Use works with any coding agent that supports the Model Context Protocol (MCP). This page provides comprehensive setup guides for all supported agents.
+Container Use works with any coding agent that supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction).
 
 <Note>All agents use the same MCP server command: `container-use stdio`</Note>
 
@@ -19,46 +19,32 @@ The `container-use` command is also available as `cu` for convenience. Both comm
 
 ## Claude Code
 
-### Install Claude Code
-
-```sh
-npm install -g @anthropic-ai/claude-code
-```
-
-### Add MCP Configuration
-
+**Add MCP Configuration:**
 ```sh
 cd /path/to/repository
 claude mcp add container-use -- container-use stdio
 ```
 
-### Add Agent Rules (Optional)
-
+**Add Agent Rules (Optional):**
 Save the CLAUDE.md file at the root of your repository:
-
 ```sh
 curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
 ```
 
-### Trust Only Container Use Tools (Optional)
-
+**Trust Only Container Use Tools (Optional):**
 For maximum security, restrict Claude Code to only use Container Use tools:
-
 ```sh
 claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_create,mcp__container-use__environment_add_service,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update
 ```
 
 <Info>
-  Learn more: [Claude Code MCP
-  Documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
+  Learn more: [Claude Code MCP Documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
 </Info>
 
 ## Amazon Q Developer
 
-### Add MCP Configuration
-
+**Add MCP Configuration:**
 Add this configuration to `~/.aws/amazonq/mcp.json`:
-
 ```json
 {
   "mcpServers": {
@@ -72,16 +58,13 @@ Add this configuration to `~/.aws/amazonq/mcp.json`:
 }
 ```
 
-### Add Agent Rules
-
+**Add Agent Rules:**
 Save agent instructions to your project root:
-
 ```sh
 mkdir -p ./.amazonq/rules && curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md > .amazonq/rules/container-use.md
 ```
 
-### Trust Only Container Use Tools (Optional)
-
+**Trust Only Container Use Tools (Optional):**
 ```sh
 q chat --trust-tools=container_use___environment_add_service,container_use___environment_checkpoint,container_use___environment_config,container_use___environment_create,container_use___environment_file_delete,container_use___environment_file_list,container_use___environment_file_read,container_use___environment_file_write,container_use___environment_open,container_use___environment_run_cmd,container_use___environment_update_metadata
 ```
@@ -92,13 +75,13 @@ q chat --trust-tools=container_use___environment_add_service,container_use___env
 
 ## Cursor
 
-### Install MCP Server
+**Install MCP Server:**
 
 Use the one-click deeplink to install (requires Cursor and Container Use already installed):
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=container-use&config=eyJjb21tYW5kIjoiY29udGFpbmVyLXVzZSBzdGRpbyJ9)
 
-### Add Agent Rules
+**Add Agent Rules:**
 
 Add the rules file to your project or home directory:
 
@@ -113,7 +96,7 @@ curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercont
 
 ## Windsurf
 
-### Install MCP Server
+**Install MCP Server:**
 
 In `~/.codeium/windsurf/mcp_config.json`, add the following configuration:
 
@@ -129,7 +112,7 @@ In `~/.codeium/windsurf/mcp_config.json`, add the following configuration:
 }
 ```
 
-### Add Agent Rules
+**Add Agent Rules:**
 
 Add the rules file to your project or home directory:
 
@@ -139,7 +122,7 @@ curl --create-dirs -o .windsurf/rules/container-use.mdc https://raw.githubuserco
 
 ## VSCode / GitHub Copilot
 
-### Configure MCP Server
+**Configure MCP Server:**
 
 Update your VSCode settings with:
 
@@ -155,7 +138,7 @@ Update your VSCode settings with:
 }
 ```
 
-### Add Copilot Instructions (Optional)
+**Add Copilot Instructions (Optional):**
 
 ```sh
 curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
@@ -196,7 +179,7 @@ Then, choose one of the methods to add the Container Use MCP server in Zed:
 }
 ```
 
-### Add Container Use Agent Profile (Optional)
+**Add Container Use Agent Profile (Optional):**
 
 To lock the Zed agent out of your host system, you can create a dedicated agent profile that only enables Container Use tools. Add this to your `settings.json` under the `agent` section:
 
@@ -277,7 +260,7 @@ Run `opencode` and dispatch your agents to complete your tasks!
 
 ## Goose
 
-### Method 1: Configuration File
+**Method 1: Configuration File:**
 
 Add to `~/.config/goose/config.yaml`:
 
@@ -293,7 +276,7 @@ extensions:
     envs: {}
 ```
 
-### Method 2: Interactive Setup
+**Method 2: Interactive Setup:**
 
 ```sh
 goose configure
@@ -301,7 +284,7 @@ goose configure
 
 Then add a command line extension with `container-use stdio` as the command.
 
-### Method 3: Goose Desktop
+**Method 3: Goose Desktop:**
 
 Paste this URL into your browser:
 
@@ -316,7 +299,7 @@ goose://extension?cmd=container-use&arg=stdio&id=container-use&name=container%20
 
 ## Cline
 
-### Add MCP Configuration
+**Add MCP Configuration:**
 
 Add to your Cline MCP server configuration JSON:
 
@@ -336,7 +319,7 @@ Add to your Cline MCP server configuration JSON:
 }
 ```
 
-### Add Agent Rules
+**Add Agent Rules:**
 
 ```sh
 curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
@@ -346,7 +329,7 @@ curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent
 
 ## Qodo Gen
 
-### Setup Steps
+**Setup Steps:**
 
 1. Open Qodo Gen chat panel in VSCode or IntelliJ
 2. Click "Connect more tools"
@@ -371,7 +354,7 @@ curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent
 
 ## Kilo Code
 
-### Add MCP Configuration
+**Add MCP Configuration:**
 
 Add at global or project level:
 
@@ -397,7 +380,7 @@ Add at global or project level:
 
 ## Kiro
 
-### Add MCP Configuration
+**Add MCP Configuration:**
 
 Add to `.kiro/settings/mcp.json` in your project root:
 
@@ -415,7 +398,7 @@ Add to `.kiro/settings/mcp.json` in your project root:
 }
 ```
 
-### Add Steering Rules
+**Add Steering Rules:**
 
 Create `.kiro/steering/container-use.md`:
 
@@ -433,7 +416,7 @@ You MUST inform the user how to view your work using `container-use log <env_id>
 
 ## OpenAI Codex
 
-### Add MCP Configuration
+**Add MCP Configuration:**
 
 Add to `~/.codex/config.toml`:
 
@@ -451,7 +434,7 @@ env = {}
 
 ## Warp
 
-### Add MCP Configuration
+**Add MCP Configuration:**
 
 In the Warp sidebar, under Personal → MCP Servers → New:
 
@@ -471,7 +454,7 @@ In the Warp sidebar, under Personal → MCP Servers → New:
 
 ## Gemini CLI
 
-### Add MCP Configuration
+**Add MCP Configuration:**
 
 Add to `~/.gemini/settings.json` or `.gemini/settings.json`:
 
@@ -496,7 +479,7 @@ Add to `~/.gemini/settings.json` or `.gemini/settings.json`:
 
 ## JetBrains Junie
 
-### Add MCP Configuration
+**Add MCP Configuration:**
 
 Add or edit the MCP configuration in Settings under Tools → Junie → MCP Settings, or edit `~/.junie/mcp/mcp.json`:
 
@@ -518,7 +501,7 @@ Add or edit the MCP configuration in Settings under Tools → Junie → MCP Sett
     MCP support in Beta starting with Junie plugin `2xx.204.xx`
 </Info>
 
-### Add Agent Rules
+**Add Agent Rules:**
 
 Save agent instructions to your project root:
 
@@ -530,17 +513,9 @@ mkdir -p ./.junie && curl https://raw.githubusercontent.com/dagger/container-use
     Learn more: [Junie Guidelines](https://www.jetbrains.com/help/junie/customize-guidelines.html)
 </Info>
 
-### Trust MCP Tools (Optional)
+**Trust MCP Tools (Optional):**
 
 In the settings, under Tools → Junie → Action Allowlist: add _MCP Rule_.
-
-## Verification
-
-After setting up your agent, verify Container Use is working:
-
-1. **Check MCP Connection**: Your agent should recognize Container Use tools
-2. **Test Environment Creation**: Ask your agent to create a new environment
-3. **Verify Isolation**: Multiple environments should work independently
 
 ## Troubleshooting
 
