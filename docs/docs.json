@@ -19,30 +19,32 @@
       "destination": "/quickstart"
     }
   ],
-  "navigation": [
-    {
-      "group": "Get Started",
-      "pages": [
-        "introduction",
-        "quickstart"
-      ]
-    },
-    {
-      "group": "Guides",
-      "pages": [
-        "environment-workflow",
-        "environment-configuration",
-        "secrets"
-      ]
-    },
-    {
-      "group": "Reference",
-      "pages": [
-        "cli-reference",
-        "agent-integrations"
-      ]
-    }
-  ],
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "environment-workflow",
+          "environment-configuration",
+          "secrets"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "cli-reference",
+          "agent-integrations"
+        ]
+      }
+    ]
+  },
   "global": {
     "anchors": [
       {
