@@ -43,20 +43,19 @@
       ]
     }
   ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "GitHub",
-          "href": "https://github.com/dagger/container-use",
-          "icon": "github"
-        },
-        {
-          "anchor": "Discord",
-          "href": "https://container-use.com/discord",
-          "icon": "discord"
-        }
-      ]
-    }
+  "global": {
+    "anchors": [
+      {
+        "anchor": "GitHub",
+        "href": "https://github.com/dagger/container-use",
+        "icon": "github"
+      },
+      {
+        "anchor": "Discord",
+        "href": "https://container-use.com/discord",
+        "icon": "discord"
+      }
+    ]
   },
   "logo": {
     "light": "/images/dagger-icon.png",
