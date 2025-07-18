@@ -89,69 +89,64 @@ container-use checkout fancy-mallard
 
 After observing the agent's work, you have three paths forward:
 
-<Tabs>
-  <Tab title="✅ Accept Work">
-    When the agent succeeded and you're happy with the results, you have two options:
+### ✅ Accept Work
 
-    **Option 1: Merge (Preserve History)**
-    ```bash
-    # Merge the environment into your current branch
-    container-use merge fancy-mallard
+When the agent succeeded and you're happy with the results, you have two options:
 
-    # Clean up (optional)
-    container-use delete fancy-mallard
-    ```
+**Option 1: Merge (Preserve History)**
+```bash
+# Merge the environment into your current branch
+container-use merge fancy-mallard
 
-    **Option 2: Apply (Customize Commit)**
-    ```bash
-    # Apply changes as staged modifications
-    container-use apply fancy-mallard
+# Clean up (optional)
+container-use delete fancy-mallard
+```
 
-    # Review and commit with your own message
-    git status
-    git commit -m "Your custom commit message"
+**Option 2: Apply (Customize Commit)**
+```bash
+# Apply changes as staged modifications
+container-use apply fancy-mallard
 
-    # Clean up (optional)
-    container-use delete fancy-mallard
-    ```
+# Review and commit with your own message
+git status
+git commit -m "Your custom commit message"
 
-    Choose **merge** to preserve the agent's commit history, or **apply** to create your own commit message and review changes before committing.
+# Clean up (optional)
+container-use delete fancy-mallard
+```
 
-  </Tab>
+Choose `merge` to preserve the agent's commit history, or `apply` to create your own commit message and review changes before committing.
 
-  <Tab title="🔄 Iterate & Refine">
-    When the agent is close but needs refinement:
+### 🔄 Iterate & Refine
 
-    ```bash
-    # A. Continue the existing chat
-    # Prompt: "[refined instructions]"
-    # B. Start a new chat and continue working in the same environment.
-    # Prompt: "Work in the fancy-mallard environment and [refined instructions]"
-    ```
+When the agent is close but needs refinement:
 
-    The agent will resume in the existing environment with all previous work intact. Perfect for:
-    - Adding missing features
-    - Fixing bugs the agent introduced
-    - Adjusting styling or behavior
-    - Building on partial progress
+```bash
+# A. Continue the existing chat
+# Prompt: "[refined instructions]"
+# B. Start a new chat and continue working in the same environment.
+# Prompt: "Work in the fancy-mallard environment and [refined instructions]"
+```
 
-  </Tab>
+The agent will resume in the existing environment with all previous work intact. Perfect for:
+- Adding missing features
+- Fixing bugs the agent introduced
+- Adjusting styling or behavior
+- Building on partial progress
 
-  <Tab title="🗑️ Start Fresh">
-    When the agent went down the wrong path:
+### 🗑️ Start Fresh
 
-    ```bash
-    # Discard the environment
-    container-use delete fancy-mallard
+When the agent went down the wrong path:
 
-    # Start over with a new prompt
-    # The agent will create a fresh environment from your current branch
-    ```
+```bash
+# Discard the environment
+container-use delete fancy-mallard
 
-    You're back to your last known good state (your current branch) and can try a different approach.
+# Start over with a new prompt
+# The agent will create a fresh environment from your current branch
+```
 
-  </Tab>
-</Tabs>
+You're back to your last known good state (your current branch) and can try a different approach.
 
 ## Resuming Work in Environments
 

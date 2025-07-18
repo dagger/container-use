@@ -1,6 +1,6 @@
 ---
 title: Environment Configuration
-description: "Configure your project's default environment and understand how agents adapt their environments during work. Manage ephemeral configuration changes made by agents."
+description: "Set up and manage your project's environment configurations."
 icon: gear
 ---
 
@@ -37,9 +37,13 @@ Environment configuration works in two layers:
 
 ## Default Configuration
 
-### Quick Start
+Configure the baseline environment that all agents will start from when working on your project. Instead of using the generic environment, you can specify exactly what base image, dependencies, and setup your project needs as defaults. 
 
-Set up a Python project environment:
+By default, environments use Ubuntu 24.04 with standard tools (git, curl, bash, apt).
+
+### Example: Python Project
+
+To customize for your project:
 
 ```bash
 # Set the base image to Python 3.11
@@ -63,6 +67,8 @@ container-use config show
 Now all new agent environments will start with Python 3.11, your dependencies pre-installed, and environment variables configured.
 
 ## Working with Configurations
+
+Agents can modify their environment during work - installing tools, changing settings, or adapting to specific tasks. These changes are ephemeral until you import them.
 
 ### View Configurations
 
@@ -94,6 +100,10 @@ container-use config base-image set python:3.11
 container-use config base-image get
 container-use config base-image reset  # Resets to ubuntu:24.04
 ```
+
+<Note>
+  **Using custom images**: If you use custom base images with `latest` tags and update them frequently, consider using versioned tags (e.g., `myimage:v1.2.3`) for more predictable cache behavior.
+</Note>
 
 ### Setup Commands
 
