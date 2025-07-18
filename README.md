@@ -13,13 +13,13 @@
   </p>
 </div>
 
-**Container Use** lets each of your coding agents have their own containerized environment. Go from babysitting one agent at a time to enabling multiple agents to work safely and independently with your preferred stack. Check out the [Container Use playlist](https://www.youtube.com/playlist?list=PLyHqb4A5ee1u5LrsbalfVkBRsrbjDsnN5) to see examples of how others are using it.
+**Container Use** lets coding agents do their work in parallel environments without getting in your way. Go from babysitting one agent at a time to enabling multiple agents to work safely and independently with your preferred stack. See the [full documentation](https://container-use.com).
 
 <p align='center'>
     <img src='./docs/images/demo.gif' width='700' alt='container-use demo'>
 </p>
 
-It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor, and other MCP-compatible agents.
+It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor, and other MCP-compatible agents. Powered by [Dagger](https://dagger.io).
 
 * 📦 **Isolated Environments**: Each agent gets a fresh container in its own git branch - run multiple agents without conflicts, experiment safely, discard failures instantly.
 * 👀 **Real-time Visibility**: See complete command history and logs of what agents actually did, not just what they claim.
@@ -29,7 +29,7 @@ It's an open-source MCP server that works as a CLI tool with Claude Code, Cursor
 
 ---
 
-🦺 This project is in early development and actively evolving. Expect rough edges, breaking changes, and incomplete documentation. But also expect rapid iteration and responsiveness to feedback. Please submit issues and/or reach out to us on [Discord](https://container-use.com/discord) in the #container-use channel.
+🦺 This project is in early development and actively evolving. Submit issues and/or reach out to us on [Discord](https://container-use.com/discord) in the #container-use channel.
 
 ---
 
@@ -77,7 +77,3 @@ Ask your agent to create something:
 > Create a hello world app in python using flask
 
 Your agent will work in an isolated environment and give you URLs to view the app and explore the code!
-
-## How it Works
-
-container-use is an Model Context Protocol server that provides Environments to an agent. Environments are an abstraction over containers and git branches powered by dagger and git worktrees. For more information, see [environment/README.md](environment/README.md).
