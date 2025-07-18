@@ -64,8 +64,8 @@
     }
   },
   "logo": {
-    "light": "/images/container-use.png",
-    "dark": "/images/container-use.png"
+    "light": "/images/dagger-icon.png",
+    "dark": "/images/dagger-icon.png"
   },
   "navbar": {
     "links": [
