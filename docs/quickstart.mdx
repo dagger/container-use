@@ -94,12 +94,12 @@ After a short run you'll see something like:
 
 ```text
 ✅ App running at http://127.0.0.1:58455
-🔍 View files:  container-use checkout <id>
-📋 Dev log:     container-use log <id>
+🔍 View files:  container-use checkout {id}
+📋 Dev log:     container-use log {id}
 ```
 
 <Note>
-Replace `<id>` with your actual environment ID like `fancy-mallard`
+Replace `{id}` with your actual environment ID like `fancy-mallard`
 </Note>
 
 Notice your local directory is still empty, because the agent worked in an isolated environment:
@@ -115,24 +115,24 @@ You can see all environments with `container-use list`.
 
 See what the agent changed:
 ```sh
-container-use diff <id>
+container-use diff {id}
 ```
 
 Check out the environment locally to explore:
 ```sh
-container-use checkout <id>
+container-use checkout {id}
 ```
 
 ## 5. Accept or discard
 
 Accept the work and keep the agent's commit history:
 ```sh
-container-use merge <id>
+container-use merge {id}
 ```
 
 Or stage the changes to create your own commit:
 ```sh
-container-use apply <id>
+container-use apply {id}
 ```
 
 🎉 That's it – you've run an agent in parallel, checked its work, and decided what to do with it.
