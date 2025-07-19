@@ -384,7 +384,7 @@ func TestWeirdUserScenarios(t *testing.T) {
 		defer repo1.Delete(ctx, env1.ID)
 
 		// Write file in env1
-		err = env1.FileWrite(ctx, "Add file", "app.js", "console.log('repo1');")
+		err = env1.FileWrite(ctx, "app.js", "console.log('repo1');")
 		require.NoError(t, err)
 
 		// Try to use env1 while in repo2 (should fail)

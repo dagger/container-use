@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/fang v0.3.0
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/dagger/container-use/edit v0.0.0-00010101000000-000000000000
 	github.com/dustin/go-humanize v1.0.1
 	github.com/dustinkirkland/golang-petname v0.0.0-20240428194347-eebcea082ee0
 	github.com/mark3labs/mcp-go v0.29.0
@@ -93,3 +94,5 @@ require (
 	google.golang.org/grpc v1.73.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
+
+replace github.com/dagger/container-use/edit => ./edit

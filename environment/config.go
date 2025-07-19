@@ -9,8 +9,12 @@ import (
 )
 
 const (
-	defaultImage    = "ubuntu:24.04"
-	alpineImage     = "alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c"
+	defaultImage = "ubuntu:24.04"
+
+	// WARNING: for maximum efficiency, please ensure golangImage is always based on this specific alpineImage
+	alpineImage = "alpine:3.22.0@sha256:8a1f59ffb675680d47db6337b49d22281a139e9d709335b492be023728e11715"
+	golangImage = "golang:1.24.5-alpine@sha256:ddf52008bce1be455fe2b22d780b6693259aaf97b16383b6372f4b22dd33ad66"
+
 	configDir       = ".container-use"
 	environmentFile = "environment.json"
 )
