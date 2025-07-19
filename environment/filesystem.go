@@ -117,10 +117,9 @@ func (env *Environment) FileSearchReplace(ctx context.Context, explanation, targ
 }
 
 func (env *Environment) ApplyPatch(ctx context.Context, patch string) error {
-	err := env.apply(ctx, env.container().
-		WithExec([]string{"patch", "-p1"}, dagger.ContainerWithExecOpts{
-			Stdin: patch,
-		}))
+	ctr := env.container()
+	err := env.apply(ctx, ctr.
+		WithDirectory(".", ctr.Directory(".").WithPatch(patch)))
 	if err != nil {
 		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
 	}
