@@ -20,8 +20,9 @@ func TestGitCommandErrors(t *testing.T) {
 	_, err := RunGitCommand(ctx, tempDir, "invalid-command")
 	assert.Error(t, err, "Should get error for invalid git command")
 
-	// Test command in non-existent directory
-	_, err = RunGitCommand(ctx, "/nonexistent", "status")
+	// Test command in non-existent directory (use a cross-platform non-existent path)
+	nonExistentDir := filepath.Join(tempDir, "nonexistent", "deeply", "nested")
+	_, err = RunGitCommand(ctx, nonExistentDir, "status")
 	assert.Error(t, err, "Should get error for non-existent directory")
 }
 

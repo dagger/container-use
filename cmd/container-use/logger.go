@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -30,7 +31,7 @@ func parseLogLevel(levelStr string) slog.Level {
 func setupLogger() error {
 	var writers []io.Writer
 
-	logFile := "/tmp/container-use.debug.stderr.log"
+	logFile := filepath.Join(os.TempDir(), "container-use.debug.stderr.log")
 	if v, ok := os.LookupEnv("CONTAINER_USE_STDERR_FILE"); ok {
 		logFile = v
 	}

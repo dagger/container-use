@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/repository"
@@ -47,7 +46,7 @@ container-use terminal`,
 				}
 				return fmt.Errorf("failed to look up dagger binary: %w", err)
 			}
-			return syscall.Exec(daggerBin, append([]string{"dagger", "run"}, os.Args...), os.Environ())
+			return execDaggerRun(daggerBin, append([]string{"dagger", "run"}, os.Args...), os.Environ())
 		}
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))

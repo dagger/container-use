@@ -9,27 +9,53 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	petname "github.com/dustinkirkland/golang-petname"
+	"github.com/mitchellh/go-homedir"
 )
 
 const (
-	cuGlobalConfigPath = "~/.config/container-use"
-	cuRepoPath         = cuGlobalConfigPath + "/repos"
-	cuWorktreePath     = cuGlobalConfigPath + "/worktrees"
 	containerUseRemote = "container-use"
 	gitNotesLogRef     = "container-use"
 	gitNotesStateRef   = "container-use-state"
 )
 
+// getDefaultConfigPath returns the default configuration path for the current OS
+func getDefaultConfigPath() string {
+	if runtime.GOOS == "windows" {
+		// On Windows, use APPDATA or LOCALAPPDATA
+		if appData := os.Getenv("APPDATA"); appData != "" {
+			return filepath.Join(appData, "container-use")
+		}
+		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+			return filepath.Join(localAppData, "container-use")
+		}
+		// Fallback to home directory
+		if home, err := homedir.Dir(); err == nil {
+			return filepath.Join(home, "AppData", "Roaming", "container-use")
+		}
+		return "container-use" // Last resort fallback
+	}
+	// On Unix-like systems (Linux, macOS, etc.)
+	if home, err := homedir.Dir(); err == nil {
+		return filepath.Join(home, ".config", "container-use")
+	}
+	return "~/.config/container-use" // Fallback for compatibility
+}
+
+var (
+	cuGlobalConfigPath = getDefaultConfigPath()
+)
+
 type Repository struct {
 	userRepoPath string
 	forkRepoPath string
-	basePath     string // defaults to ~/.config/container-use if empty
+	basePath     string // defaults to OS-appropriate config path if empty
 }
 
 // getRepoPath returns the path for storing repository data
@@ -49,6 +75,13 @@ func Open(ctx context.Context, repo string) (*Repository, error) {
 // OpenWithBasePath opens a repository with a custom base path for container-use data.
 // This is useful for tests that need isolated environments.
 func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repository, error) {
+	// Expand tilde in basePath for cross-platform compatibility
+	expandedBasePath, err := homedir.Expand(basePath)
+	if err != nil {
+		// If expansion fails, use the original path
+		expandedBasePath = basePath
+	}
+
 	output, err := RunGitCommand(ctx, repo, "rev-parse", "--show-toplevel")
 	if err != nil {
 		// Check for exit code 128 which means not a git repository
@@ -66,7 +99,7 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 			return nil, err
 		}
 		// Create a temporary repository to get the normalized fork path
-		tempRepo := &Repository{basePath: basePath}
+		tempRepo := &Repository{basePath: expandedBasePath}
 		forkRepoPath, err = tempRepo.normalizeForkPath(ctx, userRepoPath)
 		if err != nil {
 			return nil, err
@@ -76,7 +109,7 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 	r := &Repository{
 		userRepoPath: userRepoPath,
 		forkRepoPath: forkRepoPath,
-		basePath:     basePath,
+		basePath:     expandedBasePath,
 	}
 
 	if err := r.ensureFork(ctx); err != nil {

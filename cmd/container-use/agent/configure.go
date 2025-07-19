@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/dagger/container-use/mcpserver"
@@ -71,6 +72,14 @@ type ConfigurableAgent interface {
 
 // Add agents here
 func selectAgent(agentKey string) (ConfigurableAgent, error) {
+	// Check if agent is supported on current platform
+	if runtime.GOOS == "windows" {
+		switch agentKey {
+		case "codex", "amazonq":
+			return nil, fmt.Errorf("agent '%s' is not supported on native Windows.\nTo use this agent, please install and run container-use in Windows Subsystem for Linux (WSL)", agentKey)
+		}
+	}
+
 	switch agentKey {
 	case "claude":
 		return &ConfigureClaude{}, nil

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/dagger/container-use/rules"
 	"github.com/mitchellh/go-homedir"
@@ -35,9 +36,23 @@ func (a *ConfigureGoose) description() string {
 
 // Save the MCP config with container-use enabled
 func (a *ConfigureGoose) editMcpConfig() error {
-	configPath, err := homedir.Expand(filepath.Join("~", ".config", "goose", "config.yaml"))
-	if err != nil {
-		return err
+	var configPath string
+	var err error
+
+	if runtime.GOOS == "windows" {
+		// Windows: %APPDATA%\Block\goose\config\config.yaml
+		// Reference: https://block.github.io/goose/docs/guides/config-file
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			return fmt.Errorf("APPDATA environment variable not set")
+		}
+		configPath = filepath.Join(appData, "Block", "goose", "config", "config.yaml")
+	} else {
+		// macOS/Linux: ~/.config/goose/config.yaml
+		configPath, err = homedir.Expand(filepath.Join("~", ".config", "goose", "config.yaml"))
+		if err != nil {
+			return err
+		}
 	}
 
 	// Create directory if it doesn't exist

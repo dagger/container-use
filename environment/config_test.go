@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,6 +76,9 @@ func TestEnvironmentConfig_Load(t *testing.T) {
 			setup: func(t *testing.T, dir string) {
 				if os.Getuid() == 0 {
 					t.Skip("Skipping permission test as root")
+				}
+				if runtime.GOOS == "windows" {
+					t.Skip("Skipping permission test on Windows - Windows file permissions work differently")
 				}
 				configDir := filepath.Join(dir, ".container-use")
 				require.NoError(t, os.MkdirAll(configDir, 0000))

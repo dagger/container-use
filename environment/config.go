@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -121,7 +121,7 @@ func (config *EnvironmentConfig) Copy() *EnvironmentConfig {
 }
 
 func (config *EnvironmentConfig) Save(baseDir string) error {
-	configPath := path.Join(baseDir, configDir)
+	configPath := filepath.Join(baseDir, configDir)
 	if err := os.MkdirAll(configPath, 0755); err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (config *EnvironmentConfig) Save(baseDir string) error {
 		return err
 	}
 
-	if err := os.WriteFile(path.Join(configPath, environmentFile), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(configPath, environmentFile), data, 0644); err != nil {
 		return err
 	}
 
@@ -139,9 +139,9 @@ func (config *EnvironmentConfig) Save(baseDir string) error {
 }
 
 func (config *EnvironmentConfig) Load(baseDir string) error {
-	configPath := path.Join(baseDir, configDir)
+	configPath := filepath.Join(baseDir, configDir)
 
-	data, err := os.ReadFile(path.Join(configPath, environmentFile))
+	data, err := os.ReadFile(filepath.Join(configPath, environmentFile))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
