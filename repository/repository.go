@@ -144,7 +144,7 @@ func (r *Repository) exists(ctx context.Context, id string) error {
 
 // Create creates a new environment with the given description and explanation.
 // Requires a dagger client for container operations during environment initialization.
-func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description, explanation string) (*environment.Environment, error) {
+func (r *Repository) Create(ctx context.Context, dag *dagger.Client, branch, description, explanation string, ephemeral bool) (*environment.Environment, error) {
 	id := petname.Generate(2, "-")
 	worktree, err := r.initializeWorktree(ctx, id)
 	if err != nil {
@@ -173,7 +173,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	env, err := environment.New(ctx, dag, id, description, config, baseSourceDir)
+	env, err := environment.New(ctx, dag, id, branch, description, ephemeral, config, baseSourceDir)
 	if err != nil {
 		return nil, err
 	}

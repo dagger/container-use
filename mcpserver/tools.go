@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"dagger.io/dagger"
@@ -131,7 +130,6 @@ func init() {
 		EnvironmentOpenTool,
 		EnvironmentCreateTool,
 		EnvironmentUpdateMetadataTool,
-		EnvironmentEnableTrackingTool,
 		EnvironmentConfigTool,
 
 		EnvironmentRunCmdTool,
@@ -236,6 +234,13 @@ Environment configuration is managed by the user via cu config commands.`,
 			mcp.Description("Short description of the work that is happening in this environment."),
 			mcp.Required(),
 		),
+		mcp.WithBoolean("ephemeral",
+			mcp.Description("Whether this environment is for a sub-task of a larger task."),
+			mcp.Required(),
+		),
+		mcp.WithString("background_branch",
+			mcp.Description("A user-supplied branch name to create and track, instead of the current branch."),
+		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, err := openRepository(ctx, request)
@@ -246,15 +251,29 @@ Environment configuration is managed by the user via cu config commands.`,
 		if err != nil {
 			return nil, err
 		}
+		branch := request.GetString("background_branch", "")
+		ephemeral := request.GetBool("ephemeral", false)
+		if branch == "" && !ephemeral {
+			branch, err = repo.CurrentUserBranch(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get current branch: %w", err)
+			}
+		}
 
 		dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		if !ok {
 			return nil, fmt.Errorf("dagger client not found in context")
 		}
 
-		env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
+		env, err := repo.Create(ctx, dag, branch, title, request.GetString("explanation", ""), ephemeral)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create environment: %w", err)
+		}
+
+		if !ephemeral {
+			if err := repo.TrackEnvironment(ctx, branch, env.ID); err != nil {
+				return nil, fmt.Errorf("unable to set current branch tracking environment: %w", err)
+			}
 		}
 
 		out, err := marshalEnvironment(env)
@@ -826,41 +845,6 @@ Supported schemas are:
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
-	},
-}
-
-var EnvironmentEnableTrackingTool = &Tool{
-	Definition: newEnvironmentTool(
-		"environment_enable_tracking",
-		"Enable branch tracking for an environment. When enabled, environment changes will be automatically synced to the user's working tree when on the tracked branch. CRITICAL: This is an opt-in feature that can only be enabled by explicit user request.",
-	),
-	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repo, env, err := openEnvironment(ctx, request)
-		if err != nil {
-			return nil, err
-		}
-
-		// Get the current branch and tie it to an environment
-		currentBranch, err := repo.CurrentUserBranch(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get current branch: %w", err)
-		}
-		if err := repo.TrackEnvironment(ctx, currentBranch, env.ID); err != nil {
-			return nil, fmt.Errorf("unable to set current branch tracking environment: %w", err)
-		}
-
-		// Set the tracking branch to the current branch
-		env.State.TrackingBranch = currentBranch
-
-		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-			return nil, fmt.Errorf("unable to update the environment: %w", err)
-		}
-
-		out, err := marshalEnvironment(env)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal environment: %w", err)
-		}
-		return mcp.NewToolResultText(fmt.Sprintf("Branch tracking enabled for branch '%s'. Environment changes will now be synced to the working tree when on this branch.\n%s", currentBranch, out)), nil
 	},
 }
 

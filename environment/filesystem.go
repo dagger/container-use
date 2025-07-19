@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"dagger.io/dagger"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 )
 

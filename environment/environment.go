@@ -31,15 +31,17 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, dag *dagger.Client, id, title string, config *EnvironmentConfig, initialSourceDir *dagger.Directory) (*Environment, error) {
+func New(ctx context.Context, dag *dagger.Client, id, branch, title string, ephemeral bool, config *EnvironmentConfig, initialSourceDir *dagger.Directory) (*Environment, error) {
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
 			ID: id,
 			State: &State{
-				Config:    config,
-				Title:     title,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				Config:         config,
+				Title:          title,
+				TrackingBranch: branch,
+				Ephemeral:      ephemeral,
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
 			},
 		},
 		dag: dag,

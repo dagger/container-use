@@ -14,6 +14,7 @@ type State struct {
 	Container      string             `json:"container,omitempty"`
 	Title          string             `json:"title,omitempty"`
 	TrackingBranch string             `json:"tracking_branch,omitempty"`
+	Ephemeral      bool               `json:"ephemeral,omitempty"`
 }
 
 func (s *State) Marshal() ([]byte, error) {

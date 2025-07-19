@@ -33,11 +33,11 @@ Use -q for environment IDs only, useful for scripting.`,
 		}
 
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "ID\tTITLE\tCREATED\tUPDATED")
+		fmt.Fprintln(tw, "ID\tBRANCH\tTITLE\tCREATED\tUPDATED\tEPHEMERAL")
 
 		defer tw.Flush()
 		for _, envInfo := range envInfos {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", envInfo.ID, truncate(app, envInfo.State.Title, 40), humanize.Time(envInfo.State.CreatedAt), humanize.Time(envInfo.State.UpdatedAt))
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%v\n", envInfo.ID, envInfo.State.TrackingBranch, truncate(app, envInfo.State.Title, 40), humanize.Time(envInfo.State.CreatedAt), humanize.Time(envInfo.State.UpdatedAt), envInfo.State.Ephemeral)
 		}
 		return nil
 	},
