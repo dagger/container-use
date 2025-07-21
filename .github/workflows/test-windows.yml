@@ -1,0 +1,40 @@
+name: Test Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    name: Test Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "test@example.com"
+          git config --global user.name "Test User"
+
+      - name: Run tests
+        run: go test -v -race ./...
+        env:
+          CGO_ENABLED: 1
+
+      - name: Build
+        run: go build -v -o container-use.exe ./cmd/container-use
+
+      - name: Smoke test
+        run: |
+          .\container-use.exe version
+          .\container-use.exe --help
+          .\container-use.exe completion powershell
