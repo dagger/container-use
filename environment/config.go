@@ -38,7 +38,6 @@ type ServiceConfig struct {
 	Command      string   `json:"command,omitempty"`
 	ExposedPorts []int    `json:"exposed_ports,omitempty"`
 	Env          []string `json:"env,omitempty"`
-	Secrets      []string `json:"secrets,omitempty"`
 }
 
 type ServiceConfigs []*ServiceConfig

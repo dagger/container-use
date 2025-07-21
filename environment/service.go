@@ -41,7 +41,7 @@ func (env *Environment) startServices(ctx context.Context) ([]*Service, error) {
 
 func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*Service, error) {
 	container := env.dag.Container().From(cfg.Image)
-	container, err := containerWithEnvAndSecrets(env.dag, container, cfg.Env, cfg.Secrets)
+	container, err := containerWithEnvAndSecrets(env.dag, container, cfg.Env, env.State.Config.Secrets)
 	if err != nil {
 		return nil, err
 	}

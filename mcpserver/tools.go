@@ -695,18 +695,6 @@ var EnvironmentAddServiceTool = &Tool{
 			mcp.Description("The environment variables to set (e.g. `[\"FOO=bar\", \"BAZ=qux\"]`)."),
 			mcp.Items(map[string]any{"type": "string"}),
 		),
-		mcp.WithArray("secrets",
-			mcp.Description(`Secret references in the format of "SECRET_NAME=schema://value
-
-Secrets will be available in the environment as environment variables ($SECRET_NAME).
-
-Supported schemas are:
-- file://PATH: local file path
-- env://NAME: environment variable
-- op://<vault-name>/<item-name>/[section-name/]<field-name>: 1Password secret
-`),
-			mcp.Items(map[string]any{"type": "string"}),
-		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		repo, env, err := openEnvironment(ctx, request)
@@ -730,7 +718,6 @@ Supported schemas are:
 		}
 
 		envs := request.GetStringSlice("envs", []string{})
-		secrets := request.GetStringSlice("secrets", []string{})
 
 		service, err := env.AddService(ctx, request.GetString("explanation", ""), &environment.ServiceConfig{
 			Name:         serviceName,
@@ -738,7 +725,6 @@ Supported schemas are:
 			Command:      command,
 			ExposedPorts: ports,
 			Env:          envs,
-			Secrets:      secrets,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to add service: %w", err)
