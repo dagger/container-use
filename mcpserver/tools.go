@@ -134,9 +134,12 @@ func init() {
 
 		EnvironmentRunCmdTool,
 
-		EnvironmentFileReadTool,
 		EnvironmentFileListTool,
+		EnvironmentFileGlobTool,
+		EnvironmentFileGrepTool,
+		EnvironmentFileReadTool,
 		EnvironmentFileWriteTool,
+		EnvironmentFileEditTool,
 		EnvironmentFileDeleteTool,
 
 		EnvironmentAddServiceTool,
@@ -547,10 +550,14 @@ var EnvironmentFileReadTool = &Tool{
 var EnvironmentFileListTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_file_list",
-		"List the contents of a directory",
+		"List files and directories in a given path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the environment_file_glob and environment_file_grep tools, if you know which directories to search.",
 		mcp.WithString("path",
 			mcp.Description("Path of the directory to list contents of, absolute or relative to the workdir"),
 			mcp.Required(),
+		),
+		mcp.WithArray("ignore",
+			mcp.Description("List of glob patterns to ignore"),
+			mcp.Items(map[string]any{"type": "string"}),
 		),
 	),
 	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -563,8 +570,16 @@ var EnvironmentFileListTool = &Tool{
 		if err != nil {
 			return nil, err
 		}
-
-		out, err := env.FileList(ctx, path)
+		args := request.GetArguments()
+		v, ok := args["ignore"]
+		var ignore []string
+		if ok {
+			ignore, ok = v.([]string)
+			if !ok {
+				return nil, fmt.Errorf("`ignore` argument expects an array of strings")
+			}
+		}
+		out, err := env.FileList(ctx, path, ignore)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list directory: %w", err)
 		}
@@ -576,7 +591,7 @@ var EnvironmentFileListTool = &Tool{
 var EnvironmentFileWriteTool = &Tool{
 	Definition: newEnvironmentTool(
 		"environment_file_write",
-		"Write the contents of a file.",
+		"Write the full contents of a file.",
 		mcp.WithString("target_file",
 			mcp.Description("Path of the file to write, absolute or relative to the workdir."),
 			mcp.Required(),
@@ -601,7 +616,7 @@ var EnvironmentFileWriteTool = &Tool{
 			return nil, err
 		}
 
-		if err := env.FileWrite(ctx, request.GetString("explanation", ""), targetFile, contents); err != nil {
+		if err := env.FileWrite(ctx, targetFile, contents); err != nil {
 			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 
@@ -610,6 +625,135 @@ var EnvironmentFileWriteTool = &Tool{
 		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote", targetFile)), nil
+	},
+}
+
+var EnvironmentFileGlobTool = &Tool{
+	Definition: newEnvironmentTool(
+		"environment_file_glob",
+		"Fast file pattern matching tool.\nSupports glob syntax \"**/*.js\" or \"src/**/*.ts\".\nReturns matching file paths.",
+		mcp.WithString("path",
+			mcp.Description("Path of the directory to search in, absolute or relative to the workdir"),
+			mcp.Required(),
+		),
+		mcp.WithString("pattern",
+			mcp.Description("The glob pattern to match file paths against."),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		_, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		path, err := request.RequireString("path")
+		if err != nil {
+			return nil, err
+		}
+
+		pattern, err := request.RequireString("pattern")
+		if err != nil {
+			return nil, err
+		}
+
+		out, err := env.FileGlob(ctx, path, pattern)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to list directory", err), nil
+		}
+
+		return mcp.NewToolResultText(out), nil
+	},
+}
+
+var EnvironmentFileGrepTool = &Tool{
+	Definition: newEnvironmentTool(
+		"environment_file_grep",
+		"Fast file content search using regular expressions.\nSupports full regex syntax (eg. \"log.*Error\", \"function\\s+\\w+\", etc.).\nReturns matching file paths.",
+		mcp.WithString("path",
+			mcp.Description("Path of the directory to search in, absolute or relative to the workdir"),
+			mcp.Required(),
+		),
+		mcp.WithString("pattern",
+			mcp.Description("The regular expression pattern to search for in file contents."),
+			mcp.Required(),
+		),
+		mcp.WithString("include",
+			mcp.Description("File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")."),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		_, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		path, err := request.RequireString("path")
+		if err != nil {
+			return nil, err
+		}
+
+		pattern, err := request.RequireString("pattern")
+		if err != nil {
+			return nil, err
+		}
+
+		include := request.GetString("include", "")
+
+		out, err := env.FileGrep(ctx, path, pattern, include)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to grep directory", err), nil
+		}
+		if out == "" {
+			out = "No files found matching the pattern."
+		}
+
+		return mcp.NewToolResultText(out), nil
+	},
+}
+
+var EnvironmentFileEditTool = &Tool{
+	Definition: newEnvironmentTool(
+		"environment_file_edit",
+		"This is a tool for making single or multiple edits to a single file in one operation. It allows you to perform multiple find-and-replace operations efficiently.\n\nBefore using this tool:\n\n1. Use the environment_file_read tool to understand the file's contents and context\n2. Verify the directory path is correct\n\nTo make file edits, provide the following:\n1. file_path: The relative path to the file to modify (must be relative, not absolute)\n2. edits: An array of edit operations to perform, where each edit contains:\n   - old_string: The text to replace (must match the file contents exactly, including all whitespace and indentation)\n   - new_string: The edited text to replace the old_string\n   - replace_all: Replace all occurences of old_string. This parameter is optional and defaults to false.\n\nIMPORTANT:\n- All edits are applied in sequence, in the order they are provided\n- Each edit operates on the result of the previous edit\n- All edits must be valid for the operation to succeed - if any edit fails, none will be applied\n- This tool is ideal when you need to make several changes to different parts of the same file\n- For Jupyter notebooks (.ipynb files), use the NotebookEdit instead\n\nCRITICAL REQUIREMENTS:\n1. All edits follow the same requirements as the single Edit tool\n2. The edits are atomic - either all succeed or none are applied\n3. Plan your edits carefully to avoid conflicts between sequential operations\n\nWARNING:\n- The tool will fail if edits.old_string doesn't match the file contents exactly (including whitespace)\n- The tool will fail if edits.old_string and edits.new_string are the same\n- Since edits are applied in sequence, ensure that earlier edits don't affect the text that later edits are trying to find\n\nWhen making edits:\n- Ensure all edits result in idiomatic, correct code\n- Do not leave the code in a broken state\n- Always use absolute file paths (starting with /)\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.\n\nIf you want to create a new file, use:\n- A new file path, including dir name if needed\n- First edit: empty old_string and the new file's contents as new_string\n- Subsequent edits: normal edit operations on the created content",
+		mcp.WithString("target_file",
+			mcp.Description("Path of the file to edit, absolute or relative to the workdir."),
+			mcp.Required(),
+		),
+		mcp.WithArray("edits",
+			mcp.Description("An array of edit operations to perform on the contents of target_file."),
+			mcp.Items(map[string]any{"type": "object", "properties": map[string]any{
+				"old_string":  map[string]any{"type": "string", "description": "The text to replace"},
+				"new_string":  map[string]any{"type": "string", "description": "The text to replace it with"},
+				"replace_all": map[string]any{"type": "string", "description": "Replace all occurences of old_string (default false)", "default": false},
+			}}),
+			mcp.MinItems(1),
+			mcp.Required(),
+		),
+	),
+	Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, env, err := openEnvironment(ctx, request)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+		}
+
+		var args struct {
+			TargetFile string
+			Edits      []environment.FileEdit
+		}
+		if err := request.BindArguments(&args); err != nil {
+			return nil, fmt.Errorf("could not bind arguments")
+		}
+
+		if err := env.FileEdit(ctx, args.TargetFile, args.Edits); err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to edit file", err), nil
+		}
+
+		if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/ remote", args.TargetFile)), nil
 	},
 }
 
@@ -633,7 +777,7 @@ var EnvironmentFileDeleteTool = &Tool{
 			return nil, err
 		}
 
-		if err := env.FileDelete(ctx, request.GetString("explanation", ""), targetFile); err != nil {
+		if err := env.FileDelete(ctx, targetFile); err != nil {
 			return nil, fmt.Errorf("failed to delete file: %w", err)
 		}
 
