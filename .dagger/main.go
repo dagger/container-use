@@ -43,12 +43,19 @@ func (m *ContainerUse) Release(ctx context.Context,
 	// GitHub org name for package publishing, set only if testing release process on a personal fork
 	//+default="dagger"
 	githubOrgName string,
+	// Chocolatey API key for Windows package publishing
+	//+optional
+	chocolateyApiKey *dagger.Secret,
 ) (string, error) {
-	return dag.Goreleaser(m.Source).
+	gr := dag.Goreleaser(m.Source).
 		WithSecretVariable("GITHUB_TOKEN", githubToken).
-		WithEnvVariable("GH_ORG_NAME", githubOrgName).
-		Release().
-		Run(ctx)
+		WithEnvVariable("GH_ORG_NAME", githubOrgName)
+	
+	if chocolateyApiKey != nil {
+		gr = gr.WithSecretVariable("CHOCOLATEY_API_KEY", chocolateyApiKey)
+	}
+	
+	return gr.Release().Run(ctx)
 }
 
 // Test runs the test suite
