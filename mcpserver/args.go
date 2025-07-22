@@ -14,6 +14,9 @@ var (
 		mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
 		mcp.Required(),
 	)
+	environmentIDArgumentSingleTenant = mcp.WithString("environment_id",
+		mcp.Description("The ID of the environment for this command. Defaults to implicit environment if not provided."),
+	)
 )
 
 func newRepositoryTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
@@ -27,12 +30,17 @@ func newRepositoryTool(name string, description string, args ...mcp.ToolOption) 
 	return mcp.NewTool(name, opts...)
 }
 
-func newEnvironmentTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
+func newEnvironmentTool(name string, description string, singleTenant bool, args ...mcp.ToolOption) mcp.Tool {
+	envIDArg := environmentIDArgument
+	if singleTenant {
+		envIDArg = environmentIDArgumentSingleTenant
+	}
+
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
 		explainationArgument,
 		environmentSourceArgument,
-		environmentIDArgument,
+		envIDArg,
 	}
 	opts = append(opts, args...)
 
