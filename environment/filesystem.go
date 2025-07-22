@@ -56,15 +56,15 @@ func (env *Environment) FileEdit(ctx context.Context, explanation, targetFile, s
 
 	// Find all matches of the search text
 	matches := []int{}
-	searchIndex := 0
+	cursor := 0
 	for {
-		index := strings.Index(contents[searchIndex:], search)
+		index := strings.Index(contents[cursor:], search)
 		if index == -1 {
 			break
 		}
-		actualIndex := searchIndex + index
+		actualIndex := cursor + index
 		matches = append(matches, actualIndex)
-		searchIndex = actualIndex + 1
+		cursor = actualIndex + 1
 	}
 
 	if len(matches) == 0 {
