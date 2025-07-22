@@ -134,7 +134,7 @@ nix:
 chocolateys:
   - name: container-use
     ids:
-      - container-use
+      - container-use-archive
     owners: Dagger
     title: Container Use
     authors: Dagger Team
@@ -160,7 +160,7 @@ chocolateys:
       - Support for multiple popular AI coding assistants
     release_notes: "https://github.com/dagger/container-use/releases/tag/{{ .Tag }}"
     api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
-    skip_publish: auto
+    # skip_publish: auto
 
 checksum:
   name_template: "checksums.txt"
