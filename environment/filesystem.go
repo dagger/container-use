@@ -176,6 +176,8 @@ func getMatchContext(contents string, matchIndex int) string {
 		if i == matchLine {
 			prefix = "> " // Mark the line containing the match
 		}
+		// Include line numbers, which may help the model determine the right match
+		prefix += fmt.Sprintf("%4d | ", i+1)
 		contextLines = append(contextLines, fmt.Sprintf("%s%s", prefix, lines[i]))
 	}
 
