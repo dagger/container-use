@@ -1,6 +1,7 @@
 package environment
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -125,12 +126,17 @@ func (config *EnvironmentConfig) Save(baseDir string) error {
 		return err
 	}
 
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
+	// Use a custom encoder to prevent HTML escaping of characters like &, <, >
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false) // This prevents & from being escaped as \u0026
+
+	if err := encoder.Encode(config); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(path.Join(configPath, environmentFile), data, 0644); err != nil {
+	if err := os.WriteFile(path.Join(configPath, environmentFile), buf.Bytes(), 0644); err != nil {
 		return err
 	}
 
