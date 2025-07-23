@@ -3,7 +3,7 @@ package mcpserver
 import "github.com/mark3labs/mcp-go/mcp"
 
 var (
-	explainationArgument = mcp.WithString("explanation",
+	explanationArgument = mcp.WithString("explanation",
 		mcp.Description("One sentence explanation for why this directory is being listed."),
 	)
 	environmentSourceArgument = mcp.WithString("environment_source",
@@ -11,7 +11,7 @@ var (
 		mcp.Required(),
 	)
 	environmentIDArgument = mcp.WithString("environment_id",
-		mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+		mcp.Description("The UUID of the environment for this command."),
 		mcp.Required(),
 	)
 )
@@ -19,7 +19,7 @@ var (
 func newRepositoryTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
-		explainationArgument,
+		explanationArgument,
 		environmentSourceArgument,
 	}
 	opts = append(opts, args...)
@@ -30,7 +30,7 @@ func newRepositoryTool(name string, description string, args ...mcp.ToolOption) 
 func newEnvironmentTool(name string, description string, includeEnvIDArg bool, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
-		explainationArgument,
+		explanationArgument,
 		environmentSourceArgument,
 	}
 
