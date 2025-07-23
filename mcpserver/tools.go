@@ -285,7 +285,7 @@ Environment configuration is managed by the user via cu config commands.`,
 
 			// In single-tenant mode, check allow_replace before creating environment
 			if singleTenantMode, _ := ctx.Value(singleTenantKey{}).(bool); singleTenantMode {
-				allowReplace := request.GetBool("allow_replace", true) // Default true for backward compatibility
+				allowReplace := request.GetBool("allow_replace", false) // Default false to prevent accidental environment replacement
 
 				if !allowReplace {
 					// Check if environment already exists
