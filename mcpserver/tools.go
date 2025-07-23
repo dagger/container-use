@@ -257,14 +257,14 @@ func createEnvironmentCreateTool(singleTenant bool) *Tool {
 			mcp.Required(),
 		),
 	}
-	
+
 	// Add allow_replace parameter only in single-tenant mode
 	if singleTenant {
 		args = append(args, mcp.WithBoolean("allow_replace",
 			mcp.Description("If false and an environment already exists, fails instead of replacing it. Defaults to true for backward compatibility."),
 		))
 	}
-	
+
 	return &Tool{
 		Definition: newRepositoryTool(
 			"environment_create",
@@ -286,7 +286,7 @@ Environment configuration is managed by the user via cu config commands.`,
 			// In single-tenant mode, check allow_replace before creating environment
 			if singleTenantMode, _ := ctx.Value(singleTenantKey{}).(bool); singleTenantMode {
 				allowReplace := request.GetBool("allow_replace", true) // Default true for backward compatibility
-				
+
 				if !allowReplace {
 					// Check if environment already exists
 					if currentEnvID, err := getCurrentEnvironmentID(); err == nil {
