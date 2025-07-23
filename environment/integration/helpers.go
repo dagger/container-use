@@ -169,7 +169,7 @@ func initializeDaggerOnce(t *testing.T) {
 	})
 
 	if daggerErr != nil {
-		t.Skipf("Skipping test - Dagger not available: %v", daggerErr)
+		t.Fatalf("Dagger not available: %v", daggerErr)
 	}
 }
 
