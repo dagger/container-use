@@ -11,6 +11,9 @@ jobs:
   test-windows:
     name: Test Windows
     runs-on: windows-latest
+    env:
+      _EXPERIMENTAL_DAGGER_RUNNER_HOST: ${{ secrets._EXPERIMENTAL_DAGGER_RUNNER_HOST }}
+      DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,10 +28,24 @@ jobs:
           git config --global user.email "test@example.com"
           git config --global user.name "Test User"
 
+      - name: Install Dagger
+        shell: pwsh
+        run: |
+          choco install dagger -y
+          # refreshenv doesn't work in GitHub Actions, manually update PATH
+          $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+          
+      - name: Verify Dagger installation
+        shell: pwsh
+        run: |
+          $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+          dagger version
+
+      - name: Download dependencies
+        run: go mod download
+
       - name: Run tests
         run: go test -v -race ./...
-        env:
-          CGO_ENABLED: 1
 
       - name: Build
         run: go build -v -o container-use.exe ./cmd/container-use
