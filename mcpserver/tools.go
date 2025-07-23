@@ -124,6 +124,7 @@ func createTools(singleTenant bool) []*Tool {
 		wrapTool(createEnvironmentFileReadTool(singleTenant)),
 		wrapTool(createEnvironmentFileListTool(singleTenant)),
 		wrapTool(createEnvironmentFileWriteTool(singleTenant)),
+		wrapTool(createEnvironmentFileEditTool(singleTenant)),
 		wrapTool(createEnvironmentFileDeleteTool(singleTenant)),
 		wrapTool(createEnvironmentAddServiceTool(singleTenant)),
 		wrapTool(createEnvironmentCheckpointTool(singleTenant)),
@@ -625,6 +626,66 @@ func createEnvironmentFileListTool(singleTenant bool) *Tool {
 	}
 }
 
+func createEnvironmentFileEditTool(singleTenant bool) *Tool {
+	return &Tool{
+		Definition: newEnvironmentTool(
+			"environment_file_edit",
+			"Find and replace text in a file.",
+			!singleTenant,
+			mcp.WithString("target_file",
+				mcp.Description("Path of the file to write, absolute or relative to the workdir."),
+				mcp.Required(),
+			),
+			mcp.WithString("search_text",
+				mcp.Description("The text to find and replace."),
+				mcp.Required(),
+			),
+			mcp.WithString("replace_text",
+				mcp.Description("The text to insert."),
+				mcp.Required(),
+			),
+			mcp.WithString("which_match",
+				mcp.Description("The ID of the match to replace, if there were multiple matches."),
+			),
+		),
+		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			repo, env, err := openEnvironment(ctx, request)
+			if err != nil {
+				return mcp.NewToolResultErrorFromErr("unable to open the environment", err), nil
+			}
+
+			targetFile, err := request.RequireString("target_file")
+			if err != nil {
+				return nil, err
+			}
+			search, err := request.RequireString("search_text")
+			if err != nil {
+				return nil, err
+			}
+			replace, err := request.RequireString("replace_text")
+			if err != nil {
+				return nil, err
+			}
+
+			if err := env.FileEdit(ctx,
+				request.GetString("explanation", ""),
+				targetFile,
+				search,
+				replace,
+				request.GetString("which_match", ""),
+			); err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
+			}
+
+			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+				return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
+			}
+
+			return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/ remote", targetFile)), nil
+		},
+	}
+}
+
 func createEnvironmentFileWriteTool(singleTenant bool) *Tool {
 	return &Tool{
 		Definition: newEnvironmentTool(
@@ -650,7 +711,6 @@ func createEnvironmentFileWriteTool(singleTenant bool) *Tool {
 			if err != nil {
 				return nil, err
 			}
-
 			contents, err := request.RequireString("contents")
 			if err != nil {
 				return nil, err
@@ -696,7 +756,7 @@ func createEnvironmentFileDeleteTool(singleTenant bool) *Tool {
 			}
 
 			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
-				return nil, fmt.Errorf("unable to update the environment: %w", err)
+				return nil, fmt.Errorf("failed to update env: %w", err)
 			}
 
 			return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully and committed to container-use/ remote", targetFile)), nil
@@ -726,12 +786,12 @@ func createEnvironmentCheckpointTool(singleTenant bool) *Tool {
 				return nil, err
 			}
 
-			checkpointRef, err := env.Checkpoint(ctx, destination)
+			endpoint, err := env.Checkpoint(ctx, destination)
 			if err != nil {
 				return nil, fmt.Errorf("failed to checkpoint environment: %w", err)
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf("Environment successfully checkpointed to: %s", checkpointRef)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("Checkpoint pushed to %q. You MUST use the full content addressed (@sha256:...) reference in `docker` commands. The entrypoint is set to `sh`, keep that in mind when giving commands to the container.", endpoint)), nil
 		},
 	}
 }
