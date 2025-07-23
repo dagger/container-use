@@ -250,16 +250,28 @@ func createEnvironmentOpenTool(singleTenant bool) *Tool {
 }
 
 func createEnvironmentCreateTool(singleTenant bool) *Tool {
+	// Build arguments dynamically based on single-tenant mode
+	args := []mcp.ToolOption{
+		mcp.WithString("title",
+			mcp.Description("Short description of the work that is happening in this environment."),
+			mcp.Required(),
+		),
+	}
+	
+	// Add allow_replace parameter only in single-tenant mode
+	if singleTenant {
+		args = append(args, mcp.WithBoolean("allow_replace",
+			mcp.Description("If false and an environment already exists, fails instead of replacing it. Defaults to true for backward compatibility."),
+		))
+	}
+	
 	return &Tool{
 		Definition: newRepositoryTool(
 			"environment_create",
 			`Creates a new development environment.
 The environment is the result of a the setups commands on top of the base image.
 Environment configuration is managed by the user via cu config commands.`,
-			mcp.WithString("title",
-				mcp.Description("Short description of the work that is happening in this environment."),
-				mcp.Required(),
-			),
+			args...,
 		),
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			repo, err := openRepository(ctx, request)
@@ -269,6 +281,19 @@ Environment configuration is managed by the user via cu config commands.`,
 			title, err := request.RequireString("title")
 			if err != nil {
 				return nil, err
+			}
+
+			// In single-tenant mode, check allow_replace before creating environment
+			if singleTenantMode, _ := ctx.Value(singleTenantKey{}).(bool); singleTenantMode {
+				allowReplace := request.GetBool("allow_replace", true) // Default true for backward compatibility
+				
+				if !allowReplace {
+					// Check if environment already exists
+					if currentEnvID, err := getCurrentEnvironmentID(); err == nil {
+						// Environment exists, return error with info about existing env
+						return nil, fmt.Errorf("environment %s already exists. Use environment_open to access it, or set allow_replace=true to create a new one", currentEnvID)
+					}
+				}
 			}
 
 			dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
