@@ -261,7 +261,7 @@ func createEnvironmentCreateTool(singleTenant bool) *Tool {
 	// Add allow_replace parameter only in single-tenant mode
 	if singleTenant {
 		args = append(args, mcp.WithBoolean("allow_replace",
-			mcp.Description("If false and an environment already exists, fails instead of replacing it. Defaults to true for backward compatibility."),
+			mcp.Description("If true and an environment already exists for this session, destructively replace it with a new one."),
 		))
 	}
 
@@ -291,7 +291,7 @@ Environment configuration is managed by the user via cu config commands.`,
 					// Check if environment already exists
 					if currentEnvID, err := getCurrentEnvironmentID(); err == nil {
 						// Environment exists, return error with info about existing env
-						return nil, fmt.Errorf("environment %s already exists. Use environment_open to access it, or set allow_replace=true to create a new one", currentEnvID)
+						return nil, fmt.Errorf("environment_id %s already exists for this session. Tools can be used directly. You can environment_open %s for more information, or set allow_replace=true to destructively replace it.", currentEnvID, currentEnvID)
 					}
 				}
 			}
