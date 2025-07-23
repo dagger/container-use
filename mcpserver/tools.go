@@ -283,6 +283,19 @@ Environment configuration is managed by the user via cu config commands.`,
 				return nil, err
 			}
 
+			// In single-tenant mode, check allow_replace before creating environment
+			if singleTenantMode, _ := ctx.Value(singleTenantKey{}).(bool); singleTenantMode {
+				allowReplace := request.GetBool("allow_replace", true) // Default true for backward compatibility
+				
+				if !allowReplace {
+					// Check if environment already exists
+					if currentEnvID, err := getCurrentEnvironmentID(); err == nil {
+						// Environment exists, return error with info about existing env
+						return nil, fmt.Errorf("environment %s already exists. Use environment_open to access it, or set allow_replace=true to create a new one", currentEnvID)
+					}
+				}
+			}
+
 			dag, ok := ctx.Value(daggerClientKey{}).(*dagger.Client)
 			if !ok {
 				return nil, fmt.Errorf("dagger client not found in context")
