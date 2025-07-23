@@ -250,16 +250,28 @@ func createEnvironmentOpenTool(singleTenant bool) *Tool {
 }
 
 func createEnvironmentCreateTool(singleTenant bool) *Tool {
+	// Build arguments dynamically based on single-tenant mode
+	args := []mcp.ToolOption{
+		mcp.WithString("title",
+			mcp.Description("Short description of the work that is happening in this environment."),
+			mcp.Required(),
+		),
+	}
+	
+	// Add allow_replace parameter only in single-tenant mode
+	if singleTenant {
+		args = append(args, mcp.WithBoolean("allow_replace",
+			mcp.Description("If false and an environment already exists, fails instead of replacing it. Defaults to true for backward compatibility."),
+		))
+	}
+	
 	return &Tool{
 		Definition: newRepositoryTool(
 			"environment_create",
 			`Creates a new development environment.
 The environment is the result of a the setups commands on top of the base image.
 Environment configuration is managed by the user via cu config commands.`,
-			mcp.WithString("title",
-				mcp.Description("Short description of the work that is happening in this environment."),
-				mcp.Required(),
-			),
+			args...,
 		),
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			repo, err := openRepository(ctx, request)
