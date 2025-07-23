@@ -338,13 +338,8 @@ func TestWeirdUserScenarios(t *testing.T) {
 		ctx := context.Background()
 
 		// Create first repository
-		repoDir1, err := os.MkdirTemp("", "cu-test-repo1-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(repoDir1)
-
-		configDir1, err := os.MkdirTemp("", "cu-test-config1-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(configDir1)
+		repoDir1 := createTestTempDir(t, "cu1-")
+		configDir1 := createTestTempDir(t, "cuc1-")
 
 		// Initialize git repo1
 		cmds := [][]string{
@@ -360,13 +355,7 @@ func TestWeirdUserScenarios(t *testing.T) {
 		SetupNodeRepo(t, repoDir1)
 
 		// Create second repository
-		repoDir2, err := os.MkdirTemp("", "cu-test-repo2-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(repoDir2)
-
-		configDir2, err := os.MkdirTemp("", "cu-test-config2-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(configDir2)
+		repoDir2 := createTestTempDir(t, "cu2-")
 
 		// Initialize git repo2
 		for _, cmd := range cmds {
