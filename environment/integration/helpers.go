@@ -40,13 +40,14 @@ func init() {
 func createTestTempDir(t *testing.T, prefix string) string {
 	var dir string
 	var err error
-	
+
+	// Get test name and replace slashes with underscores to avoid path separator issues
+	testName := t.Name()
+	testName = strings.ReplaceAll(testName, "/", "_")
+
 	if runtime.GOOS == "windows" {
 		// On Windows, use a shorter base path to avoid path length issues
 		// Generate a unique short name using last 8 chars of test name
-		testName := t.Name()
-		// Replace slashes with underscores to avoid path separator issues
-		testName = strings.ReplaceAll(testName, "/", "_")
 		if len(testName) > 8 {
 			testName = testName[len(testName)-8:]
 		}
@@ -59,9 +60,9 @@ func createTestTempDir(t *testing.T, prefix string) string {
 		dir, err = os.MkdirTemp(tempRoot, prefix+testName+"-*")
 	} else {
 		// On other platforms, use the regular temp directory
-		dir, err = os.MkdirTemp("", prefix+t.Name()+"-*")
+		dir, err = os.MkdirTemp("", prefix+testName+"-*")
 	}
-	
+
 	require.NoError(t, err, "Failed to create temp dir")
 	t.Cleanup(func() {
 		os.RemoveAll(dir)
@@ -127,6 +128,7 @@ type RepositorySetup func(t *testing.T, repoDir string)
 
 // Common repository setups
 var (
+	// SetupPythonRepo creates a Python project with main.py, requirements.txt, and .gitignore
 	SetupPythonRepo = func(t *testing.T, repoDir string) {
 		writeFile(t, repoDir, "main.py", "def main():\n    print('Hello World')\n\nif __name__ == '__main__':\n    main()\n")
 		writeFile(t, repoDir, "requirements.txt", "requests==2.31.0\nnumpy==1.24.0\n")

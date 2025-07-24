@@ -94,7 +94,7 @@ func (m *ContainerUse) Test(ctx context.Context,
 		Stdout(ctx)
 }
 
-// Test runs the linter
+// Lint runs the linter
 func (m *ContainerUse) Lint(ctx context.Context) error {
 	return dag.
 		Golangci().
