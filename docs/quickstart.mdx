@@ -42,20 +42,6 @@ Make sure you have [Docker](https://www.docker.com/get-started) and Git installe
     choco install container-use
     ```
     </Tab>
-    
-    <Tab title="Manual">
-    ```powershell
-    # Download and extract the latest release
-    Invoke-WebRequest -Uri "https://github.com/dagger/container-use/releases/latest/download/container-use_windows_amd64.zip" -OutFile "container-use.zip"
-    Expand-Archive -Path "container-use.zip" -DestinationPath "."
-    
-    # Move to a directory in PATH
-    Move-Item container-use.exe "$env:USERPROFILE\container-use\container-use.exe"
-    
-    # Add to PATH
-    $env:Path += ";$env:USERPROFILE\container-use"
-    ```
-    </Tab>
   </Tabs>
 
   </Tab>
