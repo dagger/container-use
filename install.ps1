@@ -5,10 +5,10 @@
     Download and install container-use.
 .PARAMETER Version
     Version of container-use to install (e.g., v0.4.0). Defaults to latest.
-.PARAMETER InstallPath
-    Installation directory. Defaults to $env:USERPROFILE\container-use
 .PARAMETER DownloadPath
     Temporary download location. Defaults to temp file.
+.PARAMETER InstallPath
+    Installation directory. Defaults to $env:USERPROFILE\container-use
 .PARAMETER AddToPath
     Add installation directory to PATH.
 .EXAMPLE
@@ -26,10 +26,20 @@
 #>
 
 Param (
-    [Parameter(Mandatory = $false)][string]$Version = "latest",
-    [Parameter(Mandatory = $false)][string]$DownloadPath = [System.IO.Path]::GetTempFileName(),
-    [Parameter(Mandatory = $false)][string]$InstallPath = "$env:USERPROFILE\container-use",
-    [Parameter(Mandatory = $false)][switch]$AddToPath = $false
+    [Parameter(Mandatory = $false)]
+    [ValidatePattern('^(latest|v?\d+\.\d+\.\d+(-[a-zA-Z0-9]+)?|[a-f0-9]{7,40})$')]
+    [string]$Version = "latest",
+    
+    [Parameter(Mandatory = $false)]
+    [ValidateNotNullOrEmpty()]
+    [string]$DownloadPath = [System.IO.Path]::GetTempFileName(),
+    
+    [Parameter(Mandatory = $false)]
+    [ValidateNotNullOrEmpty()]
+    [string]$InstallPath = "$env:USERPROFILE\container-use",
+    
+    [Parameter(Mandatory = $false)]
+    [switch]$AddToPath = $false
 )
 
 # ---------------------------------------------------------------------------------
@@ -43,27 +53,6 @@ $ErrorActionPreference = "Stop"
 $REPO = "dagger/container-use"
 $BINARY_NAME = "container-use"
 
-# Helper functions
-function Write-Info {
-    param([string]$Message)
-    Write-Host "ℹ️  $Message" -ForegroundColor Blue
-}
-
-function Write-Success {
-    param([string]$Message)
-    Write-Host "✅ $Message" -ForegroundColor Green
-}
-
-function Write-Warning {
-    param([string]$Message)
-    Write-Host "⚠️  $Message" -ForegroundColor Yellow
-}
-
-function Write-Error {
-    param([string]$Message)
-    Write-Host "❌ $Message" -ForegroundColor Red
-}
-
 function Get-ProcessorArchitecture {
     $arch = $env:PROCESSOR_ARCHITECTURE
     switch ($arch) {
@@ -75,33 +64,7 @@ function Get-ProcessorArchitecture {
     }
 }
 
-function Test-Dependencies {
-    Write-Info "Checking dependencies..."
-    
-    # Check Docker
-    try {
-        $null = docker version 2>&1
-        Write-Success "Docker is installed"
-    } catch {
-        Write-Error "Docker is required but not installed."
-        Write-Info "Please install Docker Desktop from: https://docs.docker.com/desktop/install/windows-install/"
-        return $false
-    }
-    
-    # Check Git
-    try {
-        $null = git version 2>&1
-        Write-Success "Git is installed"
-    } catch {
-        Write-Error "Git is required but not installed."
-        Write-Info "Please install Git from: https://git-scm.com/download/win"
-        return $false
-    }
-    
-    return $true
-}
-
-function Get-LatestVersion {
+function Find-LatestVersion {
     try {
         $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$REPO/releases/latest" -UseBasicParsing
         return $release.tag_name
@@ -111,103 +74,110 @@ function Get-LatestVersion {
 }
 
 function Get-DownloadUrl {
-    param(
+    Param (
+        [Parameter(Mandatory = $true)]
         [string]$Version,
+        [Parameter(Mandatory = $true)]
         [string]$Arch
     )
     
-    # Clean version (remove 'v' prefix if present)
-    $cleanVersion = $Version -replace '^v', ''
-    
-    # Construct filename based on GoReleaser output
-    $fileName = "container-use_${cleanVersion}_windows_${Arch}.zip"
-    return "https://github.com/$REPO/releases/download/$Version/$fileName"
+    # GoReleaser uses full tag (with v) in archive names
+    return "https://github.com/$REPO/releases/download/$Version/container-use_${Version}_windows_${Arch}.zip"
 }
 
-function Install-ContainerUse {
-    # Get version
-    $targetVersion = $Version
-    if ($targetVersion -eq "latest") {
-        $targetVersion = Get-LatestVersion
-        Write-Info "Latest version: $targetVersion"
-    }
+function Get-ChecksumUrl {
+    Param (
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
     
-    # Get architecture
-    $arch = Get-ProcessorArchitecture
-    Write-Info "Architecture: $arch"
+    return "https://github.com/$REPO/releases/download/$Version/checksums.txt"
+}
+
+function Get-Checksum {
+    Param (
+        [Parameter(Mandatory = $true)]
+        [string]$Version,
+        [Parameter(Mandatory = $true)]
+        [string]$Arch
+    )
     
-    # Get download URL
-    $downloadUrl = Get-DownloadUrl -Version $targetVersion -Arch $arch
+    $checksumUrl = Get-ChecksumUrl -Version $Version
+    # GoReleaser uses full tag (with v) in archive names
+    $target = "container-use_${Version}_windows_${Arch}.zip"
     
-    # Download
-    $zipName = "container-use_$($targetVersion -replace '^v', '')_windows_$arch.zip"
-    $zipPath = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($DownloadPath), $zipName)
-    
-    Write-Info "Downloading $downloadUrl..."
     try {
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
-        Write-Success "Downloaded to $zipPath"
+        $response = Invoke-RestMethod -Uri $checksumUrl -UserAgent "PowerShell"
+        $checksums = $response -split "`n"
+        
+        $checksum = $null
+        foreach ($line in $checksums) {
+            if ($line -match $target) {
+                $checksum = $line -split " " | Select-Object -First 1
+                break
+            }
+        }
+        
+        if ([string]::IsNullOrWhiteSpace($checksum)) {
+            throw "Checksum not found for $target"
+        }
+        
+        return $checksum
     } catch {
-        Write-Error "Failed to download: $_"
-        exit 1
+        throw "Failed to fetch or parse checksums: $_"
     }
+}
+
+function Compare-Checksum {
+    Param (
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedChecksum
+    )
     
-    # Extract
-    $tempExtractPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "container-use-extract-$(Get-Random)")
-    Write-Info "Extracting..."
-    try {
-        Expand-Archive -Path $zipPath -DestinationPath $tempExtractPath -Force
-    } catch {
-        Write-Error "Failed to extract: $_"
-        exit 1
-    } finally {
-        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+    $hash = Get-FileHash -Path $FilePath -Algorithm SHA256
+    
+    if ($hash.Hash -ne $ExpectedChecksum) {
+        Remove-Item -Path $FilePath -Force
+        throw "Checksum mismatch. Expected: $ExpectedChecksum, Got: $($hash.Hash)"
     }
-    
-    # Install
+}
+
+function Get-InstallPath {
     if (-not (Test-Path $InstallPath)) {
         New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
     }
-    
-    $exePath = Join-Path $tempExtractPath "container-use.exe"
-    if (-not (Test-Path $exePath)) {
-        Write-Error "container-use.exe not found in archive"
-        exit 1
-    }
-    
-    $destPath = Join-Path $InstallPath "container-use.exe"
-    Copy-Item -Path $exePath -Destination $destPath -Force
-    Write-Success "Installed to $destPath"
-    
-    # Create cu.exe alias
-    $cuPath = Join-Path $InstallPath "cu.exe"
-    Copy-Item -Path $destPath -Destination $cuPath -Force
-    Write-Success "Created cu.exe alias"
-    
-    # Cleanup
-    Remove-Item $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
+    return (Get-Item -Path $InstallPath).FullName
 }
 
-function Update-Path {
-    if ($AddToPath) {
-        $userPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
-        if ($userPath -notlike "*$InstallPath*") {
-            Write-Info "Adding $InstallPath to user PATH..."
-            $newPath = "$userPath;$InstallPath"
-            [Environment]::SetEnvironmentVariable("Path", $newPath, [EnvironmentVariableTarget]::User)
-            Write-Success "Added to PATH (restart your terminal to use)"
-        } else {
-            Write-Success "$InstallPath is already in PATH"
-        }
-    } else {
-        Write-Info "To add container-use to your PATH, run:"
-        Write-Host "    `$env:Path += `";$InstallPath`"" -ForegroundColor Yellow
-        Write-Host "    Or run this script again with -AddToPath" -ForegroundColor Yellow
+function Test-Dependencies {
+    Write-Host "Checking dependencies..." -ForegroundColor Blue
+    
+    # Check Docker
+    try {
+        $null = docker version 2>&1
+        Write-Host "  Docker is installed" -ForegroundColor Green
+    } catch {
+        Write-Host "  Docker is required but not installed." -ForegroundColor Red
+        Write-Host "  Please install Docker Desktop from: https://docs.docker.com/desktop/install/windows-install/" -ForegroundColor Yellow
+        return $false
     }
+    
+    # Check Git
+    try {
+        $null = git version 2>&1
+        Write-Host "  Git is installed" -ForegroundColor Green
+    } catch {
+        Write-Host "  Git is required but not installed." -ForegroundColor Red
+        Write-Host "  Please install Git from: https://git-scm.com/download/win" -ForegroundColor Yellow
+        return $false
+    }
+    
+    return $true
 }
 
-# Main
-try {
+function Install-ContainerUse {
     Write-Host ""
     Write-Host "Container Use Installer for Windows" -ForegroundColor Cyan
     Write-Host "===================================" -ForegroundColor Cyan
@@ -215,36 +185,117 @@ try {
     
     # Check dependencies
     if (-not (Test-Dependencies)) {
-        Write-Error "Missing required dependencies"
-        exit 1
+        throw "Missing required dependencies"
+    }
+    
+    # Get version
+    $targetVersion = $Version
+    if ($targetVersion -eq "latest") {
+        Write-Host "Finding latest version..." -ForegroundColor Blue
+        $targetVersion = Find-LatestVersion
+        Write-Host "Latest version: $targetVersion" -ForegroundColor Green
+    }
+    
+    # Get architecture
+    $arch = Get-ProcessorArchitecture
+    Write-Host "Architecture: $arch" -ForegroundColor Blue
+    
+    # Get download URL
+    $downloadUrl = Get-DownloadUrl -Version $targetVersion -Arch $arch
+    
+    # Download
+    $zipName = "container-use_${targetVersion}_windows_${arch}.zip"
+    $zipPath = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($DownloadPath), $zipName)
+    
+    Write-Host "Downloading from $downloadUrl..." -ForegroundColor Blue
+    try {
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
+        Write-Host "Downloaded successfully" -ForegroundColor Green
+    } catch {
+        throw "Failed to download: $_"
+    }
+    
+    # Verify checksum
+    Write-Host "Verifying checksum..." -ForegroundColor Blue
+    try {
+        $expectedChecksum = Get-Checksum -Version $targetVersion -Arch $arch
+        Compare-Checksum -FilePath $zipPath -ExpectedChecksum $expectedChecksum
+        Write-Host "Checksum verified" -ForegroundColor Green
+    } catch {
+        throw "Checksum verification failed: $_"
+    }
+    
+    # Extract
+    $tempExtractPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "container-use-extract-$(Get-Random)")
+    Write-Host "Extracting..." -ForegroundColor Blue
+    try {
+        Expand-Archive -Path $zipPath -DestinationPath $tempExtractPath -Force
+    } catch {
+        throw "Failed to extract: $_"
+    } finally {
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     }
     
     # Install
-    Install-ContainerUse
+    $installFullPath = Get-InstallPath
+    
+    $exePath = Join-Path $tempExtractPath "container-use.exe"
+    if (-not (Test-Path $exePath)) {
+        throw "container-use.exe not found in archive"
+    }
+    
+    $destPath = Join-Path $installFullPath "container-use.exe"
+    Copy-Item -Path $exePath -Destination $destPath -Force
+    Write-Host "Installed to $destPath" -ForegroundColor Green
+    
+    # Create cu.exe alias
+    $cuPath = Join-Path $installFullPath "cu.exe"
+    Copy-Item -Path $destPath -Destination $cuPath -Force
+    Write-Host "Created cu.exe alias" -ForegroundColor Green
+    
+    # Cleanup
+    Remove-Item $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
     
     # Update PATH
-    Update-Path
+    if ($AddToPath) {
+        $userPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
+        if ($userPath -notlike "*$installFullPath*") {
+            Write-Host "Adding $installFullPath to user PATH..." -ForegroundColor Blue
+            # Ensure path doesn't end with semicolon before appending
+            $separator = if ($userPath -and $userPath[-1] -ne ';') { ';' } else { '' }
+            $newPath = "$userPath$separator$installFullPath"
+            [Environment]::SetEnvironmentVariable("Path", $newPath, [EnvironmentVariableTarget]::User)
+            Write-Host "Added to PATH (restart your terminal to use)" -ForegroundColor Green
+        } else {
+            Write-Host "$installFullPath is already in PATH" -ForegroundColor Green
+        }
+    } else {
+        Write-Host ""
+        Write-Host "To add container-use to your PATH, run:" -ForegroundColor Yellow
+        Write-Host "    [Environment]::SetEnvironmentVariable('Path', `$env:Path + ';$installFullPath', [EnvironmentVariableTarget]::User)" -ForegroundColor White
+        Write-Host "Or run this script again with -AddToPath" -ForegroundColor Yellow
+    }
     
     # Verify installation
-    Write-Info "Verifying installation..."
-    $exePath = Join-Path $InstallPath "container-use.exe"
-    if (Test-Path $exePath) {
-        try {
-            $versionOutput = & $exePath version 2>&1
-            Write-Success "container-use is ready! Version: $versionOutput"
-        } catch {
-            Write-Warning "container-use installed but couldn't verify version"
-        }
+    Write-Host ""
+    Write-Host "Verifying installation..." -ForegroundColor Blue
+    try {
+        $versionOutput = & $destPath version 2>&1
+        Write-Host "container-use is ready! Version: $versionOutput" -ForegroundColor Green
+    } catch {
+        Write-Host "container-use installed but couldn't verify version" -ForegroundColor Yellow
     }
     
     Write-Host ""
-    Write-Success "Installation complete!"
-    Write-Info "Run 'container-use --help' to get started"
-    if (-not $AddToPath) {
-        Write-Info "Remember to add $InstallPath to your PATH"
-    }
-    Write-Host ""
+    Write-Host "Installation complete!" -ForegroundColor Green
+    Write-Host "Run 'container-use --help' to get started" -ForegroundColor Cyan
+}
+
+# Main execution
+try {
+    Install-ContainerUse
 } catch {
-    Write-Error $_.Exception.Message
+    Write-Host ""
+    Write-Host "Installation failed: $_" -ForegroundColor Red
     exit 1
 }
