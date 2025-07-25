@@ -3,8 +3,8 @@ package mcpserver
 import "github.com/mark3labs/mcp-go/mcp"
 
 var (
-	explainationArgument = mcp.WithString("explanation",
-		mcp.Description("One sentence explanation for why this directory is being listed."),
+	explanationArgument = mcp.WithString("explanation",
+		mcp.Description("One sentence explanation for why this tool is being called."),
 	)
 	environmentSourceArgument = mcp.WithString("environment_source",
 		mcp.Description("Absolute path to the source git repository for the environment."),
@@ -19,7 +19,7 @@ var (
 func newRepositoryTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
-		explainationArgument,
+		explanationArgument,
 		environmentSourceArgument,
 	}
 	opts = append(opts, args...)
@@ -30,7 +30,7 @@ func newRepositoryTool(name string, description string, args ...mcp.ToolOption) 
 func newEnvironmentTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
-		explainationArgument,
+		explanationArgument,
 		environmentSourceArgument,
 		environmentIDArgument,
 	}
