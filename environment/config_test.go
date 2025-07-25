@@ -81,7 +81,7 @@ func TestEnvironmentConfig_Load(t *testing.T) {
 					t.Skip("Skipping permission test on Windows - Windows file permissions work differently")
 				}
 				configDir := filepath.Join(dir, ".container-use")
-				require.NoError(t, os.MkdirAll(configDir, 0755))
+				require.NoError(t, os.MkdirAll(configDir, 0000))
 				t.Cleanup(func() { os.Chmod(configDir, 0755) })
 			},
 			expectError: true,
