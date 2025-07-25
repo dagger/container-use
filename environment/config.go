@@ -1,10 +1,11 @@
 package environment
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -120,17 +121,22 @@ func (config *EnvironmentConfig) Copy() *EnvironmentConfig {
 }
 
 func (config *EnvironmentConfig) Save(baseDir string) error {
-	configPath := path.Join(baseDir, configDir)
+	configPath := filepath.Join(baseDir, configDir)
 	if err := os.MkdirAll(configPath, 0755); err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
+	// Use a custom encoder to prevent HTML escaping of characters like &, <, >
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false) // This prevents & from being escaped as \u0026
+
+	if err := encoder.Encode(config); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(path.Join(configPath, environmentFile), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(configPath, environmentFile), buf.Bytes(), 0644); err != nil {
 		return err
 	}
 
@@ -138,9 +144,9 @@ func (config *EnvironmentConfig) Save(baseDir string) error {
 }
 
 func (config *EnvironmentConfig) Load(baseDir string) error {
-	configPath := path.Join(baseDir, configDir)
+	configPath := filepath.Join(baseDir, configDir)
 
-	data, err := os.ReadFile(path.Join(configPath, environmentFile))
+	data, err := os.ReadFile(filepath.Join(configPath, environmentFile))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}

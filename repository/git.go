@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -84,7 +83,7 @@ func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 }
 
 func (r *Repository) WorktreePath(id string) (string, error) {
-	return homedir.Expand(path.Join(r.getWorktreePath(), id))
+	return homedir.Expand(filepath.Join(r.getWorktreePath(), id))
 }
 
 func (r *Repository) deleteWorktree(id string) error {
@@ -202,7 +201,7 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 }
 
 func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Environment) error {
-	worktreePointer := fmt.Sprintf("gitdir: %s/worktrees/%s", r.forkRepoPath, env.ID)
+	worktreePointer := fmt.Sprintf("gitdir: %s", filepath.Join(r.forkRepoPath, "worktrees", env.ID))
 
 	worktreePath, err := r.WorktreePath(env.ID)
 	if err != nil {
@@ -423,14 +422,28 @@ func (r *Repository) shouldSkipFile(fileName string) bool {
 		}
 	}
 
-	skipPatterns := []string{
-		"node_modules/", ".git/", "__pycache__/", ".DS_Store",
-		"venv/", ".venv/", "env/", ".env/",
-		"target/", "build/", "dist/", ".next/",
-		"*.tmp", "*.temp", "*.cache", "*.log",
+	// Use cross-platform path-aware directory patterns
+	skipDirNames := []string{
+		"node_modules", ".git", "__pycache__", "venv", ".venv", "env", ".env",
+		"target", "build", "dist", ".next",
 	}
 
-	for _, pattern := range skipPatterns {
+	skipFilePatterns := []string{
+		".DS_Store", "*.tmp", "*.temp", "*.cache", "*.log",
+	}
+
+	// Check if the path contains any of the skip directory names
+	pathParts := strings.Split(filepath.ToSlash(lowerName), "/")
+	for _, part := range pathParts {
+		for _, skipDir := range skipDirNames {
+			if part == strings.ToLower(skipDir) {
+				return true
+			}
+		}
+	}
+
+	// Check file patterns
+	for _, pattern := range skipFilePatterns {
 		if strings.Contains(lowerName, strings.ToLower(pattern)) {
 			return true
 		}
@@ -466,7 +479,7 @@ func (r *Repository) addFilesFromUntrackedDirectory(ctx context.Context, worktre
 		}
 
 		if info.IsDir() {
-			if r.shouldSkipFile(relPath + "/") {
+			if r.shouldSkipFile(relPath) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -533,7 +546,9 @@ func (r *Repository) normalizeForkPath(ctx context.Context, repo string) (string
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
 			// Exit code 2 means the remote doesn't exist
-			return homedir.Expand(filepath.Join(r.getRepoPath(), repo))
+			// Create a safe path component from the absolute repo path
+			safeRepoPath := createSafePathFromAbsolute(repo)
+			return homedir.Expand(filepath.Join(r.getRepoPath(), safeRepoPath))
 		}
 		return "", err
 	}
@@ -544,6 +559,29 @@ func (r *Repository) normalizeForkPath(ctx context.Context, repo string) (string
 		return "", err
 	}
 	return homedir.Expand(filepath.Join(r.getRepoPath(), normalizedOrigin))
+}
+
+// createSafePathFromAbsolute converts an absolute path to a safe relative path component
+// This handles Windows drive letters and special characters that can't be used in paths
+func createSafePathFromAbsolute(absPath string) string {
+	// Convert to forward slashes for consistency
+	normalized := filepath.ToSlash(absPath)
+
+	// Remove leading slash if present
+	normalized = strings.TrimPrefix(normalized, "/")
+
+	// Replace colons (from Windows drive letters) with underscores
+	normalized = strings.ReplaceAll(normalized, ":", "_")
+
+	// Replace any remaining problematic characters
+	normalized = strings.ReplaceAll(normalized, "<", "_")
+	normalized = strings.ReplaceAll(normalized, ">", "_")
+	normalized = strings.ReplaceAll(normalized, "|", "_")
+	normalized = strings.ReplaceAll(normalized, "?", "_")
+	normalized = strings.ReplaceAll(normalized, "*", "_")
+	normalized = strings.ReplaceAll(normalized, "\"", "_")
+
+	return normalized
 }
 
 func normalizeGitURL(endpoint string) (string, error) {

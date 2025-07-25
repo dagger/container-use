@@ -10,8 +10,6 @@ import (
 	"os"
 	"os/signal"
 
-	"syscall"
-
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	"github.com/dagger/container-use/repository"
@@ -103,7 +101,7 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client, singleTenant bool) 
 	stdioSrv := server.NewStdioServer(s)
 	stdioSrv.SetErrorLogger(log.Default()) // this should re-use our `slog` handler
 
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(ctx, getNotifySignals()...)
 	defer cancel()
 
 	err := stdioSrv.Listen(ctx, os.Stdin, os.Stdout)
