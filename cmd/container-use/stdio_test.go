@@ -204,299 +204,13 @@ func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (strin
 
 // Test Cases
 
-func TestParallelEnvironmentCreation(t *testing.T) {
+func TestSharedRepositoryContention(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test")
 	}
 
-	const numServers = 3
-	const envsPerServer = 2
-
-	// Start multiple MCP servers
-	servers := make([]*MCPServerProcess, numServers)
-	for i := range numServers {
-		servers[i] = NewMCPServerProcess(t, fmt.Sprintf("parallel-create-%d", i))
-	}
-
-	// Create environments in parallel
-	var wg sync.WaitGroup
-	envIDs := make([][]string, numServers)
-	errors := make([][]error, numServers)
-
-	for i := range numServers {
-		envIDs[i] = make([]string, envsPerServer)
-		errors[i] = make([]error, envsPerServer)
-
-		wg.Add(1)
-		go func(serverIdx int) {
-			defer wg.Done()
-			server := servers[serverIdx]
-
-			for j := range envsPerServer {
-				envID, err := server.CreateEnvironment(
-					fmt.Sprintf("Server %d Env %d", serverIdx, j),
-					fmt.Sprintf("Creating environment %d on server %d", j, serverIdx),
-				)
-				envIDs[serverIdx][j] = envID
-				errors[serverIdx][j] = err
-			}
-		}(i)
-	}
-
-	wg.Wait()
-
-	// Verify all environments were created successfully
-	allEnvIDs := make(map[string]bool)
-	for i := range numServers {
-		for j := range envsPerServer {
-			assert.NoError(t, errors[i][j], "Server %d should create environment %d", i, j)
-			assert.NotEmpty(t, envIDs[i][j], "Environment ID should not be empty")
-
-			// Verify environment IDs are unique across all servers
-			assert.False(t, allEnvIDs[envIDs[i][j]], "Environment ID %s should be unique", envIDs[i][j])
-			allEnvIDs[envIDs[i][j]] = true
-		}
-	}
-}
-
-func TestParallelWorkflowWithLogging(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping E2E test")
-	}
-
-	const numServers = 2
-	servers := make([]*MCPServerProcess, numServers)
-	envIDs := make([]string, numServers)
-
-	// Start servers and create environments
-	for i := range numServers {
-		servers[i] = NewMCPServerProcess(t, fmt.Sprintf("parallel-workflow-%d", i))
-
-		envID, err := servers[i].CreateEnvironment(
-			fmt.Sprintf("Workflow Test %d", i),
-			fmt.Sprintf("Environment for workflow testing %d", i),
-		)
-		require.NoError(t, err)
-		envIDs[i] = envID
-		t.Logf("Server %d created environment: %s", i, envID)
-	}
-
-	// Perform parallel workflow: A writes files, B reads and processes them
-	var wg sync.WaitGroup
-	results := make([]map[string]string, numServers)
-
-	for i := range numServers {
-		results[i] = make(map[string]string)
-		wg.Add(1)
-
-		go func(serverIdx int) {
-			defer wg.Done()
-			server := servers[serverIdx]
-			envID := envIDs[serverIdx]
-
-			// Step A: Write initial files
-			for fileIdx := range 3 {
-				fileName := fmt.Sprintf("data_%d.txt", fileIdx)
-				content := fmt.Sprintf("Server %d - File %d - Initial content", serverIdx, fileIdx)
-
-				err := server.FileWrite(
-					envID,
-					fileName,
-					content,
-					fmt.Sprintf("Writing initial data file %d", fileIdx),
-				)
-				if err != nil {
-					results[serverIdx]["error"] = fmt.Sprintf("FileWrite failed: %v", err)
-					return
-				}
-			}
-
-			// Step B: Process files (read, modify, write back)
-			for fileIdx := range 3 {
-				fileName := fmt.Sprintf("data_%d.txt", fileIdx)
-
-				// Read the file
-				readResult, err := server.FileRead(envID, fileName)
-				if err != nil {
-					results[serverIdx]["error"] = fmt.Sprintf("FileRead failed: %v", err)
-					return
-				}
-
-				// Process the content
-				processedContent := readResult + " - PROCESSED"
-
-				// Write back processed content
-				err = server.FileWrite(
-					envID,
-					fileName,
-					processedContent,
-					fmt.Sprintf("Processing and updating file %d", fileIdx),
-				)
-				if err != nil {
-					results[serverIdx]["error"] = fmt.Sprintf("FileWrite (process) failed: %v", err)
-					return
-				}
-			}
-
-			// Step C: Run commands to verify the work
-			listOutput, err := server.RunCommand(
-				envID,
-				"ls -la *.txt",
-				"List all text files to verify creation",
-			)
-			if err != nil {
-				results[serverIdx]["error"] = fmt.Sprintf("RunCommand (ls) failed: %v", err)
-				return
-			}
-			results[serverIdx]["ls_output"] = listOutput
-
-			// Count processed files
-			countOutput, err := server.RunCommand(
-				envID,
-				"grep -c PROCESSED *.txt",
-				"Count how many files were processed",
-			)
-			if err != nil {
-				results[serverIdx]["error"] = fmt.Sprintf("RunCommand (grep) failed: %v", err)
-				return
-			}
-			results[serverIdx]["count_output"] = countOutput
-
-			// Final verification - read one file to confirm processing
-			finalContent, err := server.FileRead(envID, "data_0.txt")
-			if err != nil {
-				results[serverIdx]["error"] = fmt.Sprintf("Final FileRead failed: %v", err)
-				return
-			}
-			results[serverIdx]["final_content"] = finalContent
-			results[serverIdx]["success"] = "true"
-		}(i)
-	}
-
-	wg.Wait()
-
-	// Verify all workflows completed successfully
-	for i := range numServers {
-		result := results[i]
-
-		// Check for errors
-		if errorMsg, hasError := result["error"]; hasError {
-			t.Errorf("Server %d workflow failed: %s", i, errorMsg)
-			continue
-		}
-
-		// Verify success
-		assert.Equal(t, "true", result["success"], "Server %d should complete workflow successfully", i)
-
-		// Verify file listing shows our files
-		lsOutput := result["ls_output"]
-		assert.Contains(t, lsOutput, "data_0.txt", "Server %d should have data_0.txt", i)
-		assert.Contains(t, lsOutput, "data_1.txt", "Server %d should have data_1.txt", i)
-		assert.Contains(t, lsOutput, "data_2.txt", "Server %d should have data_2.txt", i)
-
-		// Verify processing count (should be 3 files processed)
-		countOutput := result["count_output"]
-		// grep -c outputs "filename:count" for each file, so we should see 3 lines with ":1"
-		lines := strings.Split(strings.TrimSpace(countOutput), "\n")
-		processedLines := 0
-		for _, line := range lines {
-			if strings.Contains(line, ":1") {
-				processedLines++
-			}
-		}
-		assert.Equal(t, 3, processedLines, "Server %d should have processed 3 files", i)
-
-		// Verify final content shows processing
-		finalContent := result["final_content"]
-		assert.Contains(t, finalContent, "PROCESSED", "Server %d final content should show processing", i)
-		assert.Contains(t, finalContent, fmt.Sprintf("Server %d", i), "Server %d final content should contain server ID", i)
-
-		t.Logf("Server %d workflow completed successfully:", i)
-		t.Logf("  Environment: %s", envIDs[i])
-		t.Logf("  Files created: %s", lsOutput)
-		t.Logf("  Files processed: %s", countOutput)
-		t.Logf("  Final content sample: %s", finalContent)
-	}
-
-	// Verify environments are isolated (each should have different content)
-	if len(results) >= 2 && results[0]["success"] == "true" && results[1]["success"] == "true" {
-		content0 := results[0]["final_content"]
-		content1 := results[1]["final_content"]
-		assert.NotEqual(t, content0, content1, "Different servers should have different content (isolation test)")
-	}
-}
-
-func TestParallelFileOperations(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping E2E test")
-	}
-
-	const numServers = 2
-	servers := make([]*MCPServerProcess, numServers)
-	envIDs := make([]string, numServers)
-
-	// Start servers and create one environment each
-	for i := range numServers {
-		servers[i] = NewMCPServerProcess(t, fmt.Sprintf("parallel-files-%d", i))
-
-		envID, err := servers[i].CreateEnvironment(
-			fmt.Sprintf("File Test Env %d", i),
-			fmt.Sprintf("Environment for file operations test %d", i),
-		)
-		require.NoError(t, err)
-		envIDs[i] = envID
-	}
-
-	// Perform file operations in parallel
-	var wg sync.WaitGroup
-	results := make([]error, numServers)
-
-	for i := range numServers {
-		wg.Add(1)
-		go func(serverIdx int) {
-			defer wg.Done()
-			server := servers[serverIdx]
-			envID := envIDs[serverIdx]
-
-			// Write multiple files
-			for j := range 3 {
-				err := server.FileWrite(
-					envID,
-					fmt.Sprintf("file%d.txt", j),
-					fmt.Sprintf("Content from server %d, file %d", serverIdx, j),
-					fmt.Sprintf("Writing file %d", j),
-				)
-				if err != nil {
-					results[serverIdx] = err
-					return
-				}
-			}
-
-			// Run a command
-			_, err := server.RunCommand(
-				envID,
-				"ls -la",
-				"List files",
-			)
-			results[serverIdx] = err
-		}(i)
-	}
-
-	wg.Wait()
-
-	// Verify all operations succeeded
-	for i := range numServers {
-		assert.NoError(t, results[i], "Server %d operations should succeed", i)
-	}
-}
-
-func TestResourceContention(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping E2E test")
-	}
-
-	// This test uses the same repository directory for multiple servers
-	// to test resource contention scenarios
+	// Test with many servers to maximize contention pressure
+	const numServers = 10
 
 	// Create shared repository
 	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-shared-repo-*")
@@ -506,7 +220,6 @@ func TestResourceContention(t *testing.T) {
 	setupGitRepo(t, sharedRepoDir)
 
 	// Start multiple servers pointing to the same repo
-	const numServers = 2
 	servers := make([]*MCPServerProcess, numServers)
 
 	for i := range numServers {
@@ -527,7 +240,7 @@ func TestResourceContention(t *testing.T) {
 		initRequest := mcp.InitializeRequest{}
 		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
 		initRequest.Params.ClientInfo = mcp.Implementation{
-			Name:    fmt.Sprintf("Contention Test Client %d", i),
+			Name:    fmt.Sprintf("Shared Repo Test Client %d", i),
 			Version: "1.0.0",
 		}
 		initRequest.Params.Capabilities = mcp.ClientCapabilities{}
@@ -549,7 +262,7 @@ func TestResourceContention(t *testing.T) {
 		})
 	}
 
-	// Try to create environments simultaneously on the same repo
+	// Perform comprehensive workflow in parallel: create environments, write files, run commands
 	var wg sync.WaitGroup
 	envIDs := make([]string, numServers)
 	errors := make([]error, numServers)
@@ -559,22 +272,90 @@ func TestResourceContention(t *testing.T) {
 		go func(serverIdx int) {
 			defer wg.Done()
 
+			// Step 1: Create environment
 			envID, err := servers[serverIdx].CreateEnvironment(
-				fmt.Sprintf("Contention Test %d", serverIdx),
-				fmt.Sprintf("Testing resource contention %d", serverIdx),
+				fmt.Sprintf("Shared Repo Test %d", serverIdx),
+				fmt.Sprintf("Testing shared repository contention %d", serverIdx),
 			)
+			if err != nil {
+				errors[serverIdx] = fmt.Errorf("environment creation failed: %w", err)
+				return
+			}
 			envIDs[serverIdx] = envID
-			errors[serverIdx] = err
+
+			// Step 2: Write multiple files
+			for j := range 3 {
+				err := servers[serverIdx].FileWrite(
+					envID,
+					fmt.Sprintf("server%d_file%d.txt", serverIdx, j),
+					fmt.Sprintf("Content from server %d, file %d\nTimestamp: concurrent test", serverIdx, j),
+					fmt.Sprintf("Writing file %d from server %d", j, serverIdx),
+				)
+				if err != nil {
+					errors[serverIdx] = fmt.Errorf("file write failed: %w", err)
+					return
+				}
+			}
+
+			// Step 3: Read back one of the files to verify
+			content, err := servers[serverIdx].FileRead(envID, fmt.Sprintf("server%d_file0.txt", serverIdx))
+			if err != nil {
+				errors[serverIdx] = fmt.Errorf("file read failed: %w", err)
+				return
+			}
+			if content == "" {
+				errors[serverIdx] = fmt.Errorf("file read returned empty content")
+				return
+			}
+
+			// Step 4: Run commands to verify the environment works
+			listOutput, err := servers[serverIdx].RunCommand(
+				envID,
+				fmt.Sprintf("ls -la server%d_*.txt | wc -l", serverIdx),
+				"Count files created by this server",
+			)
+			if err != nil {
+				errors[serverIdx] = fmt.Errorf("command execution failed: %w", err)
+				return
+			}
+
+			// Verify we created the expected number of files
+			// Parse just the first line since command output may include extra text
+			firstLine := strings.Split(strings.TrimSpace(listOutput), "\n")[0]
+			if firstLine != "3" {
+				errors[serverIdx] = fmt.Errorf("expected 3 files, got output: %q (first line: %q)", listOutput, firstLine)
+				return
+			}
+
+			// Step 5: Run a more complex command
+			_, err = servers[serverIdx].RunCommand(
+				envID,
+				fmt.Sprintf("echo 'Server %d completed successfully' > completion_%d.txt", serverIdx, serverIdx),
+				"Mark completion",
+			)
+			if err != nil {
+				errors[serverIdx] = fmt.Errorf("completion command failed: %w", err)
+				return
+			}
 		}(i)
 	}
 
 	wg.Wait()
 
-	// Both should succeed with proper locking
+	// Analyze results - all should succeed with proper concurrency handling
 	for i := range numServers {
-		assert.NoError(t, errors[i], "Server %d should handle contention gracefully", i)
-		if errors[i] == nil {
-			assert.NotEmpty(t, envIDs[i], "Successful environment should have ID")
+		assert.NoError(t, errors[i], "Server %d should handle shared repository contention successfully", i)
+		assert.NotEmpty(t, envIDs[i], "Server %d should have environment ID", i)
+	}
+
+	// Verify environment IDs are unique
+	envIDSet := make(map[string]bool)
+	for _, envID := range envIDs {
+		if envID != "" {
+			assert.False(t, envIDSet[envID], "Environment ID %s should be unique", envID)
+			envIDSet[envID] = true
 		}
 	}
+
+	t.Logf("All %d servers completed successfully", numServers)
 }
