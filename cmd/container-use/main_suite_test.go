@@ -28,7 +28,7 @@ func getContainerUseBinary(t *testing.T) string {
 		if err != nil {
 			t.Fatalf("Failed to build container-use binary: %v", err)
 		}
-		
+
 		abs, err := filepath.Abs("container-use")
 		if err != nil {
 			t.Fatalf("Failed to get absolute path: %v", err)
@@ -41,7 +41,7 @@ func getContainerUseBinary(t *testing.T) string {
 // setupGitRepo initializes a git repository in the given directory
 func setupGitRepo(t *testing.T, repoDir string) {
 	ctx := context.Background()
-	
+
 	// Initialize git repo
 	cmds := [][]string{
 		{"init"},
@@ -62,7 +62,7 @@ func setupGitRepo(t *testing.T, repoDir string) {
   "version": "1.0.0",
   "main": "index.js"
 }`)
-	
+
 	// Commit initial files
 	_, err := runGitCommand(ctx, repoDir, "add", ".")
 	require.NoError(t, err, "Failed to stage files")

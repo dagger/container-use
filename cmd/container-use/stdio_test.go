@@ -95,13 +95,13 @@ func (s *MCPServerProcess) Close() {
 // CreateEnvironment creates a new environment via MCP
 func (s *MCPServerProcess) CreateEnvironment(title, explanation string) (string, error) {
 	ctx := context.Background()
-	
+
 	request := mcp.CallToolRequest{}
 	request.Params.Name = "environment_create"
 	request.Params.Arguments = map[string]any{
 		"environment_source": s.repoDir,
-		"title":             title,
-		"explanation":       explanation,
+		"title":              title,
+		"explanation":        explanation,
 	}
 
 	result, err := s.client.CallTool(ctx, request)
@@ -116,7 +116,7 @@ func (s *MCPServerProcess) CreateEnvironment(title, explanation string) (string,
 				ID string `json:"id"`
 			}
 			if err := json.Unmarshal([]byte(textContent.Text), &envResponse); err != nil {
-				return "", fmt.Errorf("failed to parse environment response: %w", err)
+				return "", fmt.Errorf("failed to parse environment response (content: %q): %w", textContent.Text, err)
 			}
 			return envResponse.ID, nil
 		}
@@ -128,15 +128,15 @@ func (s *MCPServerProcess) CreateEnvironment(title, explanation string) (string,
 // FileRead reads a file from an environment via MCP
 func (s *MCPServerProcess) FileRead(envID, targetFile string) (string, error) {
 	ctx := context.Background()
-	
+
 	request := mcp.CallToolRequest{}
 	request.Params.Name = "environment_file_read"
 	request.Params.Arguments = map[string]any{
-		"environment_source":        s.repoDir,
-		"environment_id":            envID,
-		"target_file":               targetFile,
-		"should_read_entire_file":   true,
-		"explanation":               "Reading file for verification",
+		"environment_source":      s.repoDir,
+		"environment_id":          envID,
+		"target_file":             targetFile,
+		"should_read_entire_file": true,
+		"explanation":             "Reading file for verification",
 	}
 
 	result, err := s.client.CallTool(ctx, request)
@@ -157,7 +157,7 @@ func (s *MCPServerProcess) FileRead(envID, targetFile string) (string, error) {
 // FileWrite writes a file to an environment via MCP
 func (s *MCPServerProcess) FileWrite(envID, targetFile, contents, explanation string) error {
 	ctx := context.Background()
-	
+
 	request := mcp.CallToolRequest{}
 	request.Params.Name = "environment_file_write"
 	request.Params.Arguments = map[string]any{
@@ -175,7 +175,7 @@ func (s *MCPServerProcess) FileWrite(envID, targetFile, contents, explanation st
 // RunCommand executes a command in an environment via MCP
 func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (string, error) {
 	ctx := context.Background()
-	
+
 	request := mcp.CallToolRequest{}
 	request.Params.Name = "environment_run_cmd"
 	request.Params.Arguments = map[string]any{
@@ -202,8 +202,6 @@ func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (strin
 
 // Test Cases
 
-
-
 // Test Cases
 
 func TestParallelEnvironmentCreation(t *testing.T) {
@@ -228,12 +226,12 @@ func TestParallelEnvironmentCreation(t *testing.T) {
 	for i := range numServers {
 		envIDs[i] = make([]string, envsPerServer)
 		errors[i] = make([]error, envsPerServer)
-		
+
 		wg.Add(1)
 		go func(serverIdx int) {
 			defer wg.Done()
 			server := servers[serverIdx]
-			
+
 			for j := range envsPerServer {
 				envID, err := server.CreateEnvironment(
 					fmt.Sprintf("Server %d Env %d", serverIdx, j),
@@ -253,7 +251,7 @@ func TestParallelEnvironmentCreation(t *testing.T) {
 		for j := range envsPerServer {
 			assert.NoError(t, errors[i][j], "Server %d should create environment %d", i, j)
 			assert.NotEmpty(t, envIDs[i][j], "Environment ID should not be empty")
-			
+
 			// Verify environment IDs are unique across all servers
 			assert.False(t, allEnvIDs[envIDs[i][j]], "Environment ID %s should be unique", envIDs[i][j])
 			allEnvIDs[envIDs[i][j]] = true
@@ -273,7 +271,7 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 	// Start servers and create environments
 	for i := range numServers {
 		servers[i] = NewMCPServerProcess(t, fmt.Sprintf("parallel-workflow-%d", i))
-		
+
 		envID, err := servers[i].CreateEnvironment(
 			fmt.Sprintf("Workflow Test %d", i),
 			fmt.Sprintf("Environment for workflow testing %d", i),
@@ -290,17 +288,17 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 	for i := range numServers {
 		results[i] = make(map[string]string)
 		wg.Add(1)
-		
+
 		go func(serverIdx int) {
 			defer wg.Done()
 			server := servers[serverIdx]
 			envID := envIDs[serverIdx]
-			
+
 			// Step A: Write initial files
 			for fileIdx := range 3 {
 				fileName := fmt.Sprintf("data_%d.txt", fileIdx)
 				content := fmt.Sprintf("Server %d - File %d - Initial content", serverIdx, fileIdx)
-				
+
 				err := server.FileWrite(
 					envID,
 					fileName,
@@ -312,21 +310,21 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 					return
 				}
 			}
-			
+
 			// Step B: Process files (read, modify, write back)
 			for fileIdx := range 3 {
 				fileName := fmt.Sprintf("data_%d.txt", fileIdx)
-				
+
 				// Read the file
 				readResult, err := server.FileRead(envID, fileName)
 				if err != nil {
 					results[serverIdx]["error"] = fmt.Sprintf("FileRead failed: %v", err)
 					return
 				}
-				
+
 				// Process the content
 				processedContent := readResult + " - PROCESSED"
-				
+
 				// Write back processed content
 				err = server.FileWrite(
 					envID,
@@ -339,7 +337,7 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 					return
 				}
 			}
-			
+
 			// Step C: Run commands to verify the work
 			listOutput, err := server.RunCommand(
 				envID,
@@ -351,7 +349,7 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 				return
 			}
 			results[serverIdx]["ls_output"] = listOutput
-			
+
 			// Count processed files
 			countOutput, err := server.RunCommand(
 				envID,
@@ -363,7 +361,7 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 				return
 			}
 			results[serverIdx]["count_output"] = countOutput
-			
+
 			// Final verification - read one file to confirm processing
 			finalContent, err := server.FileRead(envID, "data_0.txt")
 			if err != nil {
@@ -380,22 +378,22 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 	// Verify all workflows completed successfully
 	for i := range numServers {
 		result := results[i]
-		
+
 		// Check for errors
 		if errorMsg, hasError := result["error"]; hasError {
 			t.Errorf("Server %d workflow failed: %s", i, errorMsg)
 			continue
 		}
-		
+
 		// Verify success
 		assert.Equal(t, "true", result["success"], "Server %d should complete workflow successfully", i)
-		
+
 		// Verify file listing shows our files
 		lsOutput := result["ls_output"]
 		assert.Contains(t, lsOutput, "data_0.txt", "Server %d should have data_0.txt", i)
 		assert.Contains(t, lsOutput, "data_1.txt", "Server %d should have data_1.txt", i)
 		assert.Contains(t, lsOutput, "data_2.txt", "Server %d should have data_2.txt", i)
-		
+
 		// Verify processing count (should be 3 files processed)
 		countOutput := result["count_output"]
 		// grep -c outputs "filename:count" for each file, so we should see 3 lines with ":1"
@@ -407,12 +405,12 @@ func TestParallelWorkflowWithLogging(t *testing.T) {
 			}
 		}
 		assert.Equal(t, 3, processedLines, "Server %d should have processed 3 files", i)
-		
+
 		// Verify final content shows processing
 		finalContent := result["final_content"]
 		assert.Contains(t, finalContent, "PROCESSED", "Server %d final content should show processing", i)
 		assert.Contains(t, finalContent, fmt.Sprintf("Server %d", i), "Server %d final content should contain server ID", i)
-		
+
 		t.Logf("Server %d workflow completed successfully:", i)
 		t.Logf("  Environment: %s", envIDs[i])
 		t.Logf("  Files created: %s", lsOutput)
@@ -440,7 +438,7 @@ func TestParallelFileOperations(t *testing.T) {
 	// Start servers and create one environment each
 	for i := range numServers {
 		servers[i] = NewMCPServerProcess(t, fmt.Sprintf("parallel-files-%d", i))
-		
+
 		envID, err := servers[i].CreateEnvironment(
 			fmt.Sprintf("File Test Env %d", i),
 			fmt.Sprintf("Environment for file operations test %d", i),
@@ -459,7 +457,7 @@ func TestParallelFileOperations(t *testing.T) {
 			defer wg.Done()
 			server := servers[serverIdx]
 			envID := envIDs[serverIdx]
-			
+
 			// Write multiple files
 			for j := range 3 {
 				err := server.FileWrite(
@@ -473,7 +471,7 @@ func TestParallelFileOperations(t *testing.T) {
 					return
 				}
 			}
-			
+
 			// Run a command
 			_, err := server.RunCommand(
 				envID,
@@ -499,24 +497,24 @@ func TestResourceContention(t *testing.T) {
 
 	// This test uses the same repository directory for multiple servers
 	// to test resource contention scenarios
-	
+
 	// Create shared repository
 	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-shared-repo-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(sharedRepoDir)
-	
+
 	setupGitRepo(t, sharedRepoDir)
 
 	// Start multiple servers pointing to the same repo
 	const numServers = 2
 	servers := make([]*MCPServerProcess, numServers)
-	
+
 	for i := range numServers {
 		// Create separate config dirs but use same repo
 		configDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-shared-config-%d-*", i))
 		require.NoError(t, err)
 		defer os.RemoveAll(configDir)
-		
+
 		ctx := context.Background()
 		containerUseBinary := getContainerUseBinary(t)
 		cmd := exec.CommandContext(ctx, containerUseBinary, "stdio")
@@ -545,7 +543,7 @@ func TestResourceContention(t *testing.T) {
 			serverInfo: serverInfo,
 			t:          t,
 		}
-		
+
 		t.Cleanup(func() {
 			servers[i].Close()
 		})
@@ -560,7 +558,7 @@ func TestResourceContention(t *testing.T) {
 		wg.Add(1)
 		go func(serverIdx int) {
 			defer wg.Done()
-			
+
 			envID, err := servers[serverIdx].CreateEnvironment(
 				fmt.Sprintf("Contention Test %d", serverIdx),
 				fmt.Sprintf("Testing resource contention %d", serverIdx),
@@ -572,17 +570,11 @@ func TestResourceContention(t *testing.T) {
 
 	wg.Wait()
 
-	// Both should succeed (or at least handle contention gracefully)
-	successCount := 0
+	// Both should succeed with proper locking
 	for i := range numServers {
+		assert.NoError(t, errors[i], "Server %d should handle contention gracefully", i)
 		if errors[i] == nil {
-			successCount++
 			assert.NotEmpty(t, envIDs[i], "Successful environment should have ID")
-		} else {
-			t.Logf("Server %d failed (expected in contention): %v", i, errors[i])
 		}
 	}
-
-	// At least one should succeed
-	assert.Greater(t, successCount, 0, "At least one server should handle contention successfully")
 }
