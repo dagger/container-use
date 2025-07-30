@@ -51,7 +51,7 @@ func setupGitRepo(t *testing.T, repoDir string) {
 	}
 
 	for _, cmd := range cmds {
-		_, err := runGitCommand(ctx, repoDir, cmd...)
+		err := runGitCommand(ctx, repoDir, cmd...)
 		require.NoError(t, err, "Failed to run git %v", cmd)
 	}
 
@@ -64,9 +64,9 @@ func setupGitRepo(t *testing.T, repoDir string) {
 }`)
 
 	// Commit initial files
-	_, err := runGitCommand(ctx, repoDir, "add", ".")
+	err := runGitCommand(ctx, repoDir, "add", ".")
 	require.NoError(t, err, "Failed to stage files")
-	_, err = runGitCommand(ctx, repoDir, "commit", "-m", "Initial commit")
+	err = runGitCommand(ctx, repoDir, "commit", "-m", "Initial commit")
 	require.NoError(t, err, "Failed to commit")
 }
 
@@ -81,9 +81,9 @@ func writeFile(t *testing.T, repoDir, path, content string) {
 }
 
 // runGitCommand runs a git command in the specified directory
-func runGitCommand(ctx context.Context, dir string, args ...string) (string, error) {
+func runGitCommand(ctx context.Context, dir string, args ...string) error {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	return string(output), err
+	_, err := cmd.CombinedOutput()
+	return err
 }

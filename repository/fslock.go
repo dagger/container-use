@@ -9,26 +9,68 @@ import (
 	"time"
 )
 
-// RepositoryLock provides process-level locking for repository operations
+// LockType represents different types of operations that can be locked
+type LockType string
+
+const (
+	// LockTypeRepo - Repository-level operations (fork setup, remote configuration)
+	LockTypeRepo LockType = "repo"
+	// LockTypeWorktree - Worktree operations (branch creation, worktree initialization)
+	LockTypeWorktree LockType = "worktree"
+	// LockTypeGitNotes - Git notes operations (state saves, log updates)
+	LockTypeGitNotes LockType = "notes"
+)
+
+// RepositoryLockManager provides granular process-level locking for repository operations
 // to prevent git concurrency issues when multiple container-use instances
 // operate on the same repository simultaneously.
+type RepositoryLockManager struct {
+	repoPath string
+	locks    map[LockType]*RepositoryLock
+	mu       sync.Mutex
+}
+
+// RepositoryLock provides process-level locking for specific operation types
 type RepositoryLock struct {
 	lockFile string
 	fd       *os.File
 	mu       sync.Mutex
 }
 
-// NewRepositoryLock creates a new repository lock for the given repository path.
-func NewRepositoryLock(repoPath string) *RepositoryLock {
-	// Create a lock file path based on the repository path
-	// Use a hash or sanitized path to avoid filesystem issues
-	lockFileName := fmt.Sprintf("container-use-%x.lock", hashString(repoPath))
+// NewRepositoryLockManager creates a new repository lock manager for the given repository path.
+func NewRepositoryLockManager(repoPath string) *RepositoryLockManager {
+	return &RepositoryLockManager{
+		repoPath: repoPath,
+		locks:    make(map[LockType]*RepositoryLock),
+	}
+}
+
+// GetLock returns a lock for the specified operation type
+func (rlm *RepositoryLockManager) GetLock(lockType LockType) *RepositoryLock {
+	rlm.mu.Lock()
+	defer rlm.mu.Unlock()
+
+	if lock, exists := rlm.locks[lockType]; exists {
+		return lock
+	}
+
+	// Create a lock file path based on the repository path and lock type
+	lockFileName := fmt.Sprintf("container-use-%x-%s.lock", hashString(rlm.repoPath), string(lockType))
 	lockDir := filepath.Join(os.TempDir(), "container-use-locks")
 	lockFile := filepath.Join(lockDir, lockFileName)
 
-	return &RepositoryLock{
+	lock := &RepositoryLock{
 		lockFile: lockFile,
 	}
+
+	rlm.locks[lockType] = lock
+	return lock
+}
+
+// WithLock executes a function while holding the specified lock type
+func (rlm *RepositoryLockManager) WithLock(ctx context.Context, lockType LockType, fn func() error) error {
+	lock := rlm.GetLock(lockType)
+	return lock.WithLock(ctx, fn)
 }
 
 // Lock acquires the repository lock with exponential backoff retry.
@@ -123,4 +165,10 @@ func hashString(s string) uint32 {
 		h = (h ^ uint32(s[i])) * 16777619
 	}
 	return h
+}
+
+// Legacy compatibility - NewRepositoryLock creates a general-purpose lock manager
+// for backward compatibility. New code should use NewRepositoryLockManager with specific lock types.
+func NewRepositoryLock(repoPath string) *RepositoryLockManager {
+	return NewRepositoryLockManager(repoPath)
 }

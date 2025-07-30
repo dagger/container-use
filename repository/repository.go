@@ -56,8 +56,8 @@ var (
 type Repository struct {
 	userRepoPath string
 	forkRepoPath string
-	basePath     string          // defaults to OS-appropriate config path if empty
-	lock         *RepositoryLock // Process-level locking for git operations
+	basePath     string                 // defaults to OS-appropriate config path if empty
+	lockManager  *RepositoryLockManager // Process-level locking for git operations
 }
 
 // getRepoPath returns the path for storing repository data
@@ -112,11 +112,11 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 		userRepoPath: userRepoPath,
 		forkRepoPath: forkRepoPath,
 		basePath:     expandedBasePath,
-		lock:         NewRepositoryLock(userRepoPath),
+		lockManager:  NewRepositoryLockManager(userRepoPath),
 	}
 
-	// Use lock for fork and remote setup to prevent concurrent conflicts
-	err = r.lock.WithLock(ctx, func() error {
+	// Use repository-level lock for fork and remote setup to prevent concurrent conflicts
+	err = r.lockManager.WithLock(ctx, LockTypeRepo, func() error {
 		if err := r.ensureFork(ctx); err != nil {
 			return fmt.Errorf("unable to fork the repository: %w", err)
 		}
@@ -276,8 +276,8 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	// Lock for the final propagation step that modifies git state
-	if err := r.lock.WithLock(ctx, func() error {
+	// Use git notes lock for the final propagation step that modifies git state
+	if err := r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
 		return r.propagateToWorktree(ctx, env, explanation)
 	}); err != nil {
 		return nil, err
@@ -412,7 +412,7 @@ func (r *Repository) isDescendantOfCommit(ctx context.Context, ancestorCommit, e
 // Update saves the provided environment to the repository.
 // Writes configuration and source code changes to the worktree and history + state to git notes.
 func (r *Repository) Update(ctx context.Context, env *environment.Environment, explanation string) error {
-	return r.lock.WithLock(ctx, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
 		if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
 			return err
 		}

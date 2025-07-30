@@ -129,7 +129,7 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
 
 	// Lock worktree initialization to prevent concurrent conflicts
-	return worktreePath, r.lock.WithLock(ctx, func() error {
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
 		// Double-check after acquiring lock
 		if _, err := os.Stat(worktreePath); err == nil {
 			return nil
@@ -237,7 +237,7 @@ func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 	}
 
 	// Lock git notes operations to prevent concurrent ref updates
-	return r.lock.WithLock(ctx, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
 		if err := fetch(); err != nil {
 			if strings.Contains(err.Error(), "[rejected]") {
 				if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
@@ -270,7 +270,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 	}
 
 	// Lock state save operations to prevent concurrent git notes conflicts
-	return r.lock.WithLock(ctx, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
 		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
 		return err
 	})
