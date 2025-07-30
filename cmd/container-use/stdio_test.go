@@ -1,4 +1,4 @@
-package main
+package main_test
 
 import (
 	"context"
@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/dagger/container-use/repository"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
@@ -202,61 +200,9 @@ func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (strin
 	return "", nil
 }
 
-// Helper functions
+// Test Cases
 
-func setupGitRepo(t *testing.T, repoDir string) {
-	ctx := context.Background()
-	
-	// Initialize git repo
-	cmds := [][]string{
-		{"init"},
-		{"config", "user.email", "test@example.com"},
-		{"config", "user.name", "Test User"},
-		{"config", "commit.gpgsign", "false"},
-	}
 
-	for _, cmd := range cmds {
-		_, err := repository.RunGitCommand(ctx, repoDir, cmd...)
-		require.NoError(t, err, "Failed to run git %v", cmd)
-	}
-
-	// Create initial files
-	writeFile(t, repoDir, "README.md", "# E2E Test Repository\n")
-	writeFile(t, repoDir, "package.json", `{
-  "name": "e2e-test-project",
-  "version": "1.0.0",
-  "main": "index.js"
-}`)
-	
-	// Commit initial files
-	_, err := repository.RunGitCommand(ctx, repoDir, "add", ".")
-	require.NoError(t, err, "Failed to stage files")
-	_, err = repository.RunGitCommand(ctx, repoDir, "commit", "-m", "Initial commit")
-	require.NoError(t, err, "Failed to commit")
-}
-
-func writeFile(t *testing.T, repoDir, path, content string) {
-	fullPath := filepath.Join(repoDir, path)
-	dir := filepath.Dir(fullPath)
-	err := os.MkdirAll(dir, 0755)
-	require.NoError(t, err, "Failed to create dir")
-	err = os.WriteFile(fullPath, []byte(content), 0644)
-	require.NoError(t, err, "Failed to write file")
-}
-
-func getContainerUseBinary(t *testing.T) string {
-	// Always build fresh binary to ensure we test current source code
-	t.Log("Building fresh container-use binary...")
-	cmd := exec.Command("go", "build", "-o", "container-use", ".")
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	err := cmd.Run()
-	require.NoError(t, err, "Failed to build container-use binary")
-	
-	abs, err := filepath.Abs("container-use")
-	require.NoError(t, err)
-	return abs
-}
 
 // Test Cases
 
