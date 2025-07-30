@@ -202,8 +202,6 @@ func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (strin
 
 // Test Cases
 
-// Test Cases
-
 func TestSharedRepositoryContention(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test")
