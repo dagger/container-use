@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -105,10 +106,8 @@ func (rl *RepositoryLock) Lock(ctx context.Context) error {
 		if err != nil {
 			if os.IsExist(err) {
 				// Lock exists, wait and retry with exponential backoff
-				delay := baseDelay * time.Duration(1<<min(i, 6)) // Cap at 64x base delay
-				if delay > maxDelay {
-					delay = maxDelay
-				}
+				exponentialDelay := baseDelay * time.Duration(math.Pow(2, float64(i)))
+				delay := time.Duration(math.Min(float64(exponentialDelay), float64(maxDelay)))
 
 				select {
 				case <-ctx.Done():
