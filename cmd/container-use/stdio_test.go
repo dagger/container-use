@@ -217,20 +217,20 @@ func TestSharedRepositoryContention(t *testing.T) {
 
 	setupGitRepo(t, sharedRepoDir)
 
+	// Create shared config dir (fix for remote contention)
+	sharedConfigDir, err := os.MkdirTemp("", "cu-e2e-shared-config-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(sharedConfigDir)
+
 	// Start multiple servers pointing to the same repo
 	servers := make([]*MCPServerProcess, numServers)
 
 	for i := range numServers {
-		// Create separate config dirs but use same repo
-		configDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-shared-config-%d-*", i))
-		require.NoError(t, err)
-		defer os.RemoveAll(configDir)
-
 		ctx := context.Background()
 		containerUseBinary := getContainerUseBinary(t)
 		cmd := exec.CommandContext(ctx, containerUseBinary, "stdio")
 		cmd.Dir = sharedRepoDir
-		cmd.Env = append(os.Environ(), fmt.Sprintf("CONTAINER_USE_CONFIG_DIR=%s", configDir))
+		cmd.Env = append(os.Environ(), fmt.Sprintf("CONTAINER_USE_CONFIG_DIR=%s", sharedConfigDir))
 
 		mcpClient, err := client.NewStdioMCPClient(containerUseBinary, cmd.Env, "stdio")
 		require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestSharedRepositoryContention(t *testing.T) {
 			cmd:        cmd,
 			client:     mcpClient,
 			repoDir:    sharedRepoDir,
-			configDir:  configDir,
+			configDir:  sharedConfigDir,
 			serverInfo: serverInfo,
 			t:          t,
 		}

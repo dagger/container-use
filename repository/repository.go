@@ -56,7 +56,8 @@ var (
 type Repository struct {
 	userRepoPath string
 	forkRepoPath string
-	basePath     string // defaults to OS-appropriate config path if empty
+	basePath     string          // defaults to OS-appropriate config path if empty
+	lock         *RepositoryLock // Process-level locking for git operations
 }
 
 // getRepoPath returns the path for storing repository data
@@ -111,13 +112,21 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 		userRepoPath: userRepoPath,
 		forkRepoPath: forkRepoPath,
 		basePath:     expandedBasePath,
+		lock:         NewRepositoryLock(userRepoPath),
 	}
 
-	if err := r.ensureFork(ctx); err != nil {
-		return nil, fmt.Errorf("unable to fork the repository: %w", err)
-	}
-	if err := r.ensureUserRemote(ctx); err != nil {
-		return nil, fmt.Errorf("unable to set container-use remote: %w", err)
+	// Use lock for fork and remote setup to prevent concurrent conflicts
+	err = r.lock.WithLock(ctx, func() error {
+		if err := r.ensureFork(ctx); err != nil {
+			return fmt.Errorf("unable to fork the repository: %w", err)
+		}
+		if err := r.ensureUserRemote(ctx); err != nil {
+			return fmt.Errorf("unable to set container-use remote: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return r, nil
@@ -267,7 +276,10 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
+	// Lock for the final propagation step that modifies git state
+	if err := r.lock.WithLock(ctx, func() error {
+		return r.propagateToWorktree(ctx, env, explanation)
+	}); err != nil {
 		return nil, err
 	}
 
@@ -400,14 +412,15 @@ func (r *Repository) isDescendantOfCommit(ctx context.Context, ancestorCommit, e
 // Update saves the provided environment to the repository.
 // Writes configuration and source code changes to the worktree and history + state to git notes.
 func (r *Repository) Update(ctx context.Context, env *environment.Environment, explanation string) error {
-	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
-		return err
-	}
-	if note := env.Notes.Pop(); note != "" {
-		return r.addGitNote(ctx, env, note)
-	}
-
-	return nil
+	return r.lock.WithLock(ctx, func() error {
+		if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
+			return err
+		}
+		if note := env.Notes.Pop(); note != "" {
+			return r.addGitNote(ctx, env, note)
+		}
+		return nil
+	})
 }
 
 // Delete removes an environment from the repository.
