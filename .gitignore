@@ -28,4 +28,5 @@ Thumbs.db
 
 # Crush directory
 .crush/
+.crush.json
 CRUSH.md
