@@ -94,7 +94,7 @@ func (rl *RepositoryLock) Lock(ctx context.Context) error {
 	const baseDelay = 50 * time.Millisecond
 	const maxDelay = 2 * time.Second
 
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
