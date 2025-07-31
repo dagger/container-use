@@ -297,6 +297,33 @@ goose://extension?cmd=container-use&arg=stdio&id=container-use&name=container%20
   Extensions](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
 </Info>
 
+## Sourcegraph Amp
+
+**Add MCP Configuration:**
+Add this configuration to `~/.config/amp/settings.json`:
+```json
+{
+    "amp.mcpServers": {
+        "container-use": {
+            "command": "container-use",
+            "args": ["stdio"]
+        }
+    },
+    "amp.commands.allowlist": [],
+    "amp.commands.strict": true,
+    "amp.dangerouslyAllowAll": false,
+    "amp.updates.autoUpdate.enabled": true
+}
+```
+
+**Add Agent Rules:**
+Save agent instructions to your project root:
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> AGENT.md
+```
+
+<Info>Learn more: [Sourcegraph Amp Documentation](https://ampcode.com/manual/)</Info>
+
 ## Cline
 
 **Add MCP Configuration:**
