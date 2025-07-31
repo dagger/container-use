@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"time"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
@@ -140,57 +139,8 @@ func (r *Repository) ensureFork(ctx context.Context) error {
 		return err
 	}
 
-	// Create lock file in parent directory, named after the fork repo
-	lockDir := filepath.Dir(r.forkRepoPath)
-	repoName := filepath.Base(r.forkRepoPath)
-	lockFile := filepath.Join(lockDir, repoName+".lock")
-
-	// Ensure lock directory exists
-	if err := os.MkdirAll(lockDir, 0755); err != nil {
-		return fmt.Errorf("failed to create lock directory: %w", err)
-	}
-
-	// Try to acquire lock with retries
-	for i := range 10 {
-		// Double-check if fork was created while we were waiting
-		if _, err := os.Stat(r.forkRepoPath); err == nil {
-			return nil
-		}
-
-		// Try to create lock file atomically
-		lockFd, err := os.OpenFile(lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
-		if err != nil {
-			if os.IsExist(err) {
-				// Another process has the lock, wait and retry
-				time.Sleep(time.Duration(100+i*50) * time.Millisecond)
-				continue
-			}
-			return fmt.Errorf("failed to create lock file: %w", err)
-		}
-
-		// We have the lock, create the fork and then clean up
-		err = r.createForkWithLock(ctx, lockFd, lockFile)
-		return err
-	}
-
-	return fmt.Errorf("failed to acquire lock for fork creation after retries")
-}
-
-func (r *Repository) createForkWithLock(ctx context.Context, lockFd *os.File, lockFile string) error {
-	// Ensure cleanup
-	defer func() {
-		lockFd.Close()
-		os.Remove(lockFile)
-	}()
-
-	// Triple-check if fork was created while we were acquiring lock
-	if _, err := os.Stat(r.forkRepoPath); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-
-	// Create the fork
+	// Create the fork - no custom locking needed since this is called
+	// within RepositoryLockManager.WithLock(LockTypeRepo)
 	slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
 	if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
 		return err
