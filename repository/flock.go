@@ -29,13 +29,12 @@ const (
 type RepositoryLockManager struct {
 	repoPath string
 	locks    map[LockType]*RepositoryLock
-	mu       sync.Mutex // Only needed for the map access, not for flock operations
+	mu       sync.Mutex
 }
 
 // RepositoryLock provides process-level locking for specific operation types
 type RepositoryLock struct {
 	flock *flock.Flock
-	// No mutex needed - flock is thread-safe internally
 }
 
 // NewRepositoryLockManager creates a new repository lock manager for the given repository path.
@@ -55,12 +54,10 @@ func (rlm *RepositoryLockManager) GetLock(lockType LockType) *RepositoryLock {
 		return lock
 	}
 
-	// Create a lock file path based on the repository path and lock type
 	lockFileName := fmt.Sprintf("container-use-%x-%s.lock", hashString(rlm.repoPath), string(lockType))
 	lockDir := filepath.Join(os.TempDir(), "container-use-locks")
 	lockFile := filepath.Join(lockDir, lockFileName)
 
-	// Ensure lock directory exists
 	os.MkdirAll(lockDir, 0755)
 
 	lock := &RepositoryLock{
@@ -84,7 +81,7 @@ func (rlm *RepositoryLockManager) WithRLock(ctx context.Context, lockType LockTy
 	return lock.WithRLock(ctx, fn)
 }
 
-// Lock acquires an exclusive repository lock using flock's TryLockContext.
+// Lock acquires an exclusive repository lock.
 func (rl *RepositoryLock) Lock(ctx context.Context) error {
 	const retryDelay = 100 * time.Millisecond
 
@@ -99,7 +96,7 @@ func (rl *RepositoryLock) Lock(ctx context.Context) error {
 	return nil
 }
 
-// RLock acquires a shared repository lock using flock's TryRLockContext.
+// RLock acquires a shared repository lock.
 // Multiple processes can hold shared locks simultaneously.
 func (rl *RepositoryLock) RLock(ctx context.Context) error {
 	const retryDelay = 100 * time.Millisecond
@@ -115,12 +112,12 @@ func (rl *RepositoryLock) RLock(ctx context.Context) error {
 	return nil
 }
 
-// Unlock releases the repository lock (works for both exclusive and shared locks).
+// Unlock releases the repository lock.
 func (rl *RepositoryLock) Unlock() error {
 	return rl.flock.Unlock()
 }
 
-// WithLock executes a function while holding an exclusive repository lock.
+// WithLock executes a function while holding an exclusive lock.
 func (rl *RepositoryLock) WithLock(ctx context.Context, fn func() error) error {
 	if err := rl.Lock(ctx); err != nil {
 		return err
@@ -130,7 +127,7 @@ func (rl *RepositoryLock) WithLock(ctx context.Context, fn func() error) error {
 	return fn()
 }
 
-// WithRLock executes a function while holding a shared repository lock.
+// WithRLock executes a function while holding a shared lock.
 func (rl *RepositoryLock) WithRLock(ctx context.Context, fn func() error) error {
 	if err := rl.RLock(ctx); err != nil {
 		return err

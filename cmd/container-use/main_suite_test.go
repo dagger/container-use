@@ -19,7 +19,6 @@ var (
 // getContainerUseBinary builds the container-use binary once per test run
 func getContainerUseBinary(t *testing.T) string {
 	binaryPathOnce.Do(func() {
-		// Build once per test run
 		t.Log("Building fresh container-use binary...")
 		cmd := exec.Command("go", "build", "-o", "container-use", ".")
 		cmd.Stderr = os.Stderr
@@ -42,7 +41,6 @@ func getContainerUseBinary(t *testing.T) string {
 func setupGitRepo(t *testing.T, repoDir string) {
 	ctx := context.Background()
 
-	// Initialize git repo
 	cmds := [][]string{
 		{"init"},
 		{"config", "user.email", "test@example.com"},
@@ -55,7 +53,6 @@ func setupGitRepo(t *testing.T, repoDir string) {
 		require.NoError(t, err, "Failed to run git %v", cmd)
 	}
 
-	// Create initial files
 	writeFile(t, repoDir, "README.md", "# E2E Test Repository\n")
 	writeFile(t, repoDir, "package.json", `{
   "name": "e2e-test-project",
@@ -63,7 +60,6 @@ func setupGitRepo(t *testing.T, repoDir string) {
   "main": "index.js"
 }`)
 
-	// Commit initial files
 	err := runGitCommand(ctx, repoDir, "add", ".")
 	require.NoError(t, err, "Failed to stage files")
 	err = runGitCommand(ctx, repoDir, "commit", "-m", "Initial commit")

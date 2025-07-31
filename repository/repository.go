@@ -55,8 +55,8 @@ var (
 type Repository struct {
 	userRepoPath string
 	forkRepoPath string
-	basePath     string                 // defaults to OS-appropriate config path if empty
-	lockManager  *RepositoryLockManager // Process-level locking for git operations
+	basePath     string // defaults to OS-appropriate config path if empty
+	lockManager  *RepositoryLockManager
 }
 
 // getRepoPath returns the path for storing repository data
@@ -114,7 +114,6 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 		lockManager:  NewRepositoryLockManager(userRepoPath),
 	}
 
-	// Use repository-level lock for fork and remote setup to prevent concurrent conflicts
 	err = r.lockManager.WithLock(ctx, LockTypeRepo, func() error {
 		if err := r.ensureFork(ctx); err != nil {
 			return fmt.Errorf("unable to fork the repository: %w", err)
@@ -132,22 +131,18 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 }
 
 func (r *Repository) ensureFork(ctx context.Context) error {
-	// Check if fork already exists
 	if _, err := os.Stat(r.forkRepoPath); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
 		return err
 	}
 
-	// Create the fork - no custom locking needed since this is called
-	// within RepositoryLockManager.WithLock(LockTypeRepo)
 	slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
 	if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
 		return err
 	}
 	_, err := RunGitCommand(ctx, r.forkRepoPath, "init", "--bare", "--template=")
 	if err != nil {
-		// Clean up partial creation
 		os.RemoveAll(r.forkRepoPath)
 		return err
 	}
@@ -226,7 +221,6 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	// Use git notes lock for the final propagation step that modifies git state
 	if err := r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
 		return r.propagateToWorktree(ctx, env, explanation)
 	}); err != nil {

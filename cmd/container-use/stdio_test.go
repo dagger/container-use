@@ -30,27 +30,21 @@ type MCPServerProcess struct {
 func NewMCPServerProcess(t *testing.T, testName string) *MCPServerProcess {
 	ctx := context.Background()
 
-	// Create isolated temp directories
 	repoDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-%s-repo-*", testName))
 	require.NoError(t, err, "Failed to create repo dir")
 
 	configDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-%s-config-*", testName))
 	require.NoError(t, err, "Failed to create config dir")
 
-	// Initialize git repo
 	setupGitRepo(t, repoDir)
 
-	// Start container-use stdio process
 	containerUseBinary := getContainerUseBinary(t)
 	cmd := exec.CommandContext(ctx, containerUseBinary, "stdio")
 	cmd.Dir = repoDir
 	cmd.Env = append(os.Environ(), fmt.Sprintf("CONTAINER_USE_CONFIG_DIR=%s", configDir))
 
-	// Create MCP client that communicates via stdio
 	mcpClient, err := client.NewStdioMCPClient(containerUseBinary, cmd.Env, "stdio")
 	require.NoError(t, err, "Failed to create MCP client")
-
-	// Initialize the MCP connection
 	initRequest := mcp.InitializeRequest{}
 	initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
 	initRequest.Params.ClientInfo = mcp.Implementation{
@@ -71,7 +65,6 @@ func NewMCPServerProcess(t *testing.T, testName string) *MCPServerProcess {
 		t:          t,
 	}
 
-	// Setup cleanup
 	t.Cleanup(func() {
 		server.Close()
 	})
@@ -109,7 +102,6 @@ func (s *MCPServerProcess) CreateEnvironment(title, explanation string) (string,
 		return "", err
 	}
 
-	// Parse the environment ID from the result
 	if len(result.Content) > 0 {
 		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
 			var envResponse struct {
@@ -144,7 +136,6 @@ func (s *MCPServerProcess) FileRead(envID, targetFile string) (string, error) {
 		return "", err
 	}
 
-	// Extract file content from result
 	if len(result.Content) > 0 {
 		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
 			return textContent.Text, nil
@@ -190,7 +181,6 @@ func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (strin
 		return "", err
 	}
 
-	// Extract command output from result
 	if len(result.Content) > 0 {
 		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
 			return textContent.Text, nil
@@ -200,29 +190,22 @@ func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (strin
 	return "", nil
 }
 
-// Test Cases
-
 func TestSharedRepositoryContention(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test")
 	}
 
-	// Test with many servers to maximize contention pressure
 	const numServers = 10
-
-	// Create shared repository
 	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-shared-repo-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(sharedRepoDir)
 
 	setupGitRepo(t, sharedRepoDir)
 
-	// Create shared config dir (fix for remote contention)
 	sharedConfigDir, err := os.MkdirTemp("", "cu-e2e-shared-config-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(sharedConfigDir)
 
-	// Start multiple servers pointing to the same repo
 	servers := make([]*MCPServerProcess, numServers)
 
 	for i := range numServers {
@@ -260,7 +243,6 @@ func TestSharedRepositoryContention(t *testing.T) {
 		})
 	}
 
-	// Perform comprehensive workflow in parallel: create environments, write files, run commands
 	var wg sync.WaitGroup
 	envIDs := make([]string, numServers)
 	errors := make([]error, numServers)
@@ -270,7 +252,6 @@ func TestSharedRepositoryContention(t *testing.T) {
 		go func(serverIdx int) {
 			defer wg.Done()
 
-			// Step 1: Create environment
 			envID, err := servers[serverIdx].CreateEnvironment(
 				fmt.Sprintf("Shared Repo Test %d", serverIdx),
 				fmt.Sprintf("Testing shared repository contention %d", serverIdx),
@@ -281,7 +262,6 @@ func TestSharedRepositoryContention(t *testing.T) {
 			}
 			envIDs[serverIdx] = envID
 
-			// Step 2: Write multiple files
 			for j := range 3 {
 				err := servers[serverIdx].FileWrite(
 					envID,
@@ -295,7 +275,6 @@ func TestSharedRepositoryContention(t *testing.T) {
 				}
 			}
 
-			// Step 3: Read back one of the files to verify
 			content, err := servers[serverIdx].FileRead(envID, fmt.Sprintf("server%d_file0.txt", serverIdx))
 			if err != nil {
 				errors[serverIdx] = fmt.Errorf("file read failed: %w", err)
@@ -306,7 +285,6 @@ func TestSharedRepositoryContention(t *testing.T) {
 				return
 			}
 
-			// Step 4: Run commands to verify the environment works
 			listOutput, err := servers[serverIdx].RunCommand(
 				envID,
 				fmt.Sprintf("ls -la server%d_*.txt | wc -l", serverIdx),
@@ -317,15 +295,12 @@ func TestSharedRepositoryContention(t *testing.T) {
 				return
 			}
 
-			// Verify we created the expected number of files
-			// Parse just the first line since command output may include extra text
 			firstLine := strings.Split(strings.TrimSpace(listOutput), "\n")[0]
 			if firstLine != "3" {
 				errors[serverIdx] = fmt.Errorf("expected 3 files, got output: %q (first line: %q)", listOutput, firstLine)
 				return
 			}
 
-			// Step 5: Run a more complex command
 			_, err = servers[serverIdx].RunCommand(
 				envID,
 				fmt.Sprintf("echo 'Server %d completed successfully' > completion_%d.txt", serverIdx, serverIdx),
@@ -340,13 +315,11 @@ func TestSharedRepositoryContention(t *testing.T) {
 
 	wg.Wait()
 
-	// Analyze results - all should succeed with proper concurrency handling
 	for i := range numServers {
 		assert.NoError(t, errors[i], "Server %d should handle shared repository contention successfully", i)
 		assert.NotEmpty(t, envIDs[i], "Server %d should have environment ID", i)
 	}
 
-	// Verify environment IDs are unique
 	envIDSet := make(map[string]bool)
 	for _, envID := range envIDs {
 		if envID != "" {
