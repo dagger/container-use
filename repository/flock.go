@@ -29,13 +29,13 @@ const (
 type RepositoryLockManager struct {
 	repoPath string
 	locks    map[LockType]*RepositoryLock
-	mu       sync.Mutex
+	mu       sync.Mutex // Only needed for the map access, not for flock operations
 }
 
 // RepositoryLock provides process-level locking for specific operation types
 type RepositoryLock struct {
 	flock *flock.Flock
-	mu    sync.Mutex
+	// No mutex needed - flock is thread-safe internally
 }
 
 // NewRepositoryLockManager creates a new repository lock manager for the given repository path.
@@ -86,9 +86,6 @@ func (rlm *RepositoryLockManager) WithRLock(ctx context.Context, lockType LockTy
 
 // Lock acquires an exclusive repository lock using flock's TryLockContext.
 func (rl *RepositoryLock) Lock(ctx context.Context) error {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
 	const retryDelay = 100 * time.Millisecond
 
 	locked, err := rl.flock.TryLockContext(ctx, retryDelay)
@@ -105,9 +102,6 @@ func (rl *RepositoryLock) Lock(ctx context.Context) error {
 // RLock acquires a shared repository lock using flock's TryRLockContext.
 // Multiple processes can hold shared locks simultaneously.
 func (rl *RepositoryLock) RLock(ctx context.Context) error {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
 	const retryDelay = 100 * time.Millisecond
 
 	locked, err := rl.flock.TryRLockContext(ctx, retryDelay)
@@ -123,9 +117,6 @@ func (rl *RepositoryLock) RLock(ctx context.Context) error {
 
 // Unlock releases the repository lock (works for both exclusive and shared locks).
 func (rl *RepositoryLock) Unlock() error {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
 	return rl.flock.Unlock()
 }
 
@@ -156,10 +147,4 @@ func hashString(s string) uint32 {
 		h = (h ^ uint32(s[i])) * 16777619
 	}
 	return h
-}
-
-// Legacy compatibility - NewRepositoryLock creates a general-purpose lock manager
-// for backward compatibility. New code should use NewRepositoryLockManager with specific lock types.
-func NewRepositoryLock(repoPath string) *RepositoryLockManager {
-	return NewRepositoryLockManager(repoPath)
 }
