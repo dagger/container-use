@@ -277,14 +277,28 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 }
 
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {
-	buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
-	if err != nil {
-		if strings.Contains(err.Error(), "no note found") {
-			return nil, nil
+	var result []byte
+	var loadErr error
+
+	// Use shared lock for read-only git notes operation to allow concurrent reads
+	err := r.lockManager.WithRLock(ctx, LockTypeGitNotes, func() error {
+		buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
+		if err != nil {
+			if strings.Contains(err.Error(), "no note found") {
+				result = nil
+				return nil
+			}
+			loadErr = err
+			return err
 		}
+		result = []byte(buff)
+		return nil
+	})
+
+	if err != nil {
 		return nil, err
 	}
-	return []byte(buff), nil
+	return result, loadErr
 }
 
 func (r *Repository) addGitNote(ctx context.Context, env *environment.Environment, note string) error {

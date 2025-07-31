@@ -3,11 +3,12 @@ package repository
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
 // LockType represents different types of operations that can be locked
@@ -33,9 +34,8 @@ type RepositoryLockManager struct {
 
 // RepositoryLock provides process-level locking for specific operation types
 type RepositoryLock struct {
-	lockFile string
-	fd       *os.File
-	mu       sync.Mutex
+	flock *flock.Flock
+	mu    sync.Mutex
 }
 
 // NewRepositoryLockManager creates a new repository lock manager for the given repository path.
@@ -60,96 +60,88 @@ func (rlm *RepositoryLockManager) GetLock(lockType LockType) *RepositoryLock {
 	lockDir := filepath.Join(os.TempDir(), "container-use-locks")
 	lockFile := filepath.Join(lockDir, lockFileName)
 
+	// Ensure lock directory exists
+	os.MkdirAll(lockDir, 0755)
+
 	lock := &RepositoryLock{
-		lockFile: lockFile,
+		flock: flock.New(lockFile),
 	}
 
 	rlm.locks[lockType] = lock
 	return lock
 }
 
-// WithLock executes a function while holding the specified lock type
+// WithLock executes a function while holding an exclusive lock for the specified lock type
 func (rlm *RepositoryLockManager) WithLock(ctx context.Context, lockType LockType, fn func() error) error {
 	lock := rlm.GetLock(lockType)
 	return lock.WithLock(ctx, fn)
 }
 
-// Lock acquires the repository lock with exponential backoff retry.
-// This prevents multiple processes from performing conflicting git operations simultaneously.
+// WithRLock executes a function while holding a shared (read) lock for the specified lock type.
+// Multiple readers can hold the lock simultaneously, but writers will block until all readers release.
+func (rlm *RepositoryLockManager) WithRLock(ctx context.Context, lockType LockType, fn func() error) error {
+	lock := rlm.GetLock(lockType)
+	return lock.WithRLock(ctx, fn)
+}
+
+// Lock acquires an exclusive repository lock using flock's TryLockContext.
 func (rl *RepositoryLock) Lock(ctx context.Context) error {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	if rl.fd != nil {
-		// Already locked
-		return nil
+	const retryDelay = 100 * time.Millisecond
+
+	locked, err := rl.flock.TryLockContext(ctx, retryDelay)
+	if err != nil {
+		return fmt.Errorf("failed to acquire exclusive lock: %w", err)
+	}
+	if !locked {
+		return fmt.Errorf("failed to acquire exclusive lock within context timeout")
 	}
 
-	// Ensure lock directory exists
-	if err := os.MkdirAll(filepath.Dir(rl.lockFile), 0755); err != nil {
-		return fmt.Errorf("failed to create lock directory: %w", err)
-	}
-
-	// Try to acquire lock with exponential backoff
-	const maxRetries = 30
-	const baseDelay = 50 * time.Millisecond
-	const maxDelay = 2 * time.Second
-
-	for i := range maxRetries {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		fd, err := os.OpenFile(rl.lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
-		if err != nil {
-			if os.IsExist(err) {
-				// Lock exists, wait and retry with exponential backoff
-				exponentialDelay := baseDelay * time.Duration(math.Pow(2, float64(i)))
-				delay := time.Duration(math.Min(float64(exponentialDelay), float64(maxDelay)))
-
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(delay):
-					continue
-				}
-			}
-			return fmt.Errorf("failed to create lock file: %w", err)
-		}
-
-		// Write process info to lock file for debugging
-		fmt.Fprintf(fd, "pid:%d\ntime:%s\n", os.Getpid(), time.Now().Format(time.RFC3339))
-
-		rl.fd = fd
-		return nil
-	}
-
-	return fmt.Errorf("failed to acquire repository lock after %d retries", maxRetries)
+	return nil
 }
 
-// Unlock releases the repository lock.
+// RLock acquires a shared repository lock using flock's TryRLockContext.
+// Multiple processes can hold shared locks simultaneously.
+func (rl *RepositoryLock) RLock(ctx context.Context) error {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	const retryDelay = 100 * time.Millisecond
+
+	locked, err := rl.flock.TryRLockContext(ctx, retryDelay)
+	if err != nil {
+		return fmt.Errorf("failed to acquire shared lock: %w", err)
+	}
+	if !locked {
+		return fmt.Errorf("failed to acquire shared lock within context timeout")
+	}
+
+	return nil
+}
+
+// Unlock releases the repository lock (works for both exclusive and shared locks).
 func (rl *RepositoryLock) Unlock() error {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	if rl.fd == nil {
-		// Not locked
-		return nil
-	}
-
-	// Close and remove lock file
-	rl.fd.Close()
-	err := os.Remove(rl.lockFile)
-	rl.fd = nil
-
-	return err
+	return rl.flock.Unlock()
 }
 
-// WithLock executes a function while holding the repository lock.
+// WithLock executes a function while holding an exclusive repository lock.
 func (rl *RepositoryLock) WithLock(ctx context.Context, fn func() error) error {
 	if err := rl.Lock(ctx); err != nil {
+		return err
+	}
+	defer rl.Unlock()
+
+	return fn()
+}
+
+// WithRLock executes a function while holding a shared repository lock.
+func (rl *RepositoryLock) WithRLock(ctx context.Context, fn func() error) error {
+	if err := rl.RLock(ctx); err != nil {
 		return err
 	}
 	defer rl.Unlock()
