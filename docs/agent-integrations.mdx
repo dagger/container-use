@@ -324,6 +324,48 @@ curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md 
 
 <Info>Learn more: [Sourcegraph Amp Documentation](https://ampcode.com/manual/)</Info>
 
+## Charm Crush
+
+**Add MCP Configuration:**
+Add this configuration to [a valid location](https://github.com/charmbracelet/crush?tab=readme-ov-file#configuration) like `./.crush.json`:
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "mcp": {
+    "container-use": {
+      "type": "stdio",
+      "command": "container-use",
+      "args": ["stdio"],
+      "env": {}
+    }
+  },
+  "permissions": {
+    "allowed_tools": [
+      "mcp_container-use_environment_add_service",
+      "mcp_container-use_environment_checkpoint",
+      "mcp_container-use_environment_config",
+      "mcp_container-use_environment_create",
+      "mcp_container-use_environment_file_delete",
+      "mcp_container-use_environment_file_list",
+      "mcp_container-use_environment_file_read",
+      "mcp_container-use_environment_file_write",
+      "mcp_container-use_environment_open",
+      "mcp_container-use_environment_run_cmd",
+      "mcp_container-use_environment_update_metadata"
+    ]
+  }
+}
+```
+
+**Add Agent Rules:**
+Save agent instructions to your project root:
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CRUSH.md
+```
+
+<Info>Learn more: [Crush project on GitHub](https://github.com/charmbracelet/crush)</Info>
+
+
 ## Cline
 
 **Add MCP Configuration:**
