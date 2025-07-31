@@ -30,8 +30,17 @@ func (m *ContainerUse) Build(ctx context.Context,
 }
 
 // BuildMultiPlatform builds binaries for multiple platforms using GoReleaser
-func (m *ContainerUse) BuildMultiPlatform(ctx context.Context) *dagger.Directory {
-	return dag.Goreleaser(m.Source).Build().WithSnapshot().All()
+func (m *ContainerUse) BuildMultiPlatform(ctx context.Context,
+	// GitHub org name for package publishing, set only if testing release process on a personal fork
+	//+optional
+	//+default="dagger"
+	githubOrgName string,
+) *dagger.Directory {
+	return dag.Goreleaser(m.Source).
+		WithEnvVariable("GH_ORG_NAME", githubOrgName).
+		Build().
+		WithSnapshot().
+		All()
 }
 
 // Release creates a release using GoReleaser
@@ -44,7 +53,15 @@ func (m *ContainerUse) Release(ctx context.Context,
 	//+default="dagger"
 	githubOrgName string,
 ) (string, error) {
-	return dag.Goreleaser(m.Source).
+	// Create custom container with nix package for nix-hash binary
+	customContainer := dag.Container().
+		From("ghcr.io/goreleaser/goreleaser:latest").
+		WithExec([]string{"apk", "add", "nix"})
+
+	// Use custom container with Goreleaser
+	return dag.Goreleaser(m.Source, dagger.GoreleaserOpts{
+		Container: customContainer,
+	}).
 		WithSecretVariable("GITHUB_TOKEN", githubToken).
 		WithEnvVariable("GH_ORG_NAME", githubOrgName).
 		Release().
@@ -84,6 +101,19 @@ func (m *ContainerUse) Test(ctx context.Context,
 
 	return ctr.
 		WithExec(args, dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true}).
+		Stdout(ctx)
+}
+
+// TestNixHash tests if nix-hash binary is available in our custom container
+func (m *ContainerUse) TestNixHash(ctx context.Context) (string, error) {
+	// Create the same custom container we use for releases
+	customContainer := dag.Container().
+		From("ghcr.io/goreleaser/goreleaser:latest").
+		WithExec([]string{"apk", "add", "nix"})
+
+	// Test if nix-hash is available
+	return customContainer.
+		WithExec([]string{"which", "nix-hash"}).
 		Stdout(ctx)
 }
 
