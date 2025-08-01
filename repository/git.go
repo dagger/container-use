@@ -141,7 +141,10 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 
 		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
 		if err != nil {
+		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
+		if err != nil {
 			return err
+		}
 		}
 
 		_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
