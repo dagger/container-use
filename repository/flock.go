@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -58,7 +59,10 @@ func (rlm *RepositoryLockManager) GetLock(lockType LockType) *RepositoryLock {
 	lockDir := filepath.Join(os.TempDir(), "container-use-locks")
 	lockFile := filepath.Join(lockDir, lockFileName)
 
-	os.MkdirAll(lockDir, 0755)
+	err := os.MkdirAll(lockDir, 0755)
+	if err != nil {
+		slog.Error("Failed to create lock directory", "error", err)
+	}
 
 	lock := &RepositoryLock{
 		flock: flock.New(lockFile),
@@ -70,15 +74,13 @@ func (rlm *RepositoryLockManager) GetLock(lockType LockType) *RepositoryLock {
 
 // WithLock executes a function while holding an exclusive lock for the specified lock type
 func (rlm *RepositoryLockManager) WithLock(ctx context.Context, lockType LockType, fn func() error) error {
-	lock := rlm.GetLock(lockType)
-	return lock.WithLock(ctx, fn)
+	return rlm.GetLock(lockType).WithLock(ctx, fn)
 }
 
 // WithRLock executes a function while holding a shared (read) lock for the specified lock type.
 // Multiple readers can hold the lock simultaneously, but writers will block until all readers release.
 func (rlm *RepositoryLockManager) WithRLock(ctx context.Context, lockType LockType, fn func() error) error {
-	lock := rlm.GetLock(lockType)
-	return lock.WithRLock(ctx, fn)
+	return rlm.GetLock(lockType).WithRLock(ctx, fn)
 }
 
 // Lock acquires an exclusive repository lock.
