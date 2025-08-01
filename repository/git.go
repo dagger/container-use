@@ -141,10 +141,10 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 
 		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
 		if err != nil {
-		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
-		if err != nil {
-			return err
-		}
+			_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
+			if err != nil {
+				return err
+			}
 		}
 
 		_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
@@ -277,7 +277,6 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {
 	var result []byte
-	var loadErr error
 
 	err := r.lockManager.WithRLock(ctx, LockTypeGitNotes, func() error {
 		buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
@@ -286,17 +285,13 @@ func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte
 				result = nil
 				return nil
 			}
-			loadErr = err
 			return err
 		}
 		result = []byte(buff)
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
-	return result, loadErr
+	return result, err
 }
 
 func (r *Repository) addGitNote(ctx context.Context, env *environment.Environment, note string) error {
