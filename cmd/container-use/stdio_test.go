@@ -295,7 +295,12 @@ func TestSharedRepositoryContention(t *testing.T) {
 				return
 			}
 
-			firstLine := strings.Split(strings.TrimSpace(listOutput), "\n")[0]
+			lines := strings.Split(strings.TrimSpace(listOutput), "\n")
+			if len(lines) == 0 {
+				errors[serverIdx] = fmt.Errorf("command returned empty output")
+				return
+			}
+			firstLine := lines[0]
 			if firstLine != "3" {
 				errors[serverIdx] = fmt.Errorf("expected 3 files, got output: %q (first line: %q)", listOutput, firstLine)
 				return
