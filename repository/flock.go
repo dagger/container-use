@@ -139,9 +139,9 @@ func (rl *RepositoryLock) WithRLock(ctx context.Context, fn func() error) error 
 
 // hashString creates a simple hash of a string for use in filenames
 func hashString(s string) uint32 {
-	h := uint32(2166136261)
+	h := uint32(2166136261) // FNV-1a 32-bit offset basis
 	for i := 0; i < len(s); i++ {
-		h = (h ^ uint32(s[i])) * 16777619
+		h = (h ^ uint32(s[i])) * 16777619 // FNV-1a 32-bit prime
 	}
 	return h
 }
