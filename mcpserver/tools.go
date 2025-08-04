@@ -567,7 +567,7 @@ Background commands are unaffected by filesystem and any other kind of changes. 
 				return nil, fmt.Errorf("failed to run command: %w", runErr)
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/ remote", stdout, env.State.Config.Workdir)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("%s\n\nAny changes to the container workdir (%s) have been committed and pushed to container-use/%s remote ref", stdout, env.State.Config.Workdir, env.ID)), nil
 		},
 	}
 }
@@ -704,7 +704,7 @@ func createEnvironmentFileEditTool(singleTenant bool) *Tool {
 				return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/ remote", targetFile)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/%s remote ref", targetFile, env.ID)), nil
 		},
 	}
 }
@@ -747,7 +747,7 @@ func createEnvironmentFileWriteTool(singleTenant bool) *Tool {
 				return nil, fmt.Errorf("unable to update the environment: %w", err)
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/ remote", targetFile)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("file %s written successfully and committed to container-use/%s remote ref", targetFile, env.ID)), nil
 		},
 	}
 }
@@ -782,7 +782,7 @@ func createEnvironmentFileDeleteTool(singleTenant bool) *Tool {
 				return nil, fmt.Errorf("failed to update env: %w", err)
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully and committed to container-use/ remote", targetFile)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("file %s deleted successfully and committed to container-use/%s remote ref", targetFile, env.ID)), nil
 		},
 	}
 }
