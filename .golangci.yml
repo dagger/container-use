@@ -1,0 +1,53 @@
+run:
+  timeout: 10m
+
+linters:
+  enable:
+    - bodyclose
+    - dogsled
+    - dupl
+    - errorlint
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - nilerr
+    - nolintlint
+    - revive
+    - rowserrcheck
+    - staticcheck
+    - stylecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+
+linters-settings:
+  gosec:
+    # Disable G306 (file permissions check) since we want to allow 0640
+    excludes:
+      - G306
+
+issues:
+  exclude-rules:
+    - path: "_test\\.go"
+      linters:
+        - dupl
+        - gosec
+    - path: "docs/"
+      linters:
+        - unparam
+    - text: "(?i).* always receives .*"
+      linters:
+        - unparam
+    - text: "G306:"
+      linters:
+        - gosec
