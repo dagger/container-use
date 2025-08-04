@@ -34,7 +34,7 @@ curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md 
 **Trust Only Container Use Tools (Optional):**
 For maximum security, restrict Claude Code to only use Container Use tools:
 ```sh
-claude --allowedTools mcp__container-use__environment_checkpoint,mcp__container-use__environment_create,mcp__container-use__environment_add_service,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update
+claude --allowedTools mcp__container-use__environment_add_service,mcp__container-use__environment_checkpoint,mcp__container-use__environment_config,mcp__container-use__environment_create,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_edit,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update_metadata
 ```
 
 <Info>
@@ -66,7 +66,7 @@ mkdir -p ./.amazonq/rules && curl https://raw.githubusercontent.com/dagger/conta
 
 **Trust Only Container Use Tools (Optional):**
 ```sh
-q chat --trust-tools=container_use___environment_add_service,container_use___environment_checkpoint,container_use___environment_config,container_use___environment_create,container_use___environment_file_delete,container_use___environment_file_list,container_use___environment_file_read,container_use___environment_file_write,container_use___environment_open,container_use___environment_run_cmd,container_use___environment_update_metadata
+q chat --trust-tools=container_use___environment_add_service,container_use___environment_checkpoint,container_use___environment_config,container_use___environment_create,container_use___environment_file_delete,container_use___environment_file_edit,container_use___environment_file_list,container_use___environment_file_read,container_use___environment_file_write,container_use___environment_open,container_use___environment_run_cmd,container_use___environment_update_metadata
 ```
 
 <Card title="Video Tutorial" icon="youtube" href="https://youtu.be/C2g3vdbffOI">
@@ -213,6 +213,7 @@ To lock the Zed agent out of your host system, you can create a dedicated agent 
             "environment_config": true,
             "environment_create": true,
             "environment_file_delete": true,
+            "environment_file_edit": true,
             "environment_file_list": true,
             "environment_file_read": true,
             "environment_file_write": true,
@@ -296,6 +297,76 @@ goose://extension?cmd=container-use&arg=stdio&id=container-use&name=container%20
   Learn more: [Goose MCP
   Extensions](https://block.github.io/goose/docs/getting-started/using-extensions#mcp-servers)
 </Info>
+
+## Sourcegraph Amp
+
+**Add MCP Configuration:**
+Add this configuration to `~/.config/amp/settings.json`:
+```json
+{
+    "amp.mcpServers": {
+        "container-use": {
+            "command": "container-use",
+            "args": ["stdio"]
+        }
+    },
+    "amp.commands.allowlist": [],
+    "amp.commands.strict": true,
+    "amp.dangerouslyAllowAll": false,
+    "amp.updates.autoUpdate.enabled": true
+}
+```
+
+**Add Agent Rules:**
+Save agent instructions to your project root:
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> AGENT.md
+```
+
+<Info>Learn more: [Sourcegraph Amp Documentation](https://ampcode.com/manual/)</Info>
+
+## Charm Crush
+
+**Add MCP Configuration:**
+Add this configuration to [a valid location](https://github.com/charmbracelet/crush?tab=readme-ov-file#configuration) like `./.crush.json`:
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "mcp": {
+    "container-use": {
+      "type": "stdio",
+      "command": "container-use",
+      "args": ["stdio"],
+      "env": {}
+    }
+  },
+  "permissions": {
+    "allowed_tools": [
+      "mcp_container-use_environment_add_service",
+      "mcp_container-use_environment_checkpoint",
+      "mcp_container-use_environment_config",
+      "mcp_container-use_environment_create",
+      "mcp_container-use_environment_file_delete",
+      "mcp_container-use_environment_file_edit",
+      "mcp_container-use_environment_file_list",
+      "mcp_container-use_environment_file_read",
+      "mcp_container-use_environment_file_write",
+      "mcp_container-use_environment_open",
+      "mcp_container-use_environment_run_cmd",
+      "mcp_container-use_environment_update_metadata"
+    ]
+  }
+}
+```
+
+**Add Agent Rules:**
+Save agent instructions to your project root:
+```sh
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CRUSH.md
+```
+
+<Info>Learn more: [Crush project on GitHub](https://github.com/charmbracelet/crush)</Info>
+
 
 ## Cline
 

@@ -1,5 +1,6 @@
 /cu
 /container-use
+/cmd/container-use/container-use
 /container-use.exe
 /completions/
 
@@ -24,3 +25,8 @@ build/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Crush directory
+.crush/
+.crush.json
+CRUSH.md

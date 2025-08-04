@@ -128,28 +128,37 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 
 	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
 
-	currentHead, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", "HEAD")
-	if err != nil {
-		return "", err
-	}
-	currentHead = strings.TrimSpace(currentHead)
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+		if _, err := os.Stat(worktreePath); err == nil {
+			return nil
+		}
 
-	_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
-	if err != nil {
-		return "", err
-	}
+		currentHead, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", "HEAD")
+		if err != nil {
+			return err
+		}
+		currentHead = strings.TrimSpace(currentHead)
 
-	_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
-	if err != nil {
-		return "", err
-	}
+		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
+		if err != nil {
+			_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
+			if err != nil {
+				return err
+			}
+		}
 
-	_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
-	if err != nil {
-		return "", err
-	}
+		_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
+		if err != nil {
+			return err
+		}
 
-	return worktreePath, nil
+		_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 // createInitialCommit creates an empty commit with the environment creation message - this prevents multiple environments from overwriting the container-use-state on the parent commit
@@ -228,15 +237,17 @@ func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 		return err
 	}
 
-	if err := fetch(); err != nil {
-		if strings.Contains(err.Error(), "[rejected]") {
-			if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
-				return fetch()
+	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+		if err := fetch(); err != nil {
+			if strings.Contains(err.Error(), "[rejected]") {
+				if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
+					return fetch()
+				}
 			}
+			return err
 		}
-		return err
-	}
-	return nil
+		return nil
+	})
 }
 
 func (r *Repository) saveState(ctx context.Context, env *environment.Environment) error {
@@ -258,22 +269,29 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 		return err
 	}
 
-	_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
-	if err != nil {
+	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
 		return err
-	}
-	return nil
+	})
 }
 
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {
-	buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
-	if err != nil {
-		if strings.Contains(err.Error(), "no note found") {
-			return nil, nil
+	var result []byte
+
+	err := r.lockManager.WithRLock(ctx, LockTypeGitNotes, func() error {
+		buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
+		if err != nil {
+			if strings.Contains(err.Error(), "no note found") {
+				result = nil
+				return nil
+			}
+			return err
 		}
-		return nil, err
-	}
-	return []byte(buff), nil
+		result = []byte(buff)
+		return nil
+	})
+
+	return result, err
 }
 
 func (r *Repository) addGitNote(ctx context.Context, env *environment.Environment, note string) error {
