@@ -33,18 +33,18 @@ type envToolOptions struct {
 	useCurrentEnvironment bool
 }
 
-func newEnvironmentTool(config envToolOptions, args ...mcp.ToolOption) mcp.Tool {
+func newEnvironmentTool(toolOptions envToolOptions, mcpToolOptions ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
-		mcp.WithDescription(config.description),
+		mcp.WithDescription(toolOptions.description),
 		explanationArgument,
 	}
 
 	// in single-tenant mode, environment tools (except open) use currentEnvironmentID & currentEnvironmentSource as their target env
-	if !config.useCurrentEnvironment {
+	if !toolOptions.useCurrentEnvironment {
 		opts = append(opts, environmentSourceArgument)
 		opts = append(opts, environmentIDArgument)
 	}
 
-	opts = append(opts, args...)
-	return mcp.NewTool(config.name, opts...)
+	opts = append(opts, mcpToolOptions...)
+	return mcp.NewTool(toolOptions.name, opts...)
 }
