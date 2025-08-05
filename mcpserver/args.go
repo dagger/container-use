@@ -27,22 +27,24 @@ func newRepositoryTool(name string, description string, args ...mcp.ToolOption) 
 	return mcp.NewTool(name, opts...)
 }
 
-type EnvironmentToolConfig struct {
-	UseCurrentEnvironment bool
+type envToolOptions struct {
+	name                  string
+	description           string
+	useCurrentEnvironment bool
 }
 
-func newEnvironmentTool(name string, description string, config EnvironmentToolConfig, singleTenant bool, args ...mcp.ToolOption) mcp.Tool {
+func newEnvironmentTool(config envToolOptions, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
-		mcp.WithDescription(description),
+		mcp.WithDescription(config.description),
 		explanationArgument,
 	}
 
-	// Always include both params if not using current environment, otherwise conditionally include based on single-tenant mode
-	if !config.UseCurrentEnvironment || !singleTenant {
+	// in single-tenant mode, environment tools (except open) use currentEnvironmentID & currentEnvironmentSource as their target env
+	if !config.useCurrentEnvironment {
 		opts = append(opts, environmentSourceArgument)
 		opts = append(opts, environmentIDArgument)
 	}
 
 	opts = append(opts, args...)
-	return mcp.NewTool(name, opts...)
+	return mcp.NewTool(config.name, opts...)
 }

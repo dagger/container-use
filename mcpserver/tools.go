@@ -248,7 +248,7 @@ func createEnvironmentOpenTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_open",
 			"Opens an existing environment. Return format is same as environment_create.",
-			EnvironmentToolConfig{UseCurrentEnvironment: false},
+			envToolOptions{useCurrentEnvironment: false},
 			singleTenant,
 		),
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -362,7 +362,7 @@ func createEnvironmentUpdateMetadataTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_update_metadata",
 			"Update environment metadata such as title. This updates the descriptive information about what work is being done in the environment.",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("title",
 				mcp.Description("Updated title describing the work being done in this environment."),
@@ -399,7 +399,7 @@ func createEnvironmentConfigTool(singleTenant bool) *Tool {
 			"Make environment config changes such as base image and setup commands."+
 				"If the environment is missing any tools or instructions, you MUST call this function to update the environment."+
 				"You MUST update the environment with any useful tools. You will be resumed with no other context than the information provided here",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithObject("config",
 				mcp.Required(),
@@ -513,7 +513,7 @@ func createEnvironmentRunCmdTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_run_cmd",
 			"Run a terminal command inside a NEW container within the environment.",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("command",
 				mcp.Description("The terminal command to execute. If empty, the environment's default command is used."),
@@ -602,7 +602,7 @@ func createEnvironmentFileReadTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_file_read",
 			"Read the contents of a file, specifying a line range or the entire file.",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to read, absolute or relative to the workdir"),
@@ -648,7 +648,7 @@ func createEnvironmentFileListTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_file_list",
 			"List the contents of a directory",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("path",
 				mcp.Description("Path of the directory to list contents of, absolute or relative to the workdir"),
@@ -681,7 +681,7 @@ func createEnvironmentFileEditTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_file_edit",
 			"Find and replace text in a file.",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to write, absolute or relative to the workdir."),
@@ -742,7 +742,7 @@ func createEnvironmentFileWriteTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_file_write",
 			"Write the contents of a file.",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to write, absolute or relative to the workdir."),
@@ -786,7 +786,7 @@ func createEnvironmentFileDeleteTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_file_delete",
 			"Deletes a file at the specified path.",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to delete, absolute or relative to the workdir."),
@@ -822,7 +822,7 @@ func createEnvironmentCheckpointTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_checkpoint",
 			"Checkpoints an environment in its current state as a container.",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("destination",
 				mcp.Description("Container image destination to checkpoint to (e.g. registry.com/user/image:tag"),
@@ -855,7 +855,7 @@ func createEnvironmentAddServiceTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_add_service",
 			"Add a service to the environment (e.g. database, cache, etc.)",
-			EnvironmentToolConfig{UseCurrentEnvironment: true},
+			envToolOptions{useCurrentEnvironment: singleTenant},
 			singleTenant,
 			mcp.WithString("name",
 				mcp.Description("The name of the service to start."),
