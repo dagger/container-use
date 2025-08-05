@@ -480,7 +480,7 @@ TELL THE USER: To make these changes persistent, they will have to run "cu confi
 	}
 }
 
-func createEnvironmentListTool(singleTenant bool) *Tool {
+func createEnvironmentListTool(_ bool) *Tool {
 	return &Tool{
 		Definition: newRepositoryTool(
 			"environment_list",
