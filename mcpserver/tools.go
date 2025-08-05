@@ -149,7 +149,7 @@ func createTools(singleTenant bool) []*Tool {
 }
 
 func Tools() []*Tool {
-	return createTools(false) // Default to multi-tenant mode for backward compatibility
+	return createTools(false) // Default to multi-tenant mode when called outside of RunStdioServer
 }
 
 func wrapTool(tool *Tool) *Tool {
@@ -506,7 +506,10 @@ func createEnvironmentListTool(_ bool) *Tool {
 			if err != nil {
 				return nil, err
 			}
-			return mcp.NewToolResultText(string(out)), nil
+
+			// Add warning message for LLMs
+			result := string(out) + "\n\nDO NOT change environments without explicit permission from the user"
+			return mcp.NewToolResultText(result), nil
 		},
 	}
 }
