@@ -16,7 +16,10 @@ var (
 	// currentEnvironmentID stores the current environment ID for single-tenant mode
 	// This is per-server-process, not persisted to disk
 	currentEnvironmentID string
-	currentEnvMutex      sync.RWMutex
+	// currentEnvironmentSource stores the current environment source for single-tenant mode
+	// This is per-server-process, not persisted to disk
+	currentEnvironmentSource string
+	currentEnvMutex          sync.RWMutex
 )
 
 // getCurrentEnvironmentID returns the current environment ID for single-tenant mode
@@ -30,9 +33,35 @@ func getCurrentEnvironmentID() (string, error) {
 	return currentEnvironmentID, nil
 }
 
+// getCurrentEnvironmentSource returns the current environment source for single-tenant mode
+func getCurrentEnvironmentSource() (string, error) {
+	currentEnvMutex.RLock()
+	defer currentEnvMutex.RUnlock()
+
+	if currentEnvironmentSource == "" {
+		return "", fmt.Errorf("no current environment set. Use environment_create or environment_open first")
+	}
+	return currentEnvironmentSource, nil
+}
+
 // setCurrentEnvironmentID sets the current environment ID for single-tenant mode
 func setCurrentEnvironmentID(envID string) {
 	currentEnvMutex.Lock()
 	defer currentEnvMutex.Unlock()
 	currentEnvironmentID = envID
+}
+
+// setCurrentEnvironmentSource sets the current environment source for single-tenant mode
+func setCurrentEnvironmentSource(envSource string) {
+	currentEnvMutex.Lock()
+	defer currentEnvMutex.Unlock()
+	currentEnvironmentSource = envSource
+}
+
+// setCurrentEnvironment sets both the current environment ID and source for single-tenant mode
+func setCurrentEnvironment(envID, envSource string) {
+	currentEnvMutex.Lock()
+	defer currentEnvMutex.Unlock()
+	currentEnvironmentID = envID
+	currentEnvironmentSource = envSource
 }

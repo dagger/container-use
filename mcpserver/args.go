@@ -16,22 +16,30 @@ var (
 	)
 )
 
-func newRepositoryTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
+func newRepositoryTool(name string, description string, singleTenant bool, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
 		explanationArgument,
-		environmentSourceArgument,
 	}
-	opts = append(opts, args...)
 
+	// Only include environment_source for multi-tenant mode or create/open operations
+	if !singleTenant {
+		opts = append(opts, environmentSourceArgument)
+	}
+
+	opts = append(opts, args...)
 	return mcp.NewTool(name, opts...)
 }
 
-func newEnvironmentTool(name string, description string, includeEnvIDArg bool, args ...mcp.ToolOption) mcp.Tool {
+func newEnvironmentTool(name string, description string, includeEnvIDArg bool, singleTenant bool, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
 		explanationArgument,
-		environmentSourceArgument,
+	}
+
+	// Only include environment_source for multi-tenant mode or create/open operations
+	if !singleTenant {
+		opts = append(opts, environmentSourceArgument)
 	}
 
 	if includeEnvIDArg {

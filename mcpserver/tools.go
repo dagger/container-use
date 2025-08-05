@@ -26,10 +26,29 @@ type singleTenantKey struct{}
 // this allows api optimizations where environment_id is not required and allows claude tasks inherit their parent's envs
 
 func openRepository(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, error) {
-	source, err := request.RequireString("environment_source")
-	if err != nil {
-		return nil, err
+	// Check if we're in single-tenant mode
+	singleTenant, _ := ctx.Value(singleTenantKey{}).(bool)
+
+	var source string
+	var err error
+
+	if singleTenant {
+		// In single-tenant mode, try to get from stored value first
+		source = request.GetString("environment_source", "")
+		if source == "" {
+			source, err = getCurrentEnvironmentSource()
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		// In multi-tenant mode, environment_source is required
+		source, err = request.RequireString("environment_source")
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	repo, err := repository.Open(ctx, source)
 	if err != nil {
 		return nil, fmt.Errorf("unable to open repository: %w", err)
@@ -229,7 +248,8 @@ func createEnvironmentOpenTool(singleTenant bool) *Tool {
 		Definition: newEnvironmentTool(
 			"environment_open",
 			"Opens an existing environment. Return format is same as environment_create.",
-			true, // Always include environment_id parameter for environment_open
+			true,  // Always include environment_id parameter for environment_open
+			false, // Always include environment_source parameter for environment_open (even in single-tenant mode)
 		),
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			_, env, err := openEnvironment(ctx, request)
@@ -239,7 +259,8 @@ func createEnvironmentOpenTool(singleTenant bool) *Tool {
 
 			// In single-tenant mode, set this as the current environment
 			if singleTenantMode, _ := ctx.Value(singleTenantKey{}).(bool); singleTenantMode {
-				setCurrentEnvironmentID(env.ID)
+				source, _ := request.RequireString("environment_source")
+				setCurrentEnvironment(env.ID, source)
 			}
 
 			return EnvironmentToCallResult(env)
@@ -269,6 +290,7 @@ func createEnvironmentCreateTool(singleTenant bool) *Tool {
 			`Creates a new development environment.
 The environment is the result of a the setups commands on top of the base image.
 Environment configuration is managed by the user via cu config commands.`,
+			false, // Always include environment_source parameter for environment_create (even in single-tenant mode)
 			args...,
 		),
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -306,7 +328,8 @@ Environment configuration is managed by the user via cu config commands.`,
 
 			// In single-tenant mode, set this as the current environment
 			if singleTenantMode, _ := ctx.Value(singleTenantKey{}).(bool); singleTenantMode {
-				setCurrentEnvironmentID(env.ID)
+				source, _ := request.RequireString("environment_source")
+				setCurrentEnvironment(env.ID, source)
 			}
 
 			out, err := marshalEnvironment(env)
@@ -341,6 +364,7 @@ func createEnvironmentUpdateMetadataTool(singleTenant bool) *Tool {
 			"environment_update_metadata",
 			"Update environment metadata such as title. This updates the descriptive information about what work is being done in the environment.",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("title",
 				mcp.Description("Updated title describing the work being done in this environment."),
 			),
@@ -377,6 +401,7 @@ func createEnvironmentConfigTool(singleTenant bool) *Tool {
 				"If the environment is missing any tools or instructions, you MUST call this function to update the environment."+
 				"You MUST update the environment with any useful tools. You will be resumed with no other context than the information provided here",
 			!singleTenant,
+			singleTenant,
 			mcp.WithObject("config",
 				mcp.Required(),
 				mcp.Properties(map[string]any{
@@ -458,6 +483,7 @@ func createEnvironmentListTool(singleTenant bool) *Tool {
 		Definition: newRepositoryTool(
 			"environment_list",
 			"List available environments",
+			singleTenant,
 		),
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			repo, err := openRepository(ctx, request)
@@ -490,6 +516,7 @@ func createEnvironmentRunCmdTool(singleTenant bool) *Tool {
 			"environment_run_cmd",
 			"Run a terminal command inside a NEW container within the environment.",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("command",
 				mcp.Description("The terminal command to execute. If empty, the environment's default command is used."),
 			),
@@ -578,6 +605,7 @@ func createEnvironmentFileReadTool(singleTenant bool) *Tool {
 			"environment_file_read",
 			"Read the contents of a file, specifying a line range or the entire file.",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to read, absolute or relative to the workdir"),
 				mcp.Required(),
@@ -623,6 +651,7 @@ func createEnvironmentFileListTool(singleTenant bool) *Tool {
 			"environment_file_list",
 			"List the contents of a directory",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("path",
 				mcp.Description("Path of the directory to list contents of, absolute or relative to the workdir"),
 				mcp.Required(),
@@ -655,6 +684,7 @@ func createEnvironmentFileEditTool(singleTenant bool) *Tool {
 			"environment_file_edit",
 			"Find and replace text in a file.",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to write, absolute or relative to the workdir."),
 				mcp.Required(),
@@ -715,6 +745,7 @@ func createEnvironmentFileWriteTool(singleTenant bool) *Tool {
 			"environment_file_write",
 			"Write the contents of a file.",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to write, absolute or relative to the workdir."),
 				mcp.Required(),
@@ -758,6 +789,7 @@ func createEnvironmentFileDeleteTool(singleTenant bool) *Tool {
 			"environment_file_delete",
 			"Deletes a file at the specified path.",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("target_file",
 				mcp.Description("Path of the file to delete, absolute or relative to the workdir."),
 				mcp.Required(),
@@ -793,6 +825,7 @@ func createEnvironmentCheckpointTool(singleTenant bool) *Tool {
 			"environment_checkpoint",
 			"Checkpoints an environment in its current state as a container.",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("destination",
 				mcp.Description("Container image destination to checkpoint to (e.g. registry.com/user/image:tag"),
 				mcp.Required(),
@@ -825,6 +858,7 @@ func createEnvironmentAddServiceTool(singleTenant bool) *Tool {
 			"environment_add_service",
 			"Add a service to the environment (e.g. database, cache, etc.)",
 			!singleTenant,
+			singleTenant,
 			mcp.WithString("name",
 				mcp.Description("The name of the service to start."),
 				mcp.Required(),
