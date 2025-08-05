@@ -16,33 +16,30 @@ var (
 	)
 )
 
-func newRepositoryTool(name string, description string, singleTenant bool, args ...mcp.ToolOption) mcp.Tool {
+func newRepositoryTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
 		explanationArgument,
-	}
-
-	// Only include environment_source for multi-tenant mode or create/open operations
-	if !singleTenant {
-		opts = append(opts, environmentSourceArgument)
+		environmentSourceArgument,
 	}
 
 	opts = append(opts, args...)
 	return mcp.NewTool(name, opts...)
 }
 
-func newEnvironmentTool(name string, description string, includeEnvIDArg bool, singleTenant bool, args ...mcp.ToolOption) mcp.Tool {
+type EnvironmentToolConfig struct {
+	UseCurrentEnvironment bool
+}
+
+func newEnvironmentTool(name string, description string, config EnvironmentToolConfig, singleTenant bool, args ...mcp.ToolOption) mcp.Tool {
 	opts := []mcp.ToolOption{
 		mcp.WithDescription(description),
 		explanationArgument,
 	}
 
-	// Only include environment_source for multi-tenant mode or create/open operations
-	if !singleTenant {
+	// Always include both params if not using current environment, otherwise conditionally include based on single-tenant mode
+	if !config.UseCurrentEnvironment || !singleTenant {
 		opts = append(opts, environmentSourceArgument)
-	}
-
-	if includeEnvIDArg {
 		opts = append(opts, environmentIDArgument)
 	}
 
