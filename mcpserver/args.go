@@ -4,7 +4,7 @@ import "github.com/mark3labs/mcp-go/mcp"
 
 var (
 	explanationArgument = mcp.WithString("explanation",
-		mcp.Description("One sentence explanation for why this directory is being listed."),
+		mcp.Description("One sentence explanation for why this tool is being called."),
 	)
 	environmentSourceArgument = mcp.WithString("environment_source",
 		mcp.Description("Absolute path to the source git repository for the environment."),

@@ -139,7 +139,7 @@ func writeFile(t *testing.T, repoDir, path, content string) {
 	dir := filepath.Dir(fullPath)
 	err := os.MkdirAll(dir, 0755)
 	require.NoError(t, err, "Failed to create dir")
-	err = os.WriteFile(fullPath, []byte(content), 0644)
+	err = os.WriteFile(fullPath, []byte(content), 0600)
 	require.NoError(t, err, "Failed to write file")
 }
 
@@ -299,7 +299,7 @@ func (u *UserActions) WriteSourceFile(path, content string) {
 	err := os.MkdirAll(dir, 0755)
 	require.NoError(u.t, err, "Failed to create dir")
 
-	err = os.WriteFile(fullPath, []byte(content), 0644)
+	err = os.WriteFile(fullPath, []byte(content), 0600)
 	require.NoError(u.t, err, "Failed to write source file")
 }
 

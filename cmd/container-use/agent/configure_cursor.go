@@ -53,7 +53,7 @@ func (a *ConfigureCursor) editMcpConfig() error {
 		return err
 	}
 
-	err = os.WriteFile(configPath, data, 0644)
+	err = os.WriteFile(configPath, data, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}

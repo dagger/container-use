@@ -10,6 +10,9 @@
     <a href="https://container-use.com/discord">
       <img src="https://img.shields.io/discord/707636530424053791?logo=discord&logoColor=white&label=Discord&color=7289DA" alt="Discord">
     </a>
+    <a href="https://github.com/clinebot/awesome-claude-code">
+      <img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Claude Code">
+    </a>
   </p>
 </div>
 

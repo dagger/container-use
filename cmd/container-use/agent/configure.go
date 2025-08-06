@@ -135,7 +135,7 @@ func saveRulesFile(rulesFile, content string) error {
 		return err
 	}
 
-	err = os.WriteFile(rulesFile, []byte(editedRules), 0644)
+	err = os.WriteFile(rulesFile, []byte(editedRules), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to update rules: %w", err)
 	}
