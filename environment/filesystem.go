@@ -114,8 +114,11 @@ func (env *Environment) FileEdit(ctx context.Context, explanation, targetFile, s
 	// Apply the changes using `Directory.withPatch` so we don't have to spit out
 	// the entire contents
 	patch := godiffpatch.GeneratePatch(targetFile, contents, newContents)
-	ctr := env.container()
-	err = env.apply(ctx, ctr.WithDirectory(".", ctr.Directory(".").WithPatch(patch)))
+	newDir, err := env.container().Directory(".").WithPatch(patch).Sync(ctx)
+	if err != nil {
+		return fmt.Errorf("failed applying file edit patch, skipping git propagation: %w", err)
+	}
+	err = env.apply(ctx, env.container().WithDirectory(".", newDir))
 	if err != nil {
 		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
 	}
