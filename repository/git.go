@@ -189,7 +189,10 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
-	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
+	// Protect commitWorktreeChanges to prevent concurrent writes to .git/worktrees/*/logs/HEAD
+	if err := r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+		return r.commitWorktreeChanges(ctx, worktreePath, explanation)
+	}); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 

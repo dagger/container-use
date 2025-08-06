@@ -102,6 +102,14 @@ func (s *MCPServerProcess) CreateEnvironment(title, explanation string) (string,
 		return "", err
 	}
 
+	// Check if the tool call resulted in an error
+	if result.IsError && len(result.Content) > 0 {
+		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
+			return "", fmt.Errorf("environment creation failed: %s", textContent.Text)
+		}
+		return "", fmt.Errorf("environment creation failed with unknown error format")
+	}
+
 	if len(result.Content) > 0 {
 		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
 			var envResponse struct {
