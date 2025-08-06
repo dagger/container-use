@@ -132,7 +132,7 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client, singleTenant bool) 
 
 func createTools(singleTenant bool) []*Tool {
 	return []*Tool{
-		wrapTool(createEnvironmentOpenTool(singleTenant)),
+		wrapTool(createEnvironmentOpenTool()),
 		wrapTool(createEnvironmentCreateTool(singleTenant)),
 		wrapTool(createEnvironmentUpdateMetadataTool(singleTenant)),
 		wrapTool(createEnvironmentConfigTool(singleTenant)),
@@ -243,7 +243,7 @@ func EnvironmentInfoToCallResult(envInfo *environment.EnvironmentInfo) (*mcp.Cal
 	return mcp.NewToolResultText(out), nil
 }
 
-func createEnvironmentOpenTool(singleTenant bool) *Tool {
+func createEnvironmentOpenTool() *Tool {
 	return &Tool{
 		Definition: newEnvironmentTool(
 			envToolOptions{
@@ -311,7 +311,7 @@ Environment configuration is managed by the user via cu config commands.`,
 					// Check if environment already exists
 					if currentEnvID, err := getCurrentEnvironmentID(); err == nil {
 						// Environment exists, return error with info about existing env
-						return nil, fmt.Errorf("environment_id %s already exists for this session. Tools can be used directly. You can environment_open %s for more information, or set allow_replace=true to destructively replace it.", currentEnvID, currentEnvID)
+						return nil, fmt.Errorf("environment_id %s already exists for this session. Tools can be used directly. You can environment_open %s for more information, or set allow_replace=true to destructively replace it", currentEnvID, currentEnvID)
 					}
 				}
 			}
