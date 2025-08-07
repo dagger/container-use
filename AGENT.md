@@ -17,6 +17,7 @@ DEVELOPMENT WORKFLOW:
 - Dependencies: Run 'go mod download' to install dependencies, 'go mod tidy' to clean up
 
 MANUAL STDIO TESTING:
+- IMPORTANT: container-use cannot be manually tested in its own /workdir. First initialize a new git repository elsewhere on disk (e.g., /tmp/test-repo) and manually test from there
 - Test stdio interface: Use 'echo $request | timeout $seconds container-use stdio' where:
   - $request is a JSON-formatted MCP request (e.g., '{"jsonrpc":"2.0","method":"ping","id":1}')
   - $seconds is timeout duration (e.g., 10 for 10 seconds)
@@ -26,7 +27,7 @@ MANUAL STDIO TESTING:
 - Common test requests:
   - Ping: '{"jsonrpc":"2.0","method":"ping","id":1}'
   - List tools: '{"jsonrpc":"2.0","method":"tools/list","id":1}'
-  - Initialize: '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true},"sampling":{}}},"id":1}'
+  - Initialize: '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}},"id":1}'
 
 DAGGER MODULE (more details in .dagger/):
 
