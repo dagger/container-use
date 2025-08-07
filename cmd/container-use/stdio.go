@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var singleTenant bool
+
 var stdioCmd = &cobra.Command{
 	Use:   "stdio",
 	Short: "Start MCP server for agent integration",
@@ -30,10 +32,11 @@ var stdioCmd = &cobra.Command{
 		}
 		defer dag.Close()
 
-		return mcpserver.RunStdioServer(ctx, dag)
+		return mcpserver.RunStdioServer(ctx, dag, singleTenant)
 	},
 }
 
 func init() {
+	stdioCmd.Flags().BoolVar(&singleTenant, "single-tenant", false, "Enable single-tenant mode where environment ID is optional (assumes one session per server)")
 	rootCmd.AddCommand(stdioCmd)
 }

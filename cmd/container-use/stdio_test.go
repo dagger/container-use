@@ -102,6 +102,14 @@ func (s *MCPServerProcess) CreateEnvironment(title, explanation string) (string,
 		return "", err
 	}
 
+	// Check if the tool call resulted in an error
+	if result.IsError && len(result.Content) > 0 {
+		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
+			return "", fmt.Errorf("environment creation failed: %s", textContent.Text)
+		}
+		return "", fmt.Errorf("environment creation failed with unknown error format")
+	}
+
 	if len(result.Content) > 0 {
 		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
 			var envResponse struct {
@@ -190,59 +198,53 @@ func (s *MCPServerProcess) RunCommand(envID, command, explanation string) (strin
 	return "", nil
 }
 
-func TestSharedRepositoryContention(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping E2E test")
+// createMCPServerForRepositoryTest creates an MCP server process for repository contention testing
+func createMCPServerForRepositoryTest(t *testing.T, i int, repoDir, configDir string, singleTenant bool) *MCPServerProcess {
+	ctx := context.Background()
+	containerUseBinary := getContainerUseBinary(t)
+
+	var cmd *exec.Cmd
+	var clientArgs []string
+	if singleTenant {
+		cmd = exec.CommandContext(ctx, containerUseBinary, "stdio", "--single-tenant")
+		clientArgs = []string{"stdio", "--single-tenant"}
+	} else {
+		cmd = exec.CommandContext(ctx, containerUseBinary, "stdio")
+		clientArgs = []string{"stdio"}
 	}
 
-	const numServers = 10
-	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-shared-repo-*")
+	cmd.Dir = repoDir
+	cmd.Env = append(os.Environ(), fmt.Sprintf("CONTAINER_USE_CONFIG_DIR=%s", configDir))
+
+	mcpClient, err := client.NewStdioMCPClient(containerUseBinary, cmd.Env, clientArgs...)
 	require.NoError(t, err)
-	defer os.RemoveAll(sharedRepoDir)
 
-	setupGitRepo(t, sharedRepoDir)
+	initRequest := mcp.InitializeRequest{}
+	initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+	initRequest.Params.ClientInfo = mcp.Implementation{
+		Name:    fmt.Sprintf("Repository Test Client %d", i),
+		Version: "1.0.0",
+	}
+	initRequest.Params.Capabilities = mcp.ClientCapabilities{}
 
-	sharedConfigDir, err := os.MkdirTemp("", "cu-e2e-shared-config-*")
+	serverInfo, err := mcpClient.Initialize(ctx, initRequest)
 	require.NoError(t, err)
-	defer os.RemoveAll(sharedConfigDir)
 
-	servers := make([]*MCPServerProcess, numServers)
-
-	for i := range numServers {
-		ctx := context.Background()
-		containerUseBinary := getContainerUseBinary(t)
-		cmd := exec.CommandContext(ctx, containerUseBinary, "stdio")
-		cmd.Dir = sharedRepoDir
-		cmd.Env = append(os.Environ(), fmt.Sprintf("CONTAINER_USE_CONFIG_DIR=%s", sharedConfigDir))
-
-		mcpClient, err := client.NewStdioMCPClient(containerUseBinary, cmd.Env, "stdio")
-		require.NoError(t, err)
-
-		initRequest := mcp.InitializeRequest{}
-		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-		initRequest.Params.ClientInfo = mcp.Implementation{
-			Name:    fmt.Sprintf("Shared Repo Test Client %d", i),
-			Version: "1.0.0",
-		}
-		initRequest.Params.Capabilities = mcp.ClientCapabilities{}
-
-		serverInfo, err := mcpClient.Initialize(ctx, initRequest)
-		require.NoError(t, err)
-
-		servers[i] = &MCPServerProcess{
-			cmd:        cmd,
-			client:     mcpClient,
-			repoDir:    sharedRepoDir,
-			configDir:  sharedConfigDir,
-			serverInfo: serverInfo,
-			t:          t,
-		}
-
-		t.Cleanup(func() {
-			servers[i].Close()
-		})
+	server := &MCPServerProcess{
+		cmd:        cmd,
+		client:     mcpClient,
+		repoDir:    repoDir,
+		configDir:  configDir,
+		serverInfo: serverInfo,
+		t:          t,
 	}
 
+	return server
+}
+
+// runRepositoryContentionTest runs the core repository contention test logic
+func runRepositoryContentionTest(t *testing.T, servers []*MCPServerProcess, testPrefix string) {
+	numServers := len(servers)
 	var wg sync.WaitGroup
 	envIDs := make([]string, numServers)
 	errors := make([]error, numServers)
@@ -253,8 +255,8 @@ func TestSharedRepositoryContention(t *testing.T) {
 			defer wg.Done()
 
 			envID, err := servers[serverIdx].CreateEnvironment(
-				fmt.Sprintf("Shared Repo Test %d", serverIdx),
-				fmt.Sprintf("Testing shared repository contention %d", serverIdx),
+				fmt.Sprintf("%s Test %d", testPrefix, serverIdx),
+				fmt.Sprintf("Testing %s repository contention %d", testPrefix, serverIdx),
 			)
 			if err != nil {
 				errors[serverIdx] = fmt.Errorf("environment creation failed: %w", err)
@@ -321,7 +323,7 @@ func TestSharedRepositoryContention(t *testing.T) {
 	wg.Wait()
 
 	for i := range numServers {
-		assert.NoError(t, errors[i], "Server %d should handle shared repository contention successfully", i)
+		assert.NoError(t, errors[i], "Server %d should handle %s repository contention successfully", i, testPrefix)
 		assert.NotEmpty(t, envIDs[i], "Server %d should have environment ID", i)
 	}
 
@@ -333,5 +335,61 @@ func TestSharedRepositoryContention(t *testing.T) {
 		}
 	}
 
-	t.Logf("All %d servers completed successfully", numServers)
+	t.Logf("All %d %s servers completed successfully", numServers, testPrefix)
+}
+
+func TestRepositoryContention(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test")
+	}
+
+	const numServers = 10
+	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-shared-repo-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(sharedRepoDir)
+
+	setupGitRepo(t, sharedRepoDir)
+
+	sharedConfigDir, err := os.MkdirTemp("", "cu-e2e-shared-config-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(sharedConfigDir)
+
+	servers := make([]*MCPServerProcess, numServers)
+
+	for i := range numServers {
+		servers[i] = createMCPServerForRepositoryTest(t, i, sharedRepoDir, sharedConfigDir, false)
+		t.Cleanup(func() {
+			servers[i].Close()
+		})
+	}
+
+	runRepositoryContentionTest(t, servers, "Multi-Tenant")
+}
+
+func TestSingleTenantRepositoryContention(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test")
+	}
+
+	const numServers = 10
+	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-single-tenant-repo-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(sharedRepoDir)
+
+	setupGitRepo(t, sharedRepoDir)
+
+	sharedConfigDir, err := os.MkdirTemp("", "cu-e2e-single-tenant-config-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(sharedConfigDir)
+
+	servers := make([]*MCPServerProcess, numServers)
+
+	for i := range numServers {
+		servers[i] = createMCPServerForRepositoryTest(t, i, sharedRepoDir, sharedConfigDir, true)
+		t.Cleanup(func() {
+			servers[i].Close()
+		})
+	}
+
+	runRepositoryContentionTest(t, servers, "Single-Tenant")
 }

@@ -11,7 +11,7 @@ var (
 		mcp.Required(),
 	)
 	environmentIDArgument = mcp.WithString("environment_id",
-		mcp.Description("The ID of the environment for this command. Must call `environment_create` first."),
+		mcp.Description("The UUID of the environment for this command."),
 		mcp.Required(),
 	)
 )
@@ -22,19 +22,29 @@ func newRepositoryTool(name string, description string, args ...mcp.ToolOption) 
 		explanationArgument,
 		environmentSourceArgument,
 	}
-	opts = append(opts, args...)
 
+	opts = append(opts, args...)
 	return mcp.NewTool(name, opts...)
 }
 
-func newEnvironmentTool(name string, description string, args ...mcp.ToolOption) mcp.Tool {
-	opts := []mcp.ToolOption{
-		mcp.WithDescription(description),
-		explanationArgument,
-		environmentSourceArgument,
-		environmentIDArgument,
-	}
-	opts = append(opts, args...)
+type envToolOptions struct {
+	name                  string
+	description           string
+	useCurrentEnvironment bool
+}
 
-	return mcp.NewTool(name, opts...)
+func newEnvironmentTool(toolOptions envToolOptions, mcpToolOptions ...mcp.ToolOption) mcp.Tool {
+	opts := []mcp.ToolOption{
+		mcp.WithDescription(toolOptions.description),
+		explanationArgument,
+	}
+
+	// in single-tenant mode, environment tools (except open) use currentEnvironmentID & currentEnvironmentSource as their target env
+	if !toolOptions.useCurrentEnvironment {
+		opts = append(opts, environmentSourceArgument)
+		opts = append(opts, environmentIDArgument)
+	}
+
+	opts = append(opts, mcpToolOptions...)
+	return mcp.NewTool(toolOptions.name, opts...)
 }
