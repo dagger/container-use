@@ -128,7 +128,7 @@ func (r *Repository) initializeWorktree(ctx context.Context, id string) (string,
 
 	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
 
-	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		if _, err := os.Stat(worktreePath); err == nil {
 			return nil
 		}
@@ -192,14 +192,14 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 	}
 
 	// Protect commitWorktreeChanges to prevent concurrent writes to .git/worktrees/*/logs/HEAD
-	if err := r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+	if err := r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		return r.commitWorktreeChanges(ctx, worktreePath, explanation)
 	}); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
 	// Use git notes lock for all git notes operations
-	if err := r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+	if err := r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
 		if err := r.saveState(ctx, env); err != nil {
 			return fmt.Errorf("failed to add notes: %w", err)
 		}
@@ -243,7 +243,7 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	return nil
 }
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
-	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
 		return r.propagateGitNotesUnlocked(ctx, ref)
 	})
 }
@@ -292,7 +292,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {
 	var result []byte
 
-	err := r.lockManager.WithRLock(ctx, LockTypeGitNotes, func() error {
+	err := r.lockManager.WithRLock(ctx, LockTypeNotes, func() error {
 		buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
 		if err != nil {
 			if strings.Contains(err.Error(), "no note found") {
