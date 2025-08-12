@@ -114,7 +114,7 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 		lockManager:  NewRepositoryLockManager(userRepoPath),
 	}
 
-	err = r.lockManager.WithLock(ctx, LockTypeRepo, func() error {
+	err = r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
 		if err := r.ensureFork(ctx); err != nil {
 			return fmt.Errorf("unable to fork the repository: %w", err)
 		}
@@ -191,7 +191,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 	}
 
 	// Protect createInitialCommit to prevent concurrent writes to .git/worktrees/*/logs/HEAD
-	if err := r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+	if err := r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		return r.createInitialCommit(ctx, worktree, id, description)
 	}); err != nil {
 		return nil, fmt.Errorf("failed to create initial commit: %w", err)
@@ -204,7 +204,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 	worktreeHead = strings.TrimSpace(worktreeHead)
 
 	var baseSourceDir *dagger.Directory
-	err = r.lockManager.WithRLock(ctx, LockTypeWorktree, func() error {
+	err = r.lockManager.WithRLock(ctx, LockTypeForkRepo, func() error {
 		var err error
 		baseSourceDir, err = dag.
 			Host().
@@ -229,7 +229,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	if err := r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+	if err := r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
 		return r.propagateToWorktree(ctx, env, explanation)
 	}); err != nil {
 		return nil, err
@@ -370,7 +370,7 @@ func (r *Repository) Update(ctx context.Context, env *environment.Environment, e
 
 	// Handle git notes outside the main propagation to avoid holding locks during export
 	if note := env.Notes.Pop(); note != "" {
-		return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+		return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
 			return r.addGitNote(ctx, env, note)
 		})
 	}
