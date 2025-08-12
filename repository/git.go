@@ -306,10 +306,13 @@ func (r *Repository) addGitNote(ctx context.Context, env *environment.Environmen
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
-	_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
-	if err != nil {
+	if err := r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
+		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
+		return err
+	}); err != nil {
 		return err
 	}
+
 	return r.propagateGitNotes(ctx, gitNotesLogRef)
 }
 
