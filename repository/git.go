@@ -190,9 +190,7 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	if err := r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
-		return r.commitWorktreeChanges(ctx, worktreePath, explanation)
-	}); err != nil {
+	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
@@ -347,21 +345,23 @@ func (r *Repository) revisionRange(ctx context.Context, env *environment.Environ
 }
 
 func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string) error {
-	status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
-	if err != nil {
+	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
+		status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
+		if err != nil {
+			return err
+		}
+
+		if strings.TrimSpace(status) == "" {
+			return nil
+		}
+
+		if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
+			return err
+		}
+
+		_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
 		return err
-	}
-
-	if strings.TrimSpace(status) == "" {
-		return nil
-	}
-
-	if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
-		return err
-	}
-
-	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
-	return err
+	})
 }
 
 // AI slop below!

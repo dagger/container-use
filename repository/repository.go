@@ -114,57 +114,55 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 		lockManager:  NewRepositoryLockManager(userRepoPath),
 	}
 
-	err = r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
-		if err := r.ensureFork(ctx); err != nil {
-			return fmt.Errorf("unable to fork the repository: %w", err)
-		}
-		if err := r.ensureUserRemote(ctx); err != nil {
-			return fmt.Errorf("unable to set container-use remote: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	if err := r.ensureFork(ctx); err != nil {
+		return nil, fmt.Errorf("unable to fork the repository: %w", err)
+	}
+	if err := r.ensureUserRemote(ctx); err != nil {
+		return nil, fmt.Errorf("unable to set container-use remote: %w", err)
 	}
 
 	return r, nil
 }
 
 func (r *Repository) ensureFork(ctx context.Context) error {
-	if _, err := os.Stat(r.forkRepoPath); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
-		return err
-	}
+	return r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+		if _, err := os.Stat(r.forkRepoPath); err == nil {
+			return nil
+		} else if !os.IsNotExist(err) {
+			return err
+		}
 
-	slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
-	if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
-		return err
-	}
-	_, err := RunGitCommand(ctx, r.forkRepoPath, "init", "--bare", "--template=")
-	if err != nil {
-		os.RemoveAll(r.forkRepoPath)
-		return err
-	}
-	return nil
+		slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
+		if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
+			return err
+		}
+		_, err := RunGitCommand(ctx, r.forkRepoPath, "init", "--bare", "--template=")
+		if err != nil {
+			os.RemoveAll(r.forkRepoPath)
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *Repository) ensureUserRemote(ctx context.Context) error {
-	currentForkPath, err := getContainerUseRemote(ctx, r.userRepoPath)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
+	return r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+		currentForkPath, err := getContainerUseRemote(ctx, r.userRepoPath)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "add", containerUseRemote, r.forkRepoPath)
 			return err
 		}
-		_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "add", containerUseRemote, r.forkRepoPath)
-		return err
-	}
 
-	if currentForkPath != r.forkRepoPath {
-		_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "set-url", containerUseRemote, r.forkRepoPath)
-		return err
-	}
+		if currentForkPath != r.forkRepoPath {
+			_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "set-url", containerUseRemote, r.forkRepoPath)
+			return err
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func (r *Repository) SourcePath() string {
