@@ -181,7 +181,6 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 			"err", rerr)
 	}()
 
-	// Export environment without holding any git locks - this only writes to filesystem
 	if err := r.exportEnvironment(ctx, env); err != nil {
 		return err
 	}
@@ -191,30 +190,25 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	// Protect commitWorktreeChanges to prevent concurrent writes to .git/worktrees/*/logs/HEAD
 	if err := r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		return r.commitWorktreeChanges(ctx, worktreePath, explanation)
 	}); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
-	// Use git notes lock for all git notes operations
-	if err := r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
-		if err := r.saveState(ctx, env); err != nil {
-			return fmt.Errorf("failed to add notes: %w", err)
-		}
+	if err := r.saveState(ctx, env); err != nil {
+		return fmt.Errorf("failed to add notes: %w", err)
+	}
 
+	if err := r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
 		slog.Info("Fetching container-use remote in source repository")
-		if _, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID); err != nil {
-			return err
-		}
-
-		if err := r.propagateGitNotesUnlocked(ctx, gitNotesStateRef); err != nil {
-			return err
-		}
-
-		return nil
+		_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID)
+		return err
 	}); err != nil {
+		return err
+	}
+
+	if err := r.propagateGitNotes(ctx, gitNotesStateRef); err != nil {
 		return err
 	}
 
@@ -243,27 +237,24 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	return nil
 }
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
-	return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
-		return r.propagateGitNotesUnlocked(ctx, ref)
-	})
-}
-
-func (r *Repository) propagateGitNotesUnlocked(ctx context.Context, ref string) error {
 	fullRef := fmt.Sprintf("refs/notes/%s", ref)
-	fetch := func() error {
-		_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
-		return err
-	}
 
-	if err := fetch(); err != nil {
-		if strings.Contains(err.Error(), "[rejected]") {
-			if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
-				return fetch()
-			}
+	return r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+		fetch := func() error {
+			_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
+			return err
 		}
-		return err
-	}
-	return nil
+
+		if err := fetch(); err != nil {
+			if strings.Contains(err.Error(), "[rejected]") {
+				if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
+					return fetch()
+				}
+			}
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *Repository) saveState(ctx context.Context, env *environment.Environment) error {
@@ -285,8 +276,10 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 		return err
 	}
 
-	_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
-	return err
+	return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
+		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
+		return err
+	})
 }
 
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {

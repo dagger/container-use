@@ -229,9 +229,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	if err := r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
-		return r.propagateToWorktree(ctx, env, explanation)
-	}); err != nil {
+	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
 		return nil, err
 	}
 
@@ -368,11 +366,8 @@ func (r *Repository) Update(ctx context.Context, env *environment.Environment, e
 		return err
 	}
 
-	// Handle git notes outside the main propagation to avoid holding locks during export
 	if note := env.Notes.Pop(); note != "" {
-		return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
-			return r.addGitNote(ctx, env, note)
-		})
+		return r.addGitNote(ctx, env, note)
 	}
 	return nil
 }
