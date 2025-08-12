@@ -359,15 +359,17 @@ func (r *Repository) isDescendantOfCommit(ctx context.Context, ancestorCommit, e
 // Update saves the provided environment to the repository.
 // Writes configuration and source code changes to the worktree and history + state to git notes.
 func (r *Repository) Update(ctx context.Context, env *environment.Environment, explanation string) error {
-	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
-		if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
-			return err
-		}
-		if note := env.Notes.Pop(); note != "" {
+	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
+		return err
+	}
+
+	// Handle git notes outside the main propagation to avoid holding locks during export
+	if note := env.Notes.Pop(); note != "" {
+		return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
 			return r.addGitNote(ctx, env, note)
-		}
-		return nil
-	})
+		})
+	}
+	return nil
 }
 
 // Delete removes an environment from the repository.
