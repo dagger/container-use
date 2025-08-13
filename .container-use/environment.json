@@ -7,7 +7,6 @@
     "cd /tmp && curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.11 sh && cp ./bin/dagger /usr/local/bin/dagger",
     "git config --global user.name \"Test User\"",
     "git config --global user.email \"test@dagger.com\"",
-    "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.61.0",
     "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
     "apt-get install -y nodejs",
     "npm i -g mint"
