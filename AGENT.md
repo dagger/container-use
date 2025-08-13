@@ -13,7 +13,7 @@ DEVELOPMENT WORKFLOW:
 - Build: Use 'go build -o container-use ./cmd/container-use' or 'dagger call build --platform=current export --path ./container-use'
 - Test: Run 'go test ./...' for all tests, 'go test -short ./...' for unit tests only, or 'go test -count=1 -v ./environment' for integration tests
 - Format: Always run 'go fmt ./...' before committing
-- Lint: Run 'golangci-lint run' to check for linting issues
+- Lint: Run 'dagger call lint' to check for linting issues
 - Dependencies: Run 'go mod download' to install dependencies, 'go mod tidy' to clean up
 
 MANUAL STDIO TESTING:
