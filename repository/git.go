@@ -116,35 +116,75 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 	return nil
 }
 
-func (r *Repository) initializeWorktree(ctx context.Context, id string) (string, error) {
+// initializeWorktree initializes a new worktree for environment creation.
+// It pushes the specified gitRef to create a new branch with the given id, then creates a worktree from that branch.
+func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) (string, error) {
+	if gitRef == "" {
+		gitRef = "HEAD"
+	}
+
 	worktreePath, err := r.WorktreePath(id)
 	if err != nil {
 		return "", err
 	}
 
+	slog.Info("Initializing new worktree", "repository", r.userRepoPath, "environment-id", id, "from-ref", gitRef)
+
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+		resolvedRef, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", gitRef)
+		if err != nil {
+			return err
+		}
+		resolvedRef = strings.TrimSpace(resolvedRef)
+
+		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
+		if err != nil {
+			// Retry once on failure
+			_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
+		if err != nil {
+			return err
+		}
+
+		_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+// getWorktree gets or recreates a worktree for an existing environment.
+// It assumes the environment branch already exists in the forkRepo and will fail if it doesn't.
+func (r *Repository) getWorktree(ctx context.Context, id string) (string, error) {
+	worktreePath, err := r.WorktreePath(id)
+	if err != nil {
+		return "", err
+	}
+
+	// Early return if the worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
 		return worktreePath, nil
 	}
 
-	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
+	slog.Info("Recreating worktree for existing environment", "repository", r.userRepoPath, "environment-id", id)
 
 	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+		// In case something has changed while waiting for lock. prolly too defensive.
 		if _, err := os.Stat(worktreePath); err == nil {
 			return nil
 		}
 
-		currentHead, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", "HEAD")
+		// Verify the environment branch exists in forkRepo before creating worktree
+		_, err := RunGitCommand(ctx, r.forkRepoPath, "rev-parse", "--verify", id)
 		if err != nil {
-			return err
-		}
-		currentHead = strings.TrimSpace(currentHead)
-
-		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
-		if err != nil {
-			_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
-			if err != nil {
-				return err
-			}
+			return fmt.Errorf("environment branch %s not found in fork repository: %w", id, err)
 		}
 
 		_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
