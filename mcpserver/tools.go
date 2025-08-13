@@ -276,6 +276,9 @@ func createEnvironmentCreateTool(singleTenant bool) *Tool {
 			mcp.Description("Short description of the work that is happening in this environment."),
 			mcp.Required(),
 		),
+		mcp.WithString("from_git_ref",
+			mcp.Description("Git reference to create the environment from (e.g., HEAD, main, feature-branch, SHA). Defaults to HEAD if not specified."),
+		),
 	}
 
 	// Add allow_replace parameter only in single-tenant mode
@@ -321,7 +324,8 @@ Environment configuration is managed by the user via cu config commands.`,
 				return nil, fmt.Errorf("dagger client not found in context")
 			}
 
-			env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""))
+			gitRef := request.GetString("from_git_ref", "HEAD")
+			env, err := repo.Create(ctx, dag, title, request.GetString("explanation", ""), gitRef)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create environment: %w", err)
 			}

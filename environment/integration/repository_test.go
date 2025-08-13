@@ -168,6 +168,69 @@ func TestRepositoryLog(t *testing.T) {
 	})
 }
 
+// TestRepositoryCreateFromGitRef tests creating environments from specific git references
+func TestRepositoryCreateFromGitRef(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-create-from-ref", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := context.Background()
+
+		// Create initial commit with test content
+		user.WriteFileInSourceRepo("initial.txt", "initial content", "Initial commit")
+
+		// Create a feature branch and add content
+		user.CreateBranchInSourceRepo("feature-branch")
+		user.WriteFileInSourceRepo("feature.txt", "feature content", "Add feature")
+
+		// Go back to master and add different content
+		user.CheckoutBranchInSourceRepo("master")
+		user.WriteFileInSourceRepo("main.txt", "main content", "Add main file")
+
+		// Get the SHA of the initial commit (before the main.txt was added)
+		initialSHA, err := repository.RunGitCommand(ctx, repo.SourcePath(), "log", "--format=%H", "-n", "2", "--reverse")
+		require.NoError(t, err)
+		initialCommitSHA := strings.Split(strings.TrimSpace(initialSHA), "\n")[0]
+
+		// Test creating environment from HEAD (default behavior)
+		envFromHead := user.CreateEnvironment("From HEAD", "Environment from HEAD")
+		content, err := envFromHead.FileRead(ctx, "main.txt", true, 0, 0)
+		require.NoError(t, err)
+		assert.Contains(t, content, "main content")
+
+		// Test creating environment from feature branch
+		envFromBranch, err := repo.Create(ctx, user.dag, "From Feature", "Environment from feature branch", "feature-branch")
+		require.NoError(t, err)
+		assert.NotNil(t, envFromBranch)
+
+		// Should have feature.txt but not main.txt
+		featureContent, err := envFromBranch.FileRead(ctx, "feature.txt", true, 0, 0)
+		require.NoError(t, err)
+		assert.Contains(t, featureContent, "feature content")
+
+		_, err = envFromBranch.FileRead(ctx, "main.txt", true, 0, 0)
+		assert.Error(t, err, "main.txt should not exist in feature branch environment")
+
+		// Test creating environment from specific SHA
+		envFromSHA, err := repo.Create(ctx, user.dag, "From SHA", "Environment from initial commit", initialCommitSHA)
+		require.NoError(t, err)
+		assert.NotNil(t, envFromSHA)
+
+		// Should have only initial.txt
+		initialContent, err := envFromSHA.FileRead(ctx, "initial.txt", true, 0, 0)
+		require.NoError(t, err)
+		assert.Contains(t, initialContent, "initial content")
+
+		_, err = envFromSHA.FileRead(ctx, "main.txt", true, 0, 0)
+		assert.Error(t, err, "main.txt should not exist in SHA environment")
+
+		_, err = envFromSHA.FileRead(ctx, "feature.txt", true, 0, 0)
+		assert.Error(t, err, "feature.txt should not exist in SHA environment")
+
+		// Test invalid git ref
+		_, err = repo.Create(ctx, user.dag, "Invalid Ref", "Environment from invalid ref", "nonexistent-ref")
+		assert.Error(t, err, "Should fail with invalid git ref")
+	})
+}
+
 // TestRepositoryDiff tests retrieving changes between commits
 func TestRepositoryDiff(t *testing.T) {
 	t.Parallel()

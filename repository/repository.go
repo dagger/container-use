@@ -179,11 +179,15 @@ func (r *Repository) exists(ctx context.Context, id string) error {
 	return nil
 }
 
-// Create creates a new environment with the given description and explanation.
+// Create creates a new environment with the given description, explanation, and optional git reference.
+// The git reference can be HEAD (default), a SHA, a branch name, or a tag.
 // Requires a dagger client for container operations during environment initialization.
-func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description, explanation string) (*environment.Environment, error) {
+func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description, explanation, gitRef string) (*environment.Environment, error) {
+	if gitRef == "" {
+		gitRef = "HEAD"
+	}
 	id := petname.Generate(2, "-")
-	worktree, err := r.initializeWorktree(ctx, id)
+	worktree, err := r.initializeWorktree(ctx, id, gitRef)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +246,7 @@ func (r *Repository) Get(ctx context.Context, dag *dagger.Client, id string) (*e
 		return nil, err
 	}
 
-	worktree, err := r.initializeWorktree(ctx, id)
+	worktree, err := r.getWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +272,7 @@ func (r *Repository) Info(ctx context.Context, id string) (*environment.Environm
 		return nil, err
 	}
 
-	worktree, err := r.initializeWorktree(ctx, id)
+	worktree, err := r.getWorktree(ctx, id)
 	if err != nil {
 		return nil, err
 	}
