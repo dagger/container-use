@@ -130,7 +130,7 @@ func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) 
 
 	slog.Info("Initializing new worktree", "repository", r.userRepoPath, "environment-id", id, "from-ref", gitRef)
 
-	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		resolvedRef, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", gitRef)
 		if err != nil {
 			return err
