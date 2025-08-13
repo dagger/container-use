@@ -125,7 +125,7 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 }
 
 func (r *Repository) ensureFork(ctx context.Context) error {
-	return r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		if _, err := os.Stat(r.forkRepoPath); err == nil {
 			return nil
 		} else if !os.IsNotExist(err) {
