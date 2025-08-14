@@ -2,9 +2,7 @@ name: Test Windows
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches: ['**']
   workflow_dispatch:
 
 jobs:
@@ -32,14 +30,11 @@ jobs:
         shell: pwsh
         run: |
           choco install dagger -y
-          # refreshenv doesn't work in GitHub Actions, manually update PATH
-          $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+          echo "$Env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           
       - name: Verify Dagger installation
         shell: pwsh
-        run: |
-          $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
-          dagger version
+        run: dagger version
 
       - name: Download dependencies
         run: go mod download

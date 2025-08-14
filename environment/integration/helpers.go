@@ -52,7 +52,7 @@ func createTestTempDir(t *testing.T, prefix string) string {
 			testName = testName[len(testName)-8:]
 		}
 		// Use C:\Temp or system temp root
-		tempRoot := filepath.Join(filepath.VolumeName(os.TempDir()), "\\Temp")
+		tempRoot := filepath.Join(filepath.VolumeName(os.TempDir()), "Temp")
 		if err := os.MkdirAll(tempRoot, 0755); err != nil {
 			// Fall back to regular temp dir if we can't create C:\Temp
 			tempRoot = os.TempDir()

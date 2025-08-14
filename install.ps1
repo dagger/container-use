@@ -1,72 +1,122 @@
 #Requires -Version 5.0
-
 <#
 .Description
     Download and install container-use.
+
 .PARAMETER Version
     Version of container-use to install (e.g., v0.4.0). Defaults to latest.
+    Also supports a 7-40 char git commit or "latest".
+
 .PARAMETER DownloadPath
-    Temporary download location. Defaults to temp file.
+    Temporary download location seed. The script will place artifacts in the same directory
+    as this temp file. Defaults to a system temp file.
+
 .PARAMETER InstallPath
     Installation directory. Defaults to $env:USERPROFILE\container-use
+
 .PARAMETER AddToPath
-    Add installation directory to PATH.
+    If set, add the installation directory to the user's PATH (no elevation required).
+
+.PARAMETER Repo
+    (Advanced) GitHub "owner/repo" to install from. Defaults to dagger/container-use.
+    Useful for testing a fork without editing the script.
+
 .EXAMPLE
     .\install.ps1
     Install latest version with default settings.
+
 .EXAMPLE
     .\install.ps1 -InstallPath "C:\tools\container-use"
     Install to C:\tools\container-use.
+
 .EXAMPLE
     .\install.ps1 -Version v0.4.0
     Install specified version v0.4.0.
+
 .EXAMPLE
     .\install.ps1 -AddToPath
     Install and add to PATH.
+
+.EXAMPLE
+    # Install from a fork's releases for testing
+    .\install.ps1 -Repo "grouville/container-use" -Version v0.3.5-test -AddToPath
 #>
 
 Param (
     [Parameter(Mandatory = $false)]
-    [ValidatePattern('^(latest|v?\d+\.\d+\.\d+(-[a-zA-Z0-9]+)?|[a-f0-9]{7,40})$')]
+    [ValidatePattern('^(latest|v?\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?|[a-f0-9]{7,40})$')]
     [string]$Version = "latest",
-    
+
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
     [string]$DownloadPath = [System.IO.Path]::GetTempFileName(),
-    
+
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
     [string]$InstallPath = "$env:USERPROFILE\container-use",
-    
+
     [Parameter(Mandatory = $false)]
-    [switch]$AddToPath = $false
+    [switch]$AddToPath = $false,
+
+    [Parameter(Mandatory = $false)]
+    [ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')]
+    [string]$Repo = "dagger/container-use"
 )
 
 # ---------------------------------------------------------------------------------
 # Container Use Installation Utility for Windows
-# Based on Dagger's installation script
+# Hardened for PS 5.1 and PS 7+; secure downloads; robust PATH handling
 # ---------------------------------------------------------------------------------
 
 $ErrorActionPreference = "Stop"
 
+# Ensure TLS 1.2 (older Windows can default to TLS 1.0/1.1)
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
+
 # Configuration
-$REPO = "dagger/container-use"
+$REPO = $Repo
 $BINARY_NAME = "container-use"
 
+# Conditionally supply -UseBasicParsing (PS < 6 supports it; PS 7+ removed it)
+function New-WebArgs {
+    param([Parameter(Mandatory=$true)] [string]$Uri)
+    $args = @{ Uri = $Uri }
+    if ($PSVersionTable.PSVersion.Major -lt 6) { $args.UseBasicParsing = $true }
+    return $args
+}
+
+# Safely append to PATH (User by default), avoiding dupes and empty tails
+function Add-PathEntry {
+    param(
+        [Parameter(Mandatory=$true)] [string]$PathToAdd,
+        [Parameter(Mandatory=$false)] [ValidateSet('User','Machine')] [string]$Scope = 'User'
+    )
+    $cur = [Environment]::GetEnvironmentVariable('Path', $Scope)
+    if (-not $cur) { $cur = '' }
+    $parts = @($cur -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) + @()
+
+    if ($parts -notcontains $PathToAdd) {
+        $newPath = ($parts + $PathToAdd) -join ';'
+        [Environment]::SetEnvironmentVariable('Path', $newPath, $Scope)
+        Write-Host "Added to $Scope PATH. Restart your terminal to pick it up." -ForegroundColor Green
+    } else {
+        Write-Host "Path already contains $PathToAdd" -ForegroundColor Green
+    }
+}
+
 function Get-ProcessorArchitecture {
+    # Map to Go arch names we ship: amd64, arm64
     $arch = $env:PROCESSOR_ARCHITECTURE
     switch ($arch) {
-        "AMD64" { return "amd64" }
-        "ARM64" { return "arm64" }
-        default {
-            throw "Unsupported architecture: $arch"
-        }
+        'AMD64' { return 'amd64' }
+        'ARM64' { return 'arm64' }
+        default { throw "Unsupported architecture: $arch (supported: AMD64, ARM64)" }
     }
 }
 
 function Find-LatestVersion {
     try {
-        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$REPO/releases/latest" -UseBasicParsing
+        $release = Invoke-RestMethod @((New-WebArgs "https://api.github.com/repos/$REPO/releases/latest")) -UserAgent "PowerShell"
         return $release.tag_name
     } catch {
         throw "Failed to fetch latest release: $_"
@@ -75,54 +125,36 @@ function Find-LatestVersion {
 
 function Get-DownloadUrl {
     Param (
-        [Parameter(Mandatory = $true)]
-        [string]$Version,
-        [Parameter(Mandatory = $true)]
-        [string]$Arch
+        [Parameter(Mandatory = $true)] [string]$Version,
+        [Parameter(Mandatory = $true)] [string]$Arch
     )
-    
-    # GoReleaser uses full tag (with v) in archive names
-    return "https://github.com/$REPO/releases/download/$Version/container-use_${Version}_windows_${Arch}.zip"
+    # GoReleaser uses the tag (with 'v') in archive names
+    "https://github.com/$REPO/releases/download/$Version/container-use_${Version}_windows_${Arch}.zip"
 }
 
 function Get-ChecksumUrl {
-    Param (
-        [Parameter(Mandatory = $true)]
-        [string]$Version
-    )
-    
-    return "https://github.com/$REPO/releases/download/$Version/checksums.txt"
+    Param ([Parameter(Mandatory = $true)] [string]$Version)
+    "https://github.com/$REPO/releases/download/$Version/checksums.txt"
 }
 
 function Get-Checksum {
     Param (
-        [Parameter(Mandatory = $true)]
-        [string]$Version,
-        [Parameter(Mandatory = $true)]
-        [string]$Arch
+        [Parameter(Mandatory = $true)] [string]$Version,
+        [Parameter(Mandatory = $true)] [string]$Arch
     )
-    
     $checksumUrl = Get-ChecksumUrl -Version $Version
-    # GoReleaser uses full tag (with v) in archive names
     $target = "container-use_${Version}_windows_${Arch}.zip"
-    
+
     try {
-        $response = Invoke-RestMethod -Uri $checksumUrl -UserAgent "PowerShell"
+        $response = Invoke-RestMethod @((New-WebArgs $checksumUrl)) -UserAgent "PowerShell"
         $checksums = $response -split "`n"
-        
-        $checksum = $null
+
         foreach ($line in $checksums) {
-            if ($line -match $target) {
-                $checksum = $line -split " " | Select-Object -First 1
-                break
+            if ($line -match [regex]::Escape($target)) {
+                return ($line -split ' ' | Select-Object -First 1)
             }
         }
-        
-        if ([string]::IsNullOrWhiteSpace($checksum)) {
-            throw "Checksum not found for $target"
-        }
-        
-        return $checksum
+        throw "Checksum not found for $target"
     } catch {
         throw "Failed to fetch or parse checksums: $_"
     }
@@ -130,17 +162,13 @@ function Get-Checksum {
 
 function Compare-Checksum {
     Param (
-        [Parameter(Mandatory = $true)]
-        [string]$FilePath,
-        [Parameter(Mandatory = $true)]
-        [string]$ExpectedChecksum
+        [Parameter(Mandatory = $true)] [string]$FilePath,
+        [Parameter(Mandatory = $true)] [string]$ExpectedChecksum
     )
-    
-    $hash = Get-FileHash -Path $FilePath -Algorithm SHA256
-    
-    if ($hash.Hash -ne $ExpectedChecksum) {
+    $hash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
+    if ($hash.ToUpperInvariant() -ne $ExpectedChecksum.ToUpperInvariant()) {
         Remove-Item -Path $FilePath -Force
-        throw "Checksum mismatch. Expected: $ExpectedChecksum, Got: $($hash.Hash)"
+        throw "Checksum mismatch. Expected: $ExpectedChecksum, Got: $hash"
     }
 }
 
@@ -153,27 +181,23 @@ function Get-InstallPath {
 
 function Test-Dependencies {
     Write-Host "Checking dependencies..." -ForegroundColor Blue
-    
-    # Check Docker
-    try {
-        $null = docker version 2>&1
-        Write-Host "  Docker is installed" -ForegroundColor Green
-    } catch {
+
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Host "  Docker is required but not installed." -ForegroundColor Red
-        Write-Host "  Please install Docker Desktop from: https://docs.docker.com/desktop/install/windows-install/" -ForegroundColor Yellow
+        Write-Host "  Install Docker Desktop: https://docs.docker.com/desktop/install/windows-install/" -ForegroundColor Yellow
         return $false
     }
-    
-    # Check Git
-    try {
-        $null = git version 2>&1
-        Write-Host "  Git is installed" -ForegroundColor Green
-    } catch {
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Host "  Git is required but not installed." -ForegroundColor Red
-        Write-Host "  Please install Git from: https://git-scm.com/download/win" -ForegroundColor Yellow
+        Write-Host "  Install Git: https://git-scm.com/download/win" -ForegroundColor Yellow
         return $false
     }
-    
+
+    try { docker version *>$null } catch { Write-Host "  Docker is installed but not responding." -ForegroundColor Red; return $false }
+    try { git version    *>$null } catch { Write-Host "  Git is installed but not responding."    -ForegroundColor Red; return $false }
+
+    Write-Host "  Docker is installed" -ForegroundColor Green
+    Write-Host "  Git is installed"    -ForegroundColor Green
     return $true
 }
 
@@ -182,40 +206,34 @@ function Install-ContainerUse {
     Write-Host "Container Use Installer for Windows" -ForegroundColor Cyan
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
-    
-    # Check dependencies
+
     if (-not (Test-Dependencies)) {
         throw "Missing required dependencies"
     }
-    
-    # Get version
+
     $targetVersion = $Version
     if ($targetVersion -eq "latest") {
         Write-Host "Finding latest version..." -ForegroundColor Blue
         $targetVersion = Find-LatestVersion
         Write-Host "Latest version: $targetVersion" -ForegroundColor Green
     }
-    
-    # Get architecture
+
     $arch = Get-ProcessorArchitecture
     Write-Host "Architecture: $arch" -ForegroundColor Blue
-    
-    # Get download URL
+
     $downloadUrl = Get-DownloadUrl -Version $targetVersion -Arch $arch
-    
-    # Download
+
     $zipName = "container-use_${targetVersion}_windows_${arch}.zip"
     $zipPath = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($DownloadPath), $zipName)
-    
+
     Write-Host "Downloading from $downloadUrl..." -ForegroundColor Blue
     try {
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
+        Invoke-WebRequest @((New-WebArgs $downloadUrl)) -OutFile $zipPath
         Write-Host "Downloaded successfully" -ForegroundColor Green
     } catch {
         throw "Failed to download: $_"
     }
-    
-    # Verify checksum
+
     Write-Host "Verifying checksum..." -ForegroundColor Blue
     try {
         $expectedChecksum = Get-Checksum -Version $targetVersion -Arch $arch
@@ -224,8 +242,7 @@ function Install-ContainerUse {
     } catch {
         throw "Checksum verification failed: $_"
     }
-    
-    # Extract
+
     $tempExtractPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "container-use-extract-$(Get-Random)")
     Write-Host "Extracting..." -ForegroundColor Blue
     try {
@@ -235,57 +252,46 @@ function Install-ContainerUse {
     } finally {
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     }
-    
-    # Install
+
     $installFullPath = Get-InstallPath
-    
+
     $exePath = Join-Path $tempExtractPath "container-use.exe"
     if (-not (Test-Path $exePath)) {
         throw "container-use.exe not found in archive"
     }
-    
+
     $destPath = Join-Path $installFullPath "container-use.exe"
     Copy-Item -Path $exePath -Destination $destPath -Force
     Write-Host "Installed to $destPath" -ForegroundColor Green
-    
-    # Create cu.exe alias
+
+    # Create cu.exe alias for convenience
     $cuPath = Join-Path $installFullPath "cu.exe"
     Copy-Item -Path $destPath -Destination $cuPath -Force
     Write-Host "Created cu.exe alias" -ForegroundColor Green
-    
+
     # Cleanup
     Remove-Item $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
-    
-    # Update PATH
+
+    # PATH update on request
     if ($AddToPath) {
-        $userPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
-        if ($userPath -notlike "*$installFullPath*") {
-            Write-Host "Adding $installFullPath to user PATH..." -ForegroundColor Blue
-            # Ensure path doesn't end with semicolon before appending
-            $separator = if ($userPath -and $userPath[-1] -ne ';') { ';' } else { '' }
-            $newPath = "$userPath$separator$installFullPath"
-            [Environment]::SetEnvironmentVariable("Path", $newPath, [EnvironmentVariableTarget]::User)
-            Write-Host "Added to PATH (restart your terminal to use)" -ForegroundColor Green
-        } else {
-            Write-Host "$installFullPath is already in PATH" -ForegroundColor Green
-        }
+        Add-PathEntry -PathToAdd $installFullPath -Scope 'User'
     } else {
         Write-Host ""
         Write-Host "To add container-use to your PATH, run:" -ForegroundColor Yellow
         Write-Host "    [Environment]::SetEnvironmentVariable('Path', `$env:Path + ';$installFullPath', [EnvironmentVariableTarget]::User)" -ForegroundColor White
         Write-Host "Or run this script again with -AddToPath" -ForegroundColor Yellow
     }
-    
+
     # Verify installation
     Write-Host ""
     Write-Host "Verifying installation..." -ForegroundColor Blue
     try {
-        $versionOutput = & $destPath version 2>&1
+        $versionOutput = (& $destPath version 2>&1 | Out-String).Trim()
         Write-Host "container-use is ready! Version: $versionOutput" -ForegroundColor Green
     } catch {
         Write-Host "container-use installed but couldn't verify version" -ForegroundColor Yellow
     }
-    
+
     Write-Host ""
     Write-Host "Installation complete!" -ForegroundColor Green
     Write-Host "Run 'container-use --help' to get started" -ForegroundColor Cyan

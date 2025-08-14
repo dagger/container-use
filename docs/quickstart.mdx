@@ -27,12 +27,7 @@ Make sure you have [Docker](https://www.docker.com/get-started) and Git installe
   <Tabs>
     <Tab title="PowerShell Script">
     ```powershell
-    # Quick install
-    irm https://raw.githubusercontent.com/dagger/container-use/main/install.ps1 | iex
-    
-    # Or download and run with options
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/dagger/container-use/main/install.ps1" -OutFile install.ps1
-    .\install.ps1 -AddToPath
+    $u='https://raw.githubusercontent.com/dagger/container-use/main/install.ps1';$d=Join-Path $env:TEMP 'install-container-use.ps1';$o=@{};if((Get-Command Invoke-WebRequest).Parameters.ContainsKey('UseBasicParsing')){$o.UseBasicParsing=$true};Invoke-WebRequest -Uri $u -OutFile $d @o;& $d -AddToPath
     ```
     </Tab>
     
