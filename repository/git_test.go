@@ -99,7 +99,9 @@ func TestSelectiveFileStaging(t *testing.T) {
 			scenario.setup(t, dir)
 
 			// Create a Repository instance for testing
-			repo := &Repository{}
+			repo := &Repository{
+				lockManager: NewRepositoryLockManager(dir),
+			}
 
 			// Run the actual staging logic (testing the integration)
 			err = repo.addNonBinaryFiles(ctx, dir)
@@ -141,7 +143,9 @@ func TestCommitWorktreeChanges(t *testing.T) {
 	_, err = RunGitCommand(ctx, dir, "config", "user.name", "Test User")
 	require.NoError(t, err)
 
-	repo := &Repository{}
+	repo := &Repository{
+		lockManager: NewRepositoryLockManager(dir),
+	}
 
 	t.Run("empty_directory_handling", func(t *testing.T) {
 		// Create empty directories (git doesn't track these)

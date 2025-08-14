@@ -183,7 +183,7 @@ func TestSystemHandlesProblematicFiles(t *testing.T) {
 
 // Large project performance ensures the system scales to real-world codebases
 func TestLargeProjectPerformance(t *testing.T) {
-	t.Parallel()
+	// if we had per-repo forkrepo locking, this would be t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping performance test")
 	}

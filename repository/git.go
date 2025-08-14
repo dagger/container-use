@@ -130,7 +130,7 @@ func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) 
 
 	slog.Info("Initializing new worktree", "repository", r.userRepoPath, "environment-id", id, "from-ref", gitRef)
 
-	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		resolvedRef, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", gitRef)
 		if err != nil {
 			return err
@@ -175,7 +175,7 @@ func (r *Repository) getWorktree(ctx context.Context, id string) (string, error)
 
 	slog.Info("Recreating worktree for existing environment", "repository", r.userRepoPath, "environment-id", id)
 
-	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		// In case something has changed while waiting for lock. prolly too defensive.
 		if _, err := os.Stat(worktreePath); err == nil {
 			return nil
@@ -229,10 +229,8 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
-	// Protect commitWorktreeChanges to prevent concurrent writes to .git/worktrees/*/logs/HEAD
-	if err := r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
-		return r.commitWorktreeChanges(ctx, worktreePath, explanation)
-	}); err != nil {
+
+	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
@@ -240,8 +238,11 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return fmt.Errorf("failed to add notes: %w", err)
 	}
 
-	slog.Info("Fetching container-use remote in source repository")
-	if _, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID); err != nil {
+	if err := r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+		slog.Info("Fetching container-use remote in source repository")
+		_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -275,12 +276,13 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 }
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 	fullRef := fmt.Sprintf("refs/notes/%s", ref)
-	fetch := func() error {
-		_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
-		return err
-	}
 
-	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+		fetch := func() error {
+			_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
+			return err
+		}
+
 		if err := fetch(); err != nil {
 			if strings.Contains(err.Error(), "[rejected]") {
 				if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
@@ -312,7 +314,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 		return err
 	}
 
-	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
 		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
 		return err
 	})
@@ -321,7 +323,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {
 	var result []byte
 
-	err := r.lockManager.WithRLock(ctx, LockTypeGitNotes, func() error {
+	err := r.lockManager.WithRLock(ctx, LockTypeNotes, func() error {
 		buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
 		if err != nil {
 			if strings.Contains(err.Error(), "no note found") {
@@ -342,10 +344,13 @@ func (r *Repository) addGitNote(ctx context.Context, env *environment.Environmen
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
-	_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
-	if err != nil {
+	if err := r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
+		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
+		return err
+	}); err != nil {
 		return err
 	}
+
 	return r.propagateGitNotes(ctx, gitNotesLogRef)
 }
 
@@ -380,21 +385,23 @@ func (r *Repository) revisionRange(ctx context.Context, env *environment.Environ
 }
 
 func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string) error {
-	status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
-	if err != nil {
+	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
+		status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
+		if err != nil {
+			return err
+		}
+
+		if strings.TrimSpace(status) == "" {
+			return nil
+		}
+
+		if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
+			return err
+		}
+
+		_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
 		return err
-	}
-
-	if strings.TrimSpace(status) == "" {
-		return nil
-	}
-
-	if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
-		return err
-	}
-
-	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
-	return err
+	})
 }
 
 // AI slop below!
