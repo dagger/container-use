@@ -310,8 +310,9 @@ Add this configuration to `~/.config/amp/settings.json`:
             "args": ["stdio"]
         }
     },
-    "amp.commands.allowlist": [],
-    "amp.commands.strict": true,
+    "amp.permissions": [
+      {"tool": "mcp__container-use__*", "action": "allow"}
+    ],
     "amp.dangerouslyAllowAll": false,
     "amp.updates.autoUpdate.enabled": true
 }
