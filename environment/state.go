@@ -10,9 +10,10 @@ type State struct {
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 
-	Config    *EnvironmentConfig `json:"config,omitempty"`
-	Container string             `json:"container,omitempty"`
-	Title     string             `json:"title,omitempty"`
+	Config         *EnvironmentConfig `json:"config,omitempty"`
+	Container      string             `json:"container,omitempty"`
+	Title          string             `json:"title,omitempty"`
+	SubmodulePaths []string           `json:"submodule_paths,omitempty"`
 }
 
 func (s *State) Marshal() ([]byte, error) {

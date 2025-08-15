@@ -118,19 +118,21 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 
 // initializeWorktree initializes a new worktree for environment creation.
 // It pushes the specified gitRef to create a new branch with the given id, then creates a worktree from that branch.
-func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) (string, error) {
+// Returns the worktree path, any submodule warning, and an error.
+func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) (string, string, error) {
 	if gitRef == "" {
 		gitRef = "HEAD"
 	}
 
 	worktreePath, err := r.WorktreePath(id)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	slog.Info("Initializing new worktree", "repository", r.userRepoPath, "environment-id", id, "from-ref", gitRef)
 
-	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
+	var submoduleWarning string
+	err = r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		resolvedRef, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", gitRef)
 		if err != nil {
 			return err
@@ -156,8 +158,20 @@ func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) 
 			return err
 		}
 
+		// Initialize submodules using host credentials
+		submoduleOutput, submoduleErr := RunGitCommand(ctx, worktreePath, "submodule", "update", "--init", "--recursive")
+		if submoduleErr != nil {
+			// Log warning but don't fail - submodules might require auth
+			slog.Warn("Failed to initialize submodules",
+				"error", submoduleErr,
+				"output", submoduleOutput)
+			submoduleWarning = fmt.Sprintf("Failed to initialize submodules: %v", submoduleErr)
+		}
+
 		return nil
 	})
+
+	return worktreePath, submoduleWarning, err
 }
 
 // getWorktree gets or recreates a worktree for an existing environment.
@@ -407,11 +421,61 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, ex
 // AI slop below!
 // this is just to keep us moving fast because big git repos get hard to work with
 // and our demos like to download large dependencies.
+// getSubmodulePaths returns a slice of submodule paths relative to the worktree root
+func (r *Repository) getSubmodulePaths(ctx context.Context, worktreePath string) []string {
+	submodulePaths := []string{}
+
+	// Check if .gitmodules exists
+	gitmodulesPath := filepath.Join(worktreePath, ".gitmodules")
+	if _, err := os.Stat(gitmodulesPath); os.IsNotExist(err) {
+		return submodulePaths
+	}
+
+	// Use git submodule foreach to get submodule paths
+	output, err := RunGitCommand(ctx, worktreePath, "submodule", "foreach", "--recursive", "--quiet", "echo $sm_path")
+	if err != nil {
+		// If command fails, return empty slice - don't block regular operation
+		slog.Debug("Failed to get submodule paths", "error", err)
+		return submodulePaths
+	}
+
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			submodulePaths = append(submodulePaths, line)
+		}
+	}
+
+	return submodulePaths
+}
+
+// isWithinSubmodule checks if a file path is within any of the submodule directories
+func (r *Repository) isWithinSubmodule(filePath string, submodulePaths []string) bool {
+	cleanFilePath := filepath.Clean(filePath)
+	for _, submodulePath := range submodulePaths {
+		cleanSubmodulePath := filepath.Clean(submodulePath)
+
+		// Check if the file is exactly the submodule path or within it
+		if cleanFilePath == cleanSubmodulePath {
+			return true
+		}
+
+		// Check if the file is within the submodule directory
+		if strings.HasPrefix(cleanFilePath, cleanSubmodulePath+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string) error {
 	statusOutput, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return err
 	}
+
+	// Get submodule paths to avoid committing changes to submodules
+	submodulePaths := r.getSubmodulePaths(ctx, worktreePath)
 
 	for line := range strings.SplitSeq(strings.TrimSpace(statusOutput), "\n") {
 		if line == "" {
@@ -429,6 +493,12 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string)
 		}
 
 		if r.shouldSkipFile(fileName) {
+			continue
+		}
+
+		// Skip files within submodule directories
+		if r.isWithinSubmodule(fileName, submodulePaths) {
+			slog.Debug("Skipping file within submodule", "file", fileName)
 			continue
 		}
 

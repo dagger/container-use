@@ -187,7 +187,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		gitRef = "HEAD"
 	}
 	id := petname.Generate(2, "-")
-	worktree, err := r.initializeWorktree(ctx, id, gitRef)
+	worktree, submoduleWarning, err := r.initializeWorktree(ctx, id, gitRef)
 	if err != nil {
 		return nil, err
 	}
@@ -229,6 +229,11 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 	env, err := environment.New(ctx, dag, id, description, config, baseSourceDir)
 	if err != nil {
 		return nil, err
+	}
+
+	// Add submodule warning to environment notes if initialization failed
+	if submoduleWarning != "" {
+		env.Notes.Add("Warning: %s", submoduleWarning)
 	}
 
 	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
