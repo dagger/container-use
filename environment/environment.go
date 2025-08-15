@@ -56,6 +56,9 @@ func New(ctx context.Context, dag *dagger.Client, id, title string, config *Envi
 		return nil, err
 	}
 
+	// Detect submodule paths once during creation and cache them in state
+	env.State.SubmodulePaths = env.detectSubmodulePaths(ctx)
+
 	return env, nil
 }
 
