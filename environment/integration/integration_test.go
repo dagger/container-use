@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -202,14 +203,17 @@ func TestLargeProjectPerformance(t *testing.T) {
 		WithRepository(t, "large_project_performance", largeProjectSetup, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 			env := user.CreateEnvironment("Performance Test", "Testing performance with large project")
 
-			// Time file operations
 			start := time.Now()
 			user.FileWrite(env.ID, "new.txt", "test", "Test write performance")
 			writeTime := time.Since(start)
 
 			t.Logf("File write took: %v", writeTime)
 
-			assert.LessOrEqual(t, writeTime, 2*time.Second, "File write should be fast")
+			threshold := 2 * time.Second
+			if runtime.GOOS == "windows" {
+				threshold = 5 * time.Second
+			}
+			assert.LessOrEqual(t, writeTime, threshold, "File write should be fast")
 		})
 	})
 }

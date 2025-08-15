@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -66,12 +65,12 @@ func TestRepositoryOpen(t *testing.T) {
 		require.NoError(t, err)
 		remote = strings.TrimSpace(remote)
 
-		// Convert file:// URLs back to paths on Windows
-		if runtime.GOOS == "windows" && strings.HasPrefix(remote, "file://") {
-			// Remove file:// prefix and convert slashes back
-			remote = strings.TrimPrefix(remote, "file://")
-			remote = filepath.FromSlash(remote)
-		}
+		// // Convert file:// URLs back to paths on Windows
+		// if runtime.GOOS == "windows" && strings.HasPrefix(remote, "file://") {
+		// 	// Remove file:// prefix and convert slashes back
+		// 	remote = strings.TrimPrefix(remote, "file://")
+		// 	remote = filepath.FromSlash(remote)
+		// }
 
 		assert.Equal(t, repo.forkRepoPath, remote)
 	})
