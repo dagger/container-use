@@ -30,6 +30,7 @@ type MCPServerProcess struct {
 func NewMCPServerProcess(t *testing.T, testName string) *MCPServerProcess {
 	ctx := context.Background()
 
+	testName = strings.ReplaceAll(testName, "/", "_")
 	repoDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-%s-repo-*", testName))
 	require.NoError(t, err, "Failed to create repo dir")
 
@@ -344,13 +345,14 @@ func TestRepositoryContention(t *testing.T) {
 	}
 
 	const numServers = 10
-	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-shared-repo-*")
+	testName := strings.ReplaceAll(t.Name(), "/", "_")
+	sharedRepoDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-%s-repo-*", testName))
 	require.NoError(t, err)
 	defer os.RemoveAll(sharedRepoDir)
 
 	setupGitRepo(t, sharedRepoDir)
 
-	sharedConfigDir, err := os.MkdirTemp("", "cu-e2e-shared-config-*")
+	sharedConfigDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-%s-config-*", testName))
 	require.NoError(t, err)
 	defer os.RemoveAll(sharedConfigDir)
 
@@ -372,13 +374,14 @@ func TestSingleTenantRepositoryContention(t *testing.T) {
 	}
 
 	const numServers = 10
-	sharedRepoDir, err := os.MkdirTemp("", "cu-e2e-single-tenant-repo-*")
+	testName := strings.ReplaceAll(t.Name(), "/", "_")
+	sharedRepoDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-%s-repo-*", testName))
 	require.NoError(t, err)
 	defer os.RemoveAll(sharedRepoDir)
 
 	setupGitRepo(t, sharedRepoDir)
 
-	sharedConfigDir, err := os.MkdirTemp("", "cu-e2e-single-tenant-config-*")
+	sharedConfigDir, err := os.MkdirTemp("", fmt.Sprintf("cu-e2e-%s-config-*", testName))
 	require.NoError(t, err)
 	defer os.RemoveAll(sharedConfigDir)
 

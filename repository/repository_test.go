@@ -63,6 +63,8 @@ func TestRepositoryOpen(t *testing.T) {
 		// Verify remote was added
 		remote, err := RunGitCommand(ctx, tempDir, "remote", "get-url", "container-use")
 		require.NoError(t, err)
-		assert.Equal(t, repo.forkRepoPath, strings.TrimSpace(remote))
+		remote = strings.TrimSpace(remote)
+
+		assert.Equal(t, repo.forkRepoPath, remote)
 	})
 }

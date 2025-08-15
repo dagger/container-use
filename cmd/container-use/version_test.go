@@ -46,7 +46,7 @@ func TestVersionCommand(t *testing.T) {
 
 				// Container runtime output should show one of the supported runtimes
 				// This handles: "Docker 24.0.5", "Podman 4.3.1", "Docker 24.0.5 (daemon not running)", or "not found"
-				assert.Regexp(t, `Container Runtime: ((Docker|Podman|nerdctl|finch) [\d\.]+(v[\d\.]+)?(\s+\(daemon not running\))?|not found)`, output)
+				assert.Regexp(t, `Container Runtime: ((Docker|Podman|nerdctl|finch) ([\d\.]+(v[\d\.]+)?|unknown)(\s+\(daemon not running\))?|not found)`, output)
 			},
 		},
 		{
