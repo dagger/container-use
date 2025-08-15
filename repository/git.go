@@ -81,14 +81,14 @@ func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 	}
 
 	cuRemote = strings.TrimSpace(cuRemote)
-	
+
 	// Convert file:// URLs back to paths on Windows
 	if runtime.GOOS == "windows" && strings.HasPrefix(cuRemote, "file://") {
 		// Remove file:// prefix and convert slashes back
 		cuRemote = strings.TrimPrefix(cuRemote, "file://")
 		cuRemote = filepath.FromSlash(cuRemote)
 	}
-	
+
 	return cuRemote, nil
 }
 
