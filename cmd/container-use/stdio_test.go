@@ -360,9 +360,8 @@ func TestRepositoryContention(t *testing.T) {
 
 	for i := range numServers {
 		servers[i] = createMCPServerForRepositoryTest(t, i, sharedRepoDir, sharedConfigDir, false)
-		server := servers[i] // Capture the server in the loop
 		t.Cleanup(func() {
-			server.Close()
+			servers[i].Close()
 		})
 	}
 
@@ -390,9 +389,8 @@ func TestSingleTenantRepositoryContention(t *testing.T) {
 
 	for i := range numServers {
 		servers[i] = createMCPServerForRepositoryTest(t, i, sharedRepoDir, sharedConfigDir, true)
-		server := servers[i] // Capture the server in the loop
 		t.Cleanup(func() {
-			server.Close()
+			servers[i].Close()
 		})
 	}
 
