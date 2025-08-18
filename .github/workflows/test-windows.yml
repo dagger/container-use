@@ -1,0 +1,52 @@
+name: Test Windows
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    name: Test Windows
+    runs-on: windows-latest
+    env:
+      _EXPERIMENTAL_DAGGER_RUNNER_HOST: ${{ secrets._EXPERIMENTAL_DAGGER_RUNNER_HOST }}
+      DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "test@example.com"
+          git config --global user.name "Test User"
+
+      - name: Install Dagger
+        shell: pwsh
+        run: |
+          choco install dagger -y
+          echo "$Env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          
+      - name: Verify Dagger installation
+        shell: pwsh
+        run: dagger version
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v -race ./...
+
+      - name: Build
+        run: go build -v -o container-use.exe ./cmd/container-use
+
+      - name: Smoke test
+        run: |
+          .\container-use.exe version
+          .\container-use.exe --help
+          .\container-use.exe completion powershell
