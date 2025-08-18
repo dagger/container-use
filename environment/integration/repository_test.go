@@ -181,7 +181,7 @@ func TestRepositoryCreateFromGitRef(t *testing.T) {
 		user.CreateBranchInSourceRepo("feature-branch")
 		user.WriteFileInSourceRepo("feature.txt", "feature content", "Add feature")
 
-		// Go back to master and add different content
+		// Go back to main and add different content
 		user.CheckoutBranchInSourceRepo("main")
 		user.WriteFileInSourceRepo("main.txt", "main content", "Add main file")
 
