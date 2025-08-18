@@ -307,16 +307,25 @@ func TestRepositoryWithRecursiveSubmodule(t *testing.T) {
 		assert.True(t, os.IsNotExist(statErr), "submodule/test.txt should not exist on the host")
 
 		// check that the contents of the repo are being cloned into the env
-		checkSubmoduleGoMod := func(submodulePath string) {
-			goModContent, readErr := env.FileRead(ctx, submodulePath+"/go.mod", true, 0, 0)
-			require.NoError(t, readErr, "Should be able to read %s/go.mod from inside container", submodulePath)
-			lines := strings.Split(strings.TrimSpace(goModContent), "\n")
-			require.Greater(t, len(lines), 0, "go.mod should have at least one line")
-			assert.Equal(t, "module github.com/dagger/container-use", lines[0])
+		checkSubmoduleReadme := func(submodulePath string) {
+			readmeContent, readErr := env.FileRead(ctx, submodulePath+"/README.md", true, 0, 0)
+			require.NoError(t, readErr, "Should be able to read %s/README.md from inside container", submodulePath)
+			assert.Contains(t, readmeContent, "A test repository that uses submodules")
 		}
 
-		checkSubmoduleGoMod("submodule")
-		checkSubmoduleGoMod("submodule-2")
+		// Check first-level submodules
+		checkSubmoduleReadme("submodule")
+		checkSubmoduleReadme("submodule-2")
+
+		// Check nested submodules (recursive submodules)
+		checkNestedSubmoduleReadme := func(submodulePath string) {
+			nestedReadmeContent, readErr := env.FileRead(ctx, submodulePath+"/rebase/base/README.md", true, 0, 0)
+			require.NoError(t, readErr, "Should be able to read %s/rebase/base/README.md from inside container", submodulePath)
+			assert.Contains(t, nestedReadmeContent, "A simple test repository")
+		}
+
+		checkNestedSubmoduleReadme("submodule")
+		checkNestedSubmoduleReadme("submodule-2")
 	})
 }
 

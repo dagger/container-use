@@ -168,6 +168,14 @@ func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) 
 			submoduleWarning = fmt.Sprintf("Failed to initialize submodules: %v", submoduleErr)
 		}
 
+		// Absorb git directories for submodules to ensure paths are consistent
+		// This is especially important for recursive submodules
+		_, absorbErr := RunGitCommand(ctx, worktreePath, "submodule", "absorbgitdirs")
+		if absorbErr != nil {
+			slog.Warn("Failed to absorb git modules for submodules",
+				"error", absorbErr)
+		}
+
 		return nil
 	})
 
@@ -278,11 +286,23 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	// Start with the container's workdir and add the main .git file
 	exportDir := env.Workdir().WithNewFile(".git", worktreePointer)
 
-	// Add .git files for each submodule
+	// Add .git files for each submodule by reading the actual paths from the worktree
 	for _, submodulePath := range env.State.SubmodulePaths {
-		submoduleGitPointer := fmt.Sprintf("gitdir: %s",
-			filepath.Join(r.forkRepoPath, "worktrees", env.ID, "modules", submodulePath))
-		exportDir = exportDir.WithNewFile(filepath.Join(submodulePath, ".git"), submoduleGitPointer)
+		submoduleGitPath := filepath.Join(worktreePath, submodulePath, ".git")
+
+		// Read the actual gitdir path from the worktree's .git file
+		gitContent, err := os.ReadFile(submoduleGitPath)
+		if err != nil {
+			return fmt.Errorf("failed to read submodule .git file %s: %w", submoduleGitPath, err)
+		}
+
+		gitContentStr := strings.TrimSpace(string(gitContent))
+		if !strings.HasPrefix(gitContentStr, "gitdir: ") {
+			return fmt.Errorf("invalid .git file format in submodule %s: %s", submoduleGitPath, gitContentStr)
+		}
+
+		// Use the actual gitdir path from the worktree
+		exportDir = exportDir.WithNewFile(filepath.Join(submodulePath, ".git"), gitContentStr)
 	}
 
 	// Export with wipe to ensure clean state
@@ -437,8 +457,8 @@ func (r *Repository) getSubmodulePaths(ctx context.Context, worktreePath string)
 		return submodulePaths
 	}
 
-	// Use git submodule foreach to get submodule paths
-	output, err := RunGitCommand(ctx, worktreePath, "submodule", "foreach", "--recursive", "--quiet", "echo $sm_path")
+	// Use git submodule status to get submodule paths with correct relative paths from root
+	output, err := RunGitCommand(ctx, worktreePath, "submodule", "status", "--recursive")
 	if err != nil {
 		// If command fails, return empty slice - don't block regular operation
 		slog.Debug("Failed to get submodule paths", "error", err)
@@ -448,7 +468,12 @@ func (r *Repository) getSubmodulePaths(ctx context.Context, worktreePath string)
 	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
-			submodulePaths = append(submodulePaths, line)
+			// Parse the submodule status line: " <commit> <path> (<description>)"
+			// The path is the second field
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				submodulePaths = append(submodulePaths, fields[1])
+			}
 		}
 	}
 
