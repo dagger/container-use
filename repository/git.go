@@ -78,8 +78,9 @@ func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 		}
 		return "", err
 	}
+	cuRemote = strings.TrimSpace(cuRemote)
 
-	return strings.TrimSpace(cuRemote), nil
+	return cuRemote, nil
 }
 
 func (r *Repository) WorktreePath(id string) (string, error) {
@@ -469,6 +470,49 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string)
 		}
 	}
 
+	return nil
+}
+
+// fork worktrees may run on machines without a global identity (Windows CI).
+// Setting it up at the bare repo ensures consistent authorship for all worktrees
+func (r *Repository) ensureForkIdentity(ctx context.Context) error {
+	has := func(key string) bool {
+		v, err := RunGitCommand(ctx, r.forkRepoPath, "config", "--get", key)
+		return err == nil && strings.TrimSpace(v) != ""
+	}
+
+	needName := !has("user.name")
+	needEmail := !has("user.email")
+	if !needName && !needEmail {
+		return nil
+	}
+
+	// Prefer identity from the user's source repo, else fallback.
+	name := ""
+	email := ""
+	if v, err := RunGitCommand(ctx, r.userRepoPath, "config", "--get", "user.name"); err == nil {
+		name = strings.TrimSpace(v)
+	}
+	if v, err := RunGitCommand(ctx, r.userRepoPath, "config", "--get", "user.email"); err == nil {
+		email = strings.TrimSpace(v)
+	}
+	if name == "" {
+		name = "container-use"
+	}
+	if email == "" {
+		email = "container-use@local"
+	}
+
+	if needName {
+		if _, err := RunGitCommand(ctx, r.forkRepoPath, "config", "user.name", name); err != nil {
+			return err
+		}
+	}
+	if needEmail {
+		if _, err := RunGitCommand(ctx, r.forkRepoPath, "config", "user.email", email); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
