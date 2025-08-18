@@ -34,6 +34,9 @@ archives:
     ids:
       - container-use
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     files:
       - README.md
       - LICENSE
@@ -130,6 +133,37 @@ nix:
         --bash <($out/bin/cu completion bash) \
         --fish <($out/bin/cu completion fish) \
         --zsh <($out/bin/cu completion zsh)
+
+# chocolateys:
+#   - name: container-use
+#     ids:
+#       - container-use-archive
+#     owners: Dagger
+#     title: Container Use
+#     authors: Dagger Team
+#     project_url: https://github.com/dagger/container-use
+#     url_template: "https://github.com/dagger/container-use/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+#     icon_url: https://raw.githubusercontent.com/dagger/container-use/main/docs/images/dagger-icon.png
+#     copyright: 2025 Dagger, Inc.
+#     license_url: https://github.com/dagger/container-use/blob/main/LICENSE
+#     require_license_acceptance: false
+#     project_source_url: https://github.com/dagger/container-use
+#     docs_url: https://container-use.com/
+#     bug_tracker_url: https://github.com/dagger/container-use/issues
+#     tags: "container docker mcp agent development cli devtools"
+#     summary: Containerized environments for coding agents
+#     description: |
+#       Container Use provides isolated, containerized environments for AI coding agents using Docker and Git.
+      
+#       Features:
+#       - Isolated environments for AI agents to work safely
+#       - Git-based version control for all changes
+#       - Docker containers for consistent development environments
+#       - Model Context Protocol (MCP) integration
+#       - Support for multiple popular AI coding assistants
+#     release_notes: "https://github.com/dagger/container-use/releases/tag/{{ .Tag }}"
+#     api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
+#     skip_publish: auto
 
 checksum:
   name_template: "checksums.txt"
