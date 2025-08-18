@@ -205,9 +205,6 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 	}
 	worktreeHead = strings.TrimSpace(worktreeHead)
 
-	// Detect submodules from the host worktree before creating the environment
-	submodulePaths := r.getSubmodulePaths(ctx, worktree)
-
 	var baseSourceDir *dagger.Directory
 	err = r.lockManager.WithRLock(ctx, LockTypeForkRepo, func() error {
 		var err error
@@ -225,22 +222,25 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
-	}
-
 	config := environment.DefaultConfig()
 	if err := config.Load(r.userRepoPath); err != nil {
 		return nil, err
 	}
 
-	env, err := environment.New(ctx, dag, id, description, config, baseSourceDir)
+	// Detect submodules from the host worktree before creating the environment
+	submodulePaths := r.getSubmodulePaths(ctx, worktree)
+
+	env, err := environment.New(ctx, environment.NewEnvArgs{
+		Dag:              dag,
+		ID:               id,
+		Title:            description,
+		Config:           config,
+		InitialSourceDir: baseSourceDir,
+		SubmodulePaths:   submodulePaths,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	// Set submodule paths from host detection
-	env.State.SubmodulePaths = submodulePaths
 
 	// Add submodule warning to environment notes if initialization failed
 	if submoduleWarning != "" {
