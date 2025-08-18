@@ -244,7 +244,7 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
+	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation, env.State.SubmodulePaths); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
@@ -275,19 +275,25 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	_, err = env.Workdir().
-		WithNewFile(".git", worktreePointer).
-		Export(
-			ctx,
-			worktreePath,
-			dagger.DirectoryExportOpts{Wipe: true},
-		)
+	// Start with the container's workdir and add the main .git file
+	exportDir := env.Workdir().WithNewFile(".git", worktreePointer)
+
+	// Add .git files for each submodule
+	for _, submodulePath := range env.State.SubmodulePaths {
+		submoduleGitPointer := fmt.Sprintf("gitdir: %s",
+			filepath.Join(r.forkRepoPath, "worktrees", env.ID, "modules", submodulePath))
+		exportDir = exportDir.WithNewFile(filepath.Join(submodulePath, ".git"), submoduleGitPointer)
+	}
+
+	// Export with wipe to ensure clean state
+	_, err = exportDir.Export(ctx, worktreePath, dagger.DirectoryExportOpts{Wipe: true})
 	if err != nil {
 		return err
 	}
 
 	return nil
 }
+
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 	fullRef := fmt.Sprintf("refs/notes/%s", ref)
 
@@ -398,7 +404,7 @@ func (r *Repository) revisionRange(ctx context.Context, env *environment.Environ
 	return fmt.Sprintf("%s..%s", mergeBase, envGitRef), nil
 }
 
-func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string) error {
+func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string, submodulePaths []string) error {
 	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 		if err != nil {
@@ -409,7 +415,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, ex
 			return nil
 		}
 
-		if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
+		if err := r.addNonBinaryFiles(ctx, worktreePath, submodulePaths); err != nil {
 			return err
 		}
 
@@ -468,14 +474,13 @@ func (r *Repository) isWithinSubmodule(filePath string, submodulePaths []string)
 	return false
 }
 
-func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string) error {
+func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string, submodulePaths []string) error {
 	statusOutput, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return err
 	}
 
-	// Get submodule paths to avoid committing changes to submodules
-	submodulePaths := r.getSubmodulePaths(ctx, worktreePath)
+	// Use cached submodule paths from environment state instead of re-detecting
 
 	for line := range strings.SplitSeq(strings.TrimSpace(statusOutput), "\n") {
 		if line == "" {

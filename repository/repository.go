@@ -205,6 +205,9 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 	}
 	worktreeHead = strings.TrimSpace(worktreeHead)
 
+	// Detect submodules from the host worktree before creating the environment
+	submodulePaths := r.getSubmodulePaths(ctx, worktree)
+
 	var baseSourceDir *dagger.Directory
 	err = r.lockManager.WithRLock(ctx, LockTypeForkRepo, func() error {
 		var err error
@@ -215,8 +218,13 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 			Ref(worktreeHead).
 			Tree(dagger.GitRefTreeOpts{DiscardGitDir: true}).
 			Sync(ctx) // don't bust cache when loading from state
+
 		return err
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed loading initial source directory: %w", err)
 	}
@@ -230,6 +238,9 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 	if err != nil {
 		return nil, err
 	}
+
+	// Set submodule paths from host detection
+	env.State.SubmodulePaths = submodulePaths
 
 	// Add submodule warning to environment notes if initialization failed
 	if submoduleWarning != "" {
