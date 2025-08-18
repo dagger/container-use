@@ -236,9 +236,53 @@ func TestRepositoryWithSubmodule(t *testing.T) {
 	WithRepository(t, "repository-with-submodule", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 		ctx := t.Context()
 
-		user.GitCommand("submodule", "add", "https://github.com/dagger/container-use.git", "submodule")
+		user.GitCommand("submodule", "add", "https://github.com/dagger/dagger-test-modules.git", "submodule")
 		user.GitCommand("submodule", "update", "--init")
-		user.GitCommand("submodule", "add", "https://github.com/dagger/container-use.git", "submodule-2")
+		// test that everything works regardless of user's submodule init status
+		user.GitCommand("submodule", "add", "https://github.com/dagger/dagger-test-modules.git", "submodule-2")
+
+		user.GitCommand("commit", "-am", "add submodules")
+
+		env := user.CreateEnvironment("Test Submodule", "Testing repository with submodule")
+
+		// Add a file to the base repo
+		user.FileWrite(env.ID, "test.txt", "initial content\n", "Initial commit")
+
+		// Add a file to the submodule
+		require.Error(t, env.FileWrite(
+			ctx,
+			"attempt to write a file to the submodule",
+			"submodule/test.txt",
+			"This should fail",
+		))
+
+		assert.NoError(t, repo.Update(ctx, env, "write the env back to the repo"))
+
+		// Assert that submodule/test.txt doesn't exist on the host
+		hostSubmoduleTestPath := filepath.Join(repo.SourcePath(), "submodule", "test.txt")
+		_, statErr := os.Stat(hostSubmoduleTestPath)
+		assert.True(t, os.IsNotExist(statErr), "submodule/test.txt should not exist on the host")
+
+		// check that the contents of the repo are being cloned into the env
+		checkSubmoduleReadme := func(submodulePath string) {
+			readmeContent, readErr := env.FileRead(ctx, submodulePath+"/README.md", true, 0, 0)
+			require.NoError(t, readErr, "Should be able to read %s/README.md from inside container", submodulePath)
+			assert.Contains(t, readmeContent, "Test fixtures used by dagger integration tests.")
+		}
+
+		checkSubmoduleReadme("submodule")
+		checkSubmoduleReadme("submodule-2")
+	})
+}
+
+func TestRepositoryWithRecursiveSubmodule(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-with-submodule", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := t.Context()
+
+		user.GitCommand("submodule", "add", "https://github.com/git-up/test-repo-recursive-submodules.git", "submodule")
+		user.GitCommand("submodule", "update", "--init")
+		user.GitCommand("submodule", "add", "https://github.com/git-up/test-repo-recursive-submodules.git", "submodule-2")
 
 		user.GitCommand("commit", "-am", "add submodules")
 
