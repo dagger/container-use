@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 
@@ -34,6 +36,46 @@ func init() {
 	})))
 }
 
+// createTestTempDir creates a temporary directory with a shorter path on Windows
+func createTestTempDir(t *testing.T, prefix string) string {
+	var dir string
+	var err error
+
+	// Get test name and replace slashes with underscores to avoid path separator issues
+	testName := t.Name()
+	testName = strings.ReplaceAll(testName, "/", "_")
+
+	if runtime.GOOS == "windows" {
+		// On Windows, use a shorter base path to avoid path length issues
+		// Generate a unique short name using last 8 chars of test name
+		if len(testName) > 8 {
+			testName = testName[len(testName)-8:]
+		}
+		// Use C:\Temp or system temp root
+		volume := filepath.VolumeName(os.TempDir())
+		var tempRoot string
+		if volume != "" {
+			tempRoot = volume + `\Temp`
+		} else {
+			tempRoot = filepath.Join(os.TempDir(), "Temp")
+		}
+		if err := os.MkdirAll(tempRoot, 0755); err != nil {
+			// Fall back to regular temp dir if we can't create C:\Temp
+			tempRoot = os.TempDir()
+		}
+		dir, err = os.MkdirTemp(tempRoot, prefix+testName+"-*")
+	} else {
+		// On other platforms, use the regular temp directory
+		dir, err = os.MkdirTemp("", prefix+testName+"-*")
+	}
+
+	require.NoError(t, err, "Failed to create temp dir")
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+	return dir
+}
+
 // WithRepository runs a test function with an isolated repository and UserActions
 func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t *testing.T, repo *repository.Repository, user *UserActions)) {
 	// Initialize Dagger (needed for environment operations)
@@ -42,11 +84,8 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 	ctx := context.Background()
 
 	// Create isolated temp directories
-	repoDir, err := os.MkdirTemp("", "cu-test-"+name+"-*")
-	require.NoError(t, err, "Failed to create repo dir")
-
-	configDir, err := os.MkdirTemp("", "cu-test-config-"+name+"-*")
-	require.NoError(t, err, "Failed to create config dir")
+	repoDir := createTestTempDir(t, "cu-")
+	configDir := createTestTempDir(t, "cuc-")
 
 	// Initialize git repo
 	cmds := [][]string{
@@ -169,7 +208,7 @@ func initializeDaggerOnce(t *testing.T) {
 	})
 
 	if daggerErr != nil {
-		t.Skipf("Skipping test - Dagger not available: %v", daggerErr)
+		t.Fatalf("Dagger not available: %v", daggerErr)
 	}
 }
 
