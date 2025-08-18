@@ -57,19 +57,19 @@ func (rlm *RepositoryLockManager) GetLock(lockType LockType) *RepositoryLock {
 		return lock
 	}
 
+	lockRoot := os.Getenv("CONTAINER_USE_CONFIG_DIR")
+	if lockRoot == "" {
+		lockRoot = getDefaultConfigPath()
+	}
 	lockFileName := fmt.Sprintf("container-use-%x-%s.lock", hashString(rlm.repoPath), string(lockType))
-	lockDir := filepath.Join(os.TempDir(), "container-use-locks")
+	lockDir := filepath.Join(lockRoot, "locks")
 	lockFile := filepath.Join(lockDir, lockFileName)
 
-	err := os.MkdirAll(lockDir, 0755)
-	if err != nil {
-		slog.Error("Failed to create lock directory", "error", err)
+	if err := os.MkdirAll(lockDir, 0o755); err != nil {
+		slog.Error("Failed to create lock directory", "path", lockDir, "error", err)
 	}
 
-	lock := &RepositoryLock{
-		flock: flock.New(lockFile),
-	}
-
+	lock := &RepositoryLock{flock: flock.New(lockFile)}
 	rlm.locks[lockType] = lock
 	return lock
 }
