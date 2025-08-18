@@ -54,6 +54,7 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 		{"config", "user.email", "test@example.com"},
 		{"config", "user.name", "Test User"},
 		{"config", "commit.gpgsign", "false"},
+		{"config", "init.defaultBranch", "main"},
 	}
 
 	for _, cmd := range cmds {
@@ -130,6 +131,12 @@ var (
 	SetupEmptyRepo = func(t *testing.T, repoDir string) {
 		writeFile(t, repoDir, "README.md", "# Test Project\n")
 		gitCommit(t, repoDir, "Initial commit")
+	}
+
+	SetupRepoWithSubmodule = func(t *testing.T, repoDir string) {
+		writeFile(t, repoDir, "README.md", "# Submodule Project\n")
+		gitCommit(t, repoDir, "Initial commit")
+		repository.RunGitCommand(t.Context(), repoDir, "git", "submodule", "add", "https://github.com/dagger/container-use.git", "submodule")
 	}
 )
 

@@ -2,8 +2,8 @@ package integration
 
 import (
 	"bytes"
-	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -36,7 +36,7 @@ func TestRepositoryCreate(t *testing.T) {
 func TestRepositoryGet(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-get", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create an environment
 		env := user.CreateEnvironment("Test Get", "Testing repository get")
@@ -58,7 +58,7 @@ func TestRepositoryGet(t *testing.T) {
 func TestRepositoryList(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-list", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create two environments
 		env1 := user.CreateEnvironment("Environment 1", "First test environment")
@@ -83,7 +83,7 @@ func TestRepositoryList(t *testing.T) {
 func TestRepositoryDelete(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-delete", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create an environment
 		env := user.CreateEnvironment("Test Delete", "Testing repository delete")
@@ -108,7 +108,7 @@ func TestRepositoryDelete(t *testing.T) {
 func TestRepositoryCheckout(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-checkout", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create an environment and add content
 		env := user.CreateEnvironment("Test Checkout", "Testing repository checkout")
@@ -133,7 +133,7 @@ func TestRepositoryCheckout(t *testing.T) {
 func TestRepositoryLog(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-log", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create an environment and add some commits
 		env := user.CreateEnvironment("Test Log", "Testing repository log")
@@ -172,7 +172,7 @@ func TestRepositoryLog(t *testing.T) {
 func TestRepositoryCreateFromGitRef(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-create-from-ref", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create initial commit with test content
 		user.WriteFileInSourceRepo("initial.txt", "initial content", "Initial commit")
@@ -182,7 +182,7 @@ func TestRepositoryCreateFromGitRef(t *testing.T) {
 		user.WriteFileInSourceRepo("feature.txt", "feature content", "Add feature")
 
 		// Go back to master and add different content
-		user.CheckoutBranchInSourceRepo("master")
+		user.CheckoutBranchInSourceRepo("main")
 		user.WriteFileInSourceRepo("main.txt", "main content", "Add main file")
 
 		// Get the SHA of the initial commit (before the main.txt was added)
@@ -231,11 +231,56 @@ func TestRepositoryCreateFromGitRef(t *testing.T) {
 	})
 }
 
+func TestRepositoryWithSubmodule(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-with-submodule", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := t.Context()
+
+		user.GitCommand("submodule", "add", "https://github.com/dagger/container-use.git", "submodule")
+		user.GitCommand("submodule", "update", "--init")
+		user.GitCommand("submodule", "add", "https://github.com/dagger/container-use.git", "submodule-2")
+
+		user.GitCommand("commit", "-am", "add submodules")
+
+		env := user.CreateEnvironment("Test Submodule", "Testing repository with submodule")
+
+		// Add a file to the base repo
+		user.FileWrite(env.ID, "test.txt", "initial content\n", "Initial commit")
+
+		// Add a file to the submodule
+		require.Error(t, env.FileWrite(
+			ctx,
+			"attempt to write a file to the submodule",
+			"submodule/test.txt",
+			"This should fail",
+		))
+
+		assert.NoError(t, repo.Update(ctx, env, "write the env back to the repo"))
+
+		// Assert that submodule/test.txt doesn't exist on the host
+		hostSubmoduleTestPath := filepath.Join(repo.SourcePath(), "submodule", "test.txt")
+		_, statErr := os.Stat(hostSubmoduleTestPath)
+		assert.True(t, os.IsNotExist(statErr), "submodule/test.txt should not exist on the host")
+
+		// check that the contents of the repo are being cloned into the env
+		checkSubmoduleGoMod := func(submodulePath string) {
+			goModContent, readErr := env.FileRead(ctx, submodulePath+"/go.mod", true, 0, 0)
+			require.NoError(t, readErr, "Should be able to read %s/go.mod from inside container", submodulePath)
+			lines := strings.Split(strings.TrimSpace(goModContent), "\n")
+			require.Greater(t, len(lines), 0, "go.mod should have at least one line")
+			assert.Equal(t, "module github.com/dagger/container-use", lines[0])
+		}
+
+		checkSubmoduleGoMod("submodule")
+		checkSubmoduleGoMod("submodule-2")
+	})
+}
+
 // TestRepositoryDiff tests retrieving changes between commits
 func TestRepositoryDiff(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-diff", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create an environment and make some changes
 		env := user.CreateEnvironment("Test Diff", "Testing repository diff")
