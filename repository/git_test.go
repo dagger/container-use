@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -170,6 +171,58 @@ func TestCommitWorktreeChanges(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, log, "Testing commit functionality")
 	})
+}
+
+func TestEnsureForkSetsIdentityWhenMissing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", t.TempDir())
+	}
+
+	ctx := context.Background()
+	src := t.TempDir()
+	base := t.TempDir()
+
+	_, err := RunGitCommand(ctx, src, "init")
+	require.NoError(t, err)
+
+	r, err := OpenWithBasePath(ctx, src, base)
+	require.NoError(t, err)
+
+	name, err := RunGitCommand(ctx, r.forkRepoPath, "config", "--get", "user.name")
+	require.NoError(t, err)
+	email, err := RunGitCommand(ctx, r.forkRepoPath, "config", "--get", "user.email")
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, strings.TrimSpace(name))
+	assert.NotEmpty(t, strings.TrimSpace(email))
+}
+
+func TestEnsureForkCopiesIdentityFromSourceRepo(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", t.TempDir())
+	}
+
+	ctx := context.Background()
+	src := t.TempDir()
+	base := t.TempDir()
+
+	_, err := RunGitCommand(ctx, src, "init")
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, src, "config", "user.name", "Source User")
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, src, "config", "user.email", "source@example.com")
+	require.NoError(t, err)
+
+	r, err := OpenWithBasePath(ctx, src, base)
+	require.NoError(t, err)
+
+	name, _ := RunGitCommand(ctx, r.forkRepoPath, "config", "--get", "user.name")
+	email, _ := RunGitCommand(ctx, r.forkRepoPath, "config", "--get", "user.email")
+
+	assert.Equal(t, "Source User", strings.TrimSpace(name))
+	assert.Equal(t, "source@example.com", strings.TrimSpace(email))
 }
 
 // Test helper functions

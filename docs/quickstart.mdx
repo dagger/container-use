@@ -20,7 +20,28 @@ Make sure you have [Docker](https://www.docker.com/get-started) and Git installe
 
   </Tab>
 
-  <Tab title="Shell Script (All Platforms)">
+  <Tab title="Windows">
+
+  <Note>Native Windows support requires Docker Desktop</Note>
+
+  <Tabs>
+    <Tab title="PowerShell Script">
+    ```powershell
+    $u='https://raw.githubusercontent.com/dagger/container-use/main/install.ps1';$d=Join-Path $env:TEMP 'install-container-use.ps1';$o=@{};if((Get-Command Invoke-WebRequest).Parameters.ContainsKey('UseBasicParsing')){$o.UseBasicParsing=$true};Invoke-WebRequest -Uri $u -OutFile $d @o;& $d -AddToPath
+    ```
+    </Tab>
+    
+    <Tab title="Chocolatey">
+    ```powershell
+    # Available after first release with Windows support
+    choco install container-use
+    ```
+    </Tab>
+  </Tabs>
+
+  </Tab>
+
+  <Tab title="Shell Script (Linux/macOS)">
 
   ```sh
   curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
