@@ -272,6 +272,28 @@ func TestRepositoryWithSubmodule(t *testing.T) {
 
 		checkSubmoduleReadme("submodule")
 		checkSubmoduleReadme("submodule-2")
+
+		// Below we document the behavior of env.Run-instigated file writes to submodules.
+		// Ideally, these would error, but practically we don't have an easy way to detect them.
+		// env.Run-instigated submodules writes do not error, but they also do not propogate outwards to the fork repository.
+		_, err := env.Run(ctx, "echo 'content from env_run_cmd' > submodule/test-from-cmd.txt", "sh", false)
+		require.NoError(t, err, "env_run_cmd should be able to write files in submodules")
+
+		// Verify the file was created inside the container
+		fileContent, err := env.FileRead(ctx, "submodule/test-from-cmd.txt", true, 0, 0)
+		require.NoError(t, err, "Should be able to read the file created by env_run_cmd")
+		assert.Contains(t, fileContent, "content from env_run_cmd")
+
+		// However, after update, the file should not exist on the host (same behavior as blocked FileWrite)
+		assert.NoError(t, repo.Update(ctx, env, "update the env back to the repo"))
+		hostCmdTestPath := filepath.Join(repo.SourcePath(), "submodule", "test-from-cmd.txt")
+		_, statErr = os.Stat(hostCmdTestPath)
+		assert.True(t, os.IsNotExist(statErr), "submodule/test-from-cmd.txt should not exist on the host after update")
+
+		// Verify that the git working tree remains clean (no uncommitted changes)
+		gitStatus, err := repository.RunGitCommand(ctx, repo.SourcePath(), "status", "--porcelain")
+		require.NoError(t, err, "Should be able to check git status")
+		assert.Empty(t, strings.TrimSpace(gitStatus), "Git working tree should remain clean after env_run_cmd writes to submodule")
 	})
 }
 
