@@ -200,40 +200,6 @@ func getMatchContext(contents string, matchIndex int) string {
 	return strings.Join(contextLines, "\n")
 }
 
-// detectSubmodulePaths returns a slice of submodule paths relative to the workdir
-// This is called once during environment creation to cache the paths in state
-func (env *Environment) detectSubmodulePaths(ctx context.Context) []string {
-	var submodulePaths []string
-
-	// Check if .gitmodules exists in the workdir
-	_, err := env.container().File(filepath.Join(env.State.Config.Workdir, ".gitmodules")).Contents(ctx)
-	if err != nil {
-		// If .gitmodules doesn't exist, there are no submodules
-		return submodulePaths
-	}
-
-	// Execute git submodule foreach to get submodule paths
-	// We use a simple approach: run the command and parse the output
-	output, err := env.container().
-		WithWorkdir(env.State.Config.Workdir).
-		WithExec([]string{"sh", "-c", "git submodule foreach --recursive --quiet 'echo $sm_path' 2>/dev/null || true"}).
-		Stdout(ctx)
-
-	if err != nil {
-		// If command fails, return empty slice - don't block regular operation
-		return submodulePaths
-	}
-
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			submodulePaths = append(submodulePaths, line)
-		}
-	}
-
-	return submodulePaths
-}
-
 // isWithinSubmodule checks if a file path is within any of the submodule directories
 func (env *Environment) isWithinSubmodule(filePath string, submodulePaths []string) bool {
 	// Convert absolute paths to relative paths within workdir
