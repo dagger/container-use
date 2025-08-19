@@ -153,16 +153,12 @@ func (r *Repository) ensureUserRemote(ctx context.Context) error {
 			if !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
-			// Convert Windows paths to file:// URLs for git remotes
-			remotePath := r.forkRepoPath
-			_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "add", containerUseRemote, remotePath)
+			_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "add", containerUseRemote, r.forkRepoPath)
 			return err
 		}
 
 		if currentForkPath != r.forkRepoPath {
-			// Convert Windows paths to file:// URLs for git remotes
-			remotePath := r.forkRepoPath
-			_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "set-url", containerUseRemote, remotePath)
+			_, err := RunGitCommand(ctx, r.userRepoPath, "remote", "set-url", containerUseRemote, r.forkRepoPath)
 			return err
 		}
 

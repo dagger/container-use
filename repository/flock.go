@@ -69,7 +69,9 @@ func (rlm *RepositoryLockManager) GetLock(lockType LockType) *RepositoryLock {
 		slog.Error("Failed to create lock directory", "path", lockDir, "error", err)
 	}
 
-	lock := &RepositoryLock{flock: flock.New(lockFile)}
+	lock := &RepositoryLock{
+		flock: flock.New(lockFile),
+	}
 	rlm.locks[lockType] = lock
 	return lock
 }

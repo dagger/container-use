@@ -78,9 +78,8 @@ func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 		}
 		return "", err
 	}
-	cuRemote = strings.TrimSpace(cuRemote)
 
-	return cuRemote, nil
+	return strings.TrimSpace(cuRemote), nil
 }
 
 func (r *Repository) WorktreePath(id string) (string, error) {

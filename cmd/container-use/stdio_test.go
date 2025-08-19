@@ -70,7 +70,6 @@ func NewMCPServerProcess(t *testing.T, testName string) *MCPServerProcess {
 	require.NoError(t, err, "Failed to initialize MCP client")
 
 	server := &MCPServerProcess{
-		// cmd is nil because the MCP client manages the child process itself.
 		cmd:        nil,
 		client:     mcpClient,
 		repoDir:    repoDir,
@@ -105,7 +104,6 @@ func serverSandboxEnv(baseEnv []string) ([]string, string) {
 	return env, root
 }
 
-// Make RPCs fail fast instead of hanging for 10m.
 const rpcTimeout = 120 * time.Second
 
 func ctxRPC() (context.Context, context.CancelFunc) {
