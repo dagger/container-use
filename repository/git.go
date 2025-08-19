@@ -275,6 +275,41 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 	return nil
 }
 
+// readSubmoduleGitdirPath reads the gitdir path from a submodule's .git file
+// reading these files on every export is unfortunate-- ideally we'd compute their values,
+// but doing so requires complete knowledge of the tree structure of the submodules.
+func readSubmoduleGitdirPath(worktreePath, submodulePath string) (string, error) {
+	submoduleGitPath := filepath.Join(worktreePath, submodulePath, ".git")
+
+	gitContent, err := os.ReadFile(submoduleGitPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read submodule .git file %s: %w", submoduleGitPath, err)
+	}
+
+	gitContentStr := strings.TrimSpace(string(gitContent))
+	if !strings.HasPrefix(gitContentStr, "gitdir: ") {
+		return "", fmt.Errorf("invalid .git file format in submodule %s: %s", submoduleGitPath, gitContentStr)
+	}
+
+	return gitContentStr, nil
+}
+
+// addSubmoduleGitdirFiles adds .git files for all submodules to the provided directory
+func addSubmoduleGitdirFiles(baseDir *dagger.Directory, worktreePath string, submodulePaths []string) (*dagger.Directory, error) {
+	result := baseDir
+
+	for _, submodulePath := range submodulePaths {
+		gitdirPath, err := readSubmoduleGitdirPath(worktreePath, submodulePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read gitdir path for submodule %s: %w", submodulePath, err)
+		}
+
+		result = result.WithNewFile(filepath.Join(submodulePath, ".git"), gitdirPath)
+	}
+
+	return result, nil
+}
+
 func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Environment) error {
 	worktreePointer := fmt.Sprintf("gitdir: %s", filepath.Join(r.forkRepoPath, "worktrees", env.ID))
 
@@ -286,23 +321,9 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	// Start with the container's workdir and add the main .git file
 	exportDir := env.Workdir().WithNewFile(".git", worktreePointer)
 
-	// Add .git files for each submodule by reading the actual paths from the worktree
-	for _, submodulePath := range env.State.SubmodulePaths {
-		submoduleGitPath := filepath.Join(worktreePath, submodulePath, ".git")
-
-		// Read the actual gitdir path from the worktree's .git file
-		gitContent, err := os.ReadFile(submoduleGitPath)
-		if err != nil {
-			return fmt.Errorf("failed to read submodule .git file %s: %w", submoduleGitPath, err)
-		}
-
-		gitContentStr := strings.TrimSpace(string(gitContent))
-		if !strings.HasPrefix(gitContentStr, "gitdir: ") {
-			return fmt.Errorf("invalid .git file format in submodule %s: %s", submoduleGitPath, gitContentStr)
-		}
-
-		// Use the actual gitdir path from the worktree
-		exportDir = exportDir.WithNewFile(filepath.Join(submodulePath, ".git"), gitContentStr)
+	exportDir, err = addSubmoduleGitdirFiles(exportDir, worktreePath, env.State.SubmodulePaths)
+	if err != nil {
+		return err
 	}
 
 	// Export with wipe to ensure clean state
