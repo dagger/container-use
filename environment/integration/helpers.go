@@ -131,12 +131,6 @@ var (
 		writeFile(t, repoDir, "README.md", "# Test Project\n")
 		gitCommit(t, repoDir, "Initial commit")
 	}
-
-	SetupRepoWithSubmodule = func(t *testing.T, repoDir string) {
-		writeFile(t, repoDir, "README.md", "# Submodule Project\n")
-		gitCommit(t, repoDir, "Initial commit")
-		repository.RunGitCommand(t.Context(), repoDir, "git", "submodule", "add", "https://github.com/dagger/container-use.git", "submodule")
-	}
 )
 
 // Helper functions for repository setup
