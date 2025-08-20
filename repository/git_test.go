@@ -104,7 +104,7 @@ func TestSelectiveFileStaging(t *testing.T) {
 			}
 
 			// Run the actual staging logic (testing the integration)
-			err = repo.addNonBinaryFiles(ctx, dir)
+			err = repo.addNonBinaryFiles(ctx, dir, []string{})
 			require.NoError(t, err, "Staging should not error")
 
 			status, err := RunGitCommand(ctx, dir, "status", "--porcelain")
@@ -154,7 +154,7 @@ func TestCommitWorktreeChanges(t *testing.T) {
 
 		// This verifies that commitWorktreeChanges handles empty directories gracefully
 		// It should return nil (success) when there's nothing to commit
-		err := repo.commitWorktreeChanges(ctx, dir, "Empty dirs")
+		err := repo.commitWorktreeChanges(ctx, dir, "Empty dirs", []string{})
 		assert.NoError(t, err, "commitWorktreeChanges should handle empty dirs gracefully")
 	})
 
@@ -162,7 +162,7 @@ func TestCommitWorktreeChanges(t *testing.T) {
 		// Create a file to commit
 		writeFile(t, dir, "test.txt", "hello world")
 
-		err := repo.commitWorktreeChanges(ctx, dir, "Testing commit functionality")
+		err := repo.commitWorktreeChanges(ctx, dir, "Testing commit functionality", []string{})
 		require.NoError(t, err)
 
 		// Verify commit was created

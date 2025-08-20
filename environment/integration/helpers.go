@@ -50,7 +50,7 @@ func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t 
 
 	// Initialize git repo
 	cmds := [][]string{
-		{"init"},
+		{"init", "--initial-branch=main"},
 		{"config", "user.email", "test@example.com"},
 		{"config", "user.name", "Test User"},
 		{"config", "commit.gpgsign", "false"},

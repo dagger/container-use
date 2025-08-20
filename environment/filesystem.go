@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
@@ -40,6 +41,11 @@ func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldR
 }
 
 func (env *Environment) FileWrite(ctx context.Context, explanation, targetFile, contents string) error {
+	// Check if the file is within a submodule
+	if err := env.validateNotSubmoduleFile(targetFile); err != nil {
+		return err
+	}
+
 	err := env.apply(ctx, env.container().WithNewFile(targetFile, contents))
 	if err != nil {
 		return fmt.Errorf("failed applying file write, skipping git propagation: %w", err)
@@ -49,6 +55,11 @@ func (env *Environment) FileWrite(ctx context.Context, explanation, targetFile, 
 }
 
 func (env *Environment) FileEdit(ctx context.Context, explanation, targetFile, search, replace, matchID string) error {
+	// Check if the file is within a submodule
+	if err := env.validateNotSubmoduleFile(targetFile); err != nil {
+		return err
+	}
+
 	contents, err := env.container().File(targetFile).Contents(ctx)
 	if err != nil {
 		return err
@@ -124,6 +135,11 @@ func (env *Environment) FileEdit(ctx context.Context, explanation, targetFile, s
 }
 
 func (env *Environment) FileDelete(ctx context.Context, explanation, targetFile string) error {
+	// Check if the file is within a submodule
+	if err := env.validateNotSubmoduleFile(targetFile); err != nil {
+		return err
+	}
+
 	err := env.apply(ctx, env.container().WithoutFile(targetFile))
 	if err != nil {
 		return fmt.Errorf("failed applying file delete, skipping git propagation: %w", err)
@@ -182,4 +198,47 @@ func getMatchContext(contents string, matchIndex int) string {
 	}
 
 	return strings.Join(contextLines, "\n")
+}
+
+// isWithinSubmodule checks if a file path is within any of the submodule directories
+func (env *Environment) isWithinSubmodule(filePath string, submodulePaths []string) bool {
+	// Convert absolute paths to relative paths within workdir
+	workdir := env.State.Config.Workdir
+	if filepath.IsAbs(filePath) {
+		var err error
+		filePath, err = filepath.Rel(workdir, filePath)
+		if err != nil || strings.HasPrefix(filePath, "..") {
+			// If the file is outside workdir, it's not in a submodule
+			return false
+		}
+	}
+
+	cleanFilePath := filepath.Clean(filePath)
+
+	for _, submodulePath := range submodulePaths {
+		cleanSubmodulePath := filepath.Clean(submodulePath)
+
+		// Check if the file is exactly the submodule path or within it
+		if cleanFilePath == cleanSubmodulePath {
+			return true
+		}
+
+		// Check if the file is within the submodule directory
+		if strings.HasPrefix(cleanFilePath, cleanSubmodulePath+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateNotSubmoduleFile checks if a file path is within a submodule and returns an error if it is
+func (env *Environment) validateNotSubmoduleFile(filePath string) error {
+	// Use cached submodule paths from state (detected once during creation)
+	submodulePaths := env.State.SubmodulePaths
+
+	if env.isWithinSubmodule(filePath, submodulePaths) {
+		return fmt.Errorf("cannot modify file '%s': it is within a git submodule. Submodule files are read-only to prevent accidental changes", filePath)
+	}
+
+	return nil
 }
