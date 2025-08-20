@@ -275,7 +275,7 @@ func TestRepositoryWithSubmodule(t *testing.T) {
 
 		// Below we document the behavior of env.Run-instigated file writes to submodules.
 		// Ideally, these would error, but practically we don't have an easy way to detect them.
-		// env.Run-instigated submodules writes do not error, but they also do not propogate outwards to the fork repository.
+		// env.Run-instigated submodules writes do not error, but they also do not propagate outwards to the fork repository.
 		_, err := env.Run(ctx, "echo 'content from env_run_cmd' > submodule/test-from-cmd.txt", "sh", false)
 		require.NoError(t, err, "env_run_cmd should be able to write files in submodules")
 
