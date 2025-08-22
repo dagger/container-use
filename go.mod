@@ -5,13 +5,14 @@ go 1.24.3
 toolchain go1.24.4
 
 require (
-	dagger.io/dagger v0.18.14
+	dagger.io/dagger v0.18.16
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/fang v0.3.0
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/dustinkirkland/golang-petname v0.0.0-20240428194347-eebcea082ee0
+	github.com/gofrs/flock v0.12.1
 	github.com/mark3labs/mcp-go v0.29.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pelletier/go-toml/v2 v2.2.4
@@ -43,7 +44,6 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
