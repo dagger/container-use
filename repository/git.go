@@ -255,6 +255,10 @@ func (r *Repository) propagateToGit(ctx context.Context, env *environment.Enviro
 		return err
 	}
 
+	if note := env.Notes.Pop(); note != "" {
+		return r.addGitNote(ctx, env, note)
+	}
+
 	return nil
 }
 
