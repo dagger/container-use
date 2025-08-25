@@ -58,14 +58,12 @@ func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) (
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	envs, err := repo.List(ctx)
+	// Use the faster ListIDs method for autocompletion instead of full List()
+	// This avoids loading full environment state and metadata
+	ids, err := repo.ListIDs(ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	ids := []string{}
-	for _, e := range envs {
-		ids = append(ids, e.ID)
-	}
 	return ids, cobra.ShellCompDirectiveKeepOrder
 }
