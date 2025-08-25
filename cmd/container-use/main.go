@@ -65,5 +65,10 @@ func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) (
 		return nil, cobra.ShellCompDirectiveError
 	}
 
+	// If no environments found, return directive that prevents fallback to file completion
+	if len(ids) == 0 {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+
 	return ids, cobra.ShellCompDirectiveKeepOrder
 }
