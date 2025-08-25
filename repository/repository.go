@@ -374,6 +374,20 @@ func (r *Repository) Update(ctx context.Context, env *environment.Environment, e
 	return nil
 }
 
+// UpdateFile saves only the specified file from the environment to the repository.
+// This is more efficient than Update() for single file operations as it only exports
+// and commits the specified file instead of the entire directory.
+func (r *Repository) UpdateFile(ctx context.Context, env *environment.Environment, filePath, explanation string) error {
+	if err := r.propagateFileToWorktree(ctx, env, filePath, explanation); err != nil {
+		return err
+	}
+
+	if note := env.Notes.Pop(); note != "" {
+		return r.addGitNote(ctx, env, note)
+	}
+	return nil
+}
+
 // Delete removes an environment from the repository.
 func (r *Repository) Delete(ctx context.Context, id string) error {
 	if err := r.exists(ctx, id); err != nil {
