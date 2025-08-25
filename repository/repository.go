@@ -364,14 +364,14 @@ func (r *Repository) isDescendantOfCommit(ctx context.Context, ancestorCommit, e
 // Update saves the provided environment to the repository.
 // Writes configuration and source code changes to the worktree and history + state to git notes.
 func (r *Repository) Update(ctx context.Context, env *environment.Environment, explanation string) error {
-	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {
-		return err
-	}
+	return r.propagateToWorktree(ctx, env, explanation)
+}
 
-	if note := env.Notes.Pop(); note != "" {
-		return r.addGitNote(ctx, env, note)
-	}
-	return nil
+// UpdateFile saves only the specified file from the environment to the repository.
+// This is more efficient than Update() for single file operations as it only exports
+// and commits the specified file instead of the entire directory.
+func (r *Repository) UpdateFile(ctx context.Context, env *environment.Environment, filePath, explanation string) error {
+	return r.propagateFileToWorktree(ctx, env, filePath, explanation)
 }
 
 // Delete removes an environment from the repository.

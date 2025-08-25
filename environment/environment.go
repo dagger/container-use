@@ -63,6 +63,11 @@ func (env *Environment) Workdir() *dagger.Directory {
 	return env.container().Directory(env.State.Config.Workdir)
 }
 
+// WorkdirFile returns a single file from the workdir
+func (env *Environment) WorkdirFile(path string) *dagger.File {
+	return env.container().File(path)
+}
+
 func (env *Environment) container() *dagger.Container {
 	env.mu.RLock()
 	defer env.mu.RUnlock()

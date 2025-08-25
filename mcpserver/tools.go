@@ -742,7 +742,7 @@ func createEnvironmentFileEditTool(singleTenant bool) *Tool {
 				return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
 			}
 
-			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			if err := repo.UpdateFile(ctx, env, targetFile, request.GetString("explanation", "")); err != nil {
 				return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 			}
 
@@ -787,7 +787,7 @@ func createEnvironmentFileWriteTool(singleTenant bool) *Tool {
 				return nil, fmt.Errorf("failed to write file: %w", err)
 			}
 
-			if err := repo.Update(ctx, env, request.GetString("explanation", "")); err != nil {
+			if err := repo.UpdateFile(ctx, env, targetFile, request.GetString("explanation", "")); err != nil {
 				return nil, fmt.Errorf("unable to update the environment: %w", err)
 			}
 
