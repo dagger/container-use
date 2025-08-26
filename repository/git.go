@@ -116,35 +116,75 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 	return nil
 }
 
-func (r *Repository) initializeWorktree(ctx context.Context, id string) (string, error) {
+// initializeWorktree initializes a new worktree for environment creation.
+// It pushes the specified gitRef to create a new branch with the given id, then creates a worktree from that branch.
+func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) (string, error) {
+	if gitRef == "" {
+		gitRef = "HEAD"
+	}
+
 	worktreePath, err := r.WorktreePath(id)
 	if err != nil {
 		return "", err
 	}
 
+	slog.Info("Initializing new worktree", "repository", r.userRepoPath, "environment-id", id, "from-ref", gitRef)
+
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
+		resolvedRef, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", gitRef)
+		if err != nil {
+			return err
+		}
+		resolvedRef = strings.TrimSpace(resolvedRef)
+
+		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
+		if err != nil {
+			// Retry once on failure
+			_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
+		if err != nil {
+			return err
+		}
+
+		_, err = RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, id)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+// getWorktree gets or recreates a worktree for an existing environment.
+// It assumes the environment branch already exists in the forkRepo and will fail if it doesn't.
+func (r *Repository) getWorktree(ctx context.Context, id string) (string, error) {
+	worktreePath, err := r.WorktreePath(id)
+	if err != nil {
+		return "", err
+	}
+
+	// Early return if the worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
 		return worktreePath, nil
 	}
 
-	slog.Info("Initializing worktree", "repository", r.userRepoPath, "container-id", id)
+	slog.Info("Recreating worktree for existing environment", "repository", r.userRepoPath, "environment-id", id)
 
-	return worktreePath, r.lockManager.WithLock(ctx, LockTypeWorktree, func() error {
+	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
+		// In case something has changed while waiting for lock. prolly too defensive.
 		if _, err := os.Stat(worktreePath); err == nil {
 			return nil
 		}
 
-		currentHead, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", "HEAD")
+		// Verify the environment branch exists in forkRepo before creating worktree
+		_, err := RunGitCommand(ctx, r.forkRepoPath, "rev-parse", "--verify", id)
 		if err != nil {
-			return err
-		}
-		currentHead = strings.TrimSpace(currentHead)
-
-		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
-		if err != nil {
-			_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", currentHead, id))
-			if err != nil {
-				return err
-			}
+			return fmt.Errorf("environment branch %s not found in fork repository: %w", id, err)
 		}
 
 		_, err = RunGitCommand(ctx, r.forkRepoPath, "worktree", "add", worktreePath, id)
@@ -185,10 +225,16 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
+	return r.propagateToGit(ctx, env, explanation)
+}
+
+// propagateToGit commits exported changes and syncs them back to the user's git repository
+func (r *Repository) propagateToGit(ctx context.Context, env *environment.Environment, explanation string) error {
 	worktreePath, err := r.WorktreePath(env.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
+
 	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
@@ -197,8 +243,11 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return fmt.Errorf("failed to add notes: %w", err)
 	}
 
-	slog.Info("Fetching container-use remote in source repository")
-	if _, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID); err != nil {
+	if err := r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+		slog.Info("Fetching container-use remote in source repository")
+		_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, env.ID)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -206,7 +255,33 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
+	if note := env.Notes.Pop(); note != "" {
+		return r.addGitNote(ctx, env, note)
+	}
+
 	return nil
+}
+
+// propagateFileToWorktree propagates a single file from the environment to the worktree
+// This is more efficient than propagateToWorktree for single file operations
+func (r *Repository) propagateFileToWorktree(ctx context.Context, env *environment.Environment, filePath, explanation string) (rerr error) {
+	slog.Info("Propagating single file to worktree...",
+		"environment.id", env.ID,
+		"file", filePath,
+		"workdir", env.State.Config.Workdir)
+	defer func() {
+		slog.Info("Propagating single file to worktree... (DONE)",
+			"environment.id", env.ID,
+			"file", filePath,
+			"workdir", env.State.Config.Workdir,
+			"err", rerr)
+	}()
+
+	if err := r.exportEnvironmentFile(ctx, env, filePath); err != nil {
+		return err
+	}
+
+	return r.propagateToGit(ctx, env, explanation)
 }
 
 func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Environment) error {
@@ -230,14 +305,39 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 
 	return nil
 }
-func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
-	fullRef := fmt.Sprintf("refs/notes/%s", ref)
-	fetch := func() error {
-		_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
-		return err
+
+// exportEnvironmentFile exports a single file from the environment to the worktree
+func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment.Environment, filePath string) error {
+	worktreePath, err := r.WorktreePath(env.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+	// Get the absolute path for the file in the worktree
+	absoluteFilePath := filepath.Join(worktreePath, filePath)
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(filepath.Dir(absoluteFilePath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for file %s: %w", filePath, err)
+	}
+
+	// Export the single file from the environment
+	_, err = env.WorkdirFile(filePath).Export(ctx, absoluteFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to export file %s: %w", filePath, err)
+	}
+
+	return nil
+}
+func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
+	fullRef := fmt.Sprintf("refs/notes/%s", ref)
+
+	return r.lockManager.WithLock(ctx, LockTypeUserRepo, func() error {
+		fetch := func() error {
+			_, err := RunGitCommand(ctx, r.userRepoPath, "fetch", containerUseRemote, fullRef+":"+fullRef)
+			return err
+		}
+
 		if err := fetch(); err != nil {
 			if strings.Contains(err.Error(), "[rejected]") {
 				if _, err := RunGitCommand(ctx, r.userRepoPath, "update-ref", "-d", fullRef); err == nil {
@@ -269,7 +369,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 		return err
 	}
 
-	return r.lockManager.WithLock(ctx, LockTypeGitNotes, func() error {
+	return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
 		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
 		return err
 	})
@@ -278,7 +378,7 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 func (r *Repository) loadState(ctx context.Context, worktreePath string) ([]byte, error) {
 	var result []byte
 
-	err := r.lockManager.WithRLock(ctx, LockTypeGitNotes, func() error {
+	err := r.lockManager.WithRLock(ctx, LockTypeNotes, func() error {
 		buff, err := RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "show")
 		if err != nil {
 			if strings.Contains(err.Error(), "no note found") {
@@ -299,10 +399,13 @@ func (r *Repository) addGitNote(ctx context.Context, env *environment.Environmen
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
-	_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
-	if err != nil {
+	if err := r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
+		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesLogRef, "append", "-m", note)
+		return err
+	}); err != nil {
 		return err
 	}
+
 	return r.propagateGitNotes(ctx, gitNotesLogRef)
 }
 
@@ -337,21 +440,23 @@ func (r *Repository) revisionRange(ctx context.Context, env *environment.Environ
 }
 
 func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string) error {
-	status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
-	if err != nil {
+	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
+		status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
+		if err != nil {
+			return err
+		}
+
+		if strings.TrimSpace(status) == "" {
+			return nil
+		}
+
+		if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
+			return err
+		}
+
+		_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
 		return err
-	}
-
-	if strings.TrimSpace(status) == "" {
-		return nil
-	}
-
-	if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
-		return err
-	}
-
-	_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
-	return err
+	})
 }
 
 // AI slop below!

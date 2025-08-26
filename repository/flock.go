@@ -16,12 +16,14 @@ import (
 type LockType string
 
 const (
-	// LockTypeRepo - Repository-level operations (fork setup, remote configuration)
-	LockTypeRepo LockType = "repo"
-	// LockTypeWorktree - Worktree operations (branch creation, worktree initialization)
-	LockTypeWorktree LockType = "worktree"
-	// LockTypeGitNotes - Git notes operations (state saves, log updates)
-	LockTypeGitNotes LockType = "notes"
+	// LockTypeUserRepo - Git operations on the environment_source repo (changing remotes, fetching)
+	LockTypeUserRepo LockType = "user-repo"
+	// LockTypeForkRepo - Git operations on our fork (~/.config/container-use/repos/$repo)
+	// Used for committing, creating worktrees, uploading from worktrees (should be rlock for uploads)
+	LockTypeForkRepo LockType = "fork-repo"
+	// LockTypeNotes - Subset of fork repo operations for saving state, notes etc
+	// Notes are a global ref to that repository and we do many operations against them
+	LockTypeNotes LockType = "notes"
 )
 
 // RepositoryLockManager provides granular process-level locking for repository operations

@@ -228,7 +228,7 @@ func (u *UserActions) RunCommand(envID, command, explanation string) string {
 
 // CreateEnvironment mirrors environment_create MCP tool behavior
 func (u *UserActions) CreateEnvironment(title, explanation string) *environment.Environment {
-	env, err := u.repo.Create(u.ctx, u.dag, title, explanation)
+	env, err := u.repo.Create(u.ctx, u.dag, title, explanation, "HEAD")
 	require.NoError(u.t, err, "Create environment should succeed")
 	return env
 }
@@ -335,4 +335,21 @@ func (u *UserActions) GitCommand(args ...string) string {
 	output, err := repository.RunGitCommand(u.ctx, u.repoDir, args...)
 	require.NoError(u.t, err, "Git command failed: %v", args)
 	return output
+}
+
+// WriteFileInSourceRepo writes a file to the source repo and commits it
+func (u *UserActions) WriteFileInSourceRepo(path, content, commitMessage string) {
+	require.NotEmpty(u.t, u.repoDir, "Need direct access for source file manipulation")
+	writeFile(u.t, u.repoDir, path, content)
+	gitCommit(u.t, u.repoDir, commitMessage)
+}
+
+// CreateBranchInSourceRepo creates and checks out a new branch in the source repo
+func (u *UserActions) CreateBranchInSourceRepo(branchName string) {
+	u.GitCommand("checkout", "-b", branchName)
+}
+
+// CheckoutBranchInSourceRepo checks out an existing branch in the source repo
+func (u *UserActions) CheckoutBranchInSourceRepo(branchName string) {
+	u.GitCommand("checkout", branchName)
 }

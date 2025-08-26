@@ -6,17 +6,18 @@ ENVIRONMENT:
 
 - ALWAYS use ONLY Environments for ANY and ALL file, code, or shell operations—NO EXCEPTIONS—even for simple or generic requests.
 - DO NOT install or use the git cli with the environment_run_cmd tool. All environment tools will handle git operations for you. Changing ".git" yourself will compromise the integrity of your environment.
-- You MUST inform the user how to view your work using `cu log <env_id>` AND `cu checkout <env_id>`. Failure to do this will make your work inaccessible to others.
+- You MUST inform the user how to view your work using `container-use log <env_id>` AND `container-use checkout <env_id>`. Failure to do this will make your work inaccessible to others.
 
 DEVELOPMENT WORKFLOW:
 
 - Build: Use 'go build -o container-use ./cmd/container-use' or 'dagger call build --platform=current export --path ./container-use'
 - Test: Run 'go test ./...' for all tests, 'go test -short ./...' for unit tests only, or 'go test -count=1 -v ./environment' for integration tests
 - Format: Always run 'go fmt ./...' before committing
-- Lint: Run 'golangci-lint run' to check for linting issues
+- Lint: Run 'dagger call lint' to check for linting issues
 - Dependencies: Run 'go mod download' to install dependencies, 'go mod tidy' to clean up
 
 MANUAL STDIO TESTING:
+- IMPORTANT: container-use cannot be manually tested in its own /workdir. First initialize a new git repository elsewhere on disk (e.g., /tmp/test-repo) and manually test from there
 - Test stdio interface: Use 'echo $request | timeout $seconds container-use stdio' where:
   - $request is a JSON-formatted MCP request (e.g., '{"jsonrpc":"2.0","method":"ping","id":1}')
   - $seconds is timeout duration (e.g., 10 for 10 seconds)
@@ -26,7 +27,7 @@ MANUAL STDIO TESTING:
 - Common test requests:
   - Ping: '{"jsonrpc":"2.0","method":"ping","id":1}'
   - List tools: '{"jsonrpc":"2.0","method":"tools/list","id":1}'
-  - Initialize: '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true},"sampling":{}}},"id":1}'
+  - Initialize: '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}},"id":1}'
 
 DAGGER MODULE (more details in .dagger/):
 
