@@ -58,14 +58,22 @@ func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) (
 		return nil, cobra.ShellCompDirectiveError
 	}
 
+	// Use the standard List method - it's already parallelized and works correctly
 	envs, err := repo.List(ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	ids := []string{}
-	for _, e := range envs {
-		ids = append(ids, e.ID)
+	// If no environments found, return directive that prevents fallback to file completion
+	if len(envs) == 0 {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
 	}
-	return ids, cobra.ShellCompDirectiveKeepOrder
+
+	// Extract IDs from environment info
+	ids := make([]string, len(envs))
+	for i, env := range envs {
+		ids[i] = env.ID
+	}
+
+	return ids, cobra.ShellCompDirectiveNoFileComp
 }

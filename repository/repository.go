@@ -12,11 +12,13 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/mitchellh/go-homedir"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -299,27 +301,68 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 		return nil, err
 	}
 
-	envs := []*environment.EnvironmentInfo{}
+	branchList := []string{}
 	for branch := range strings.SplitSeq(branches, "\n") {
 		branch = strings.TrimSpace(branch)
-
-		// FIXME(aluzzardi): This is a hack to make sure the branch is actually an environment.
-		// There must be a better way to do this.
-		worktree, err := r.WorktreePath(branch)
-		if err != nil {
-			return nil, err
+		if branch != "" {
+			branchList = append(branchList, branch)
 		}
-		state, err := r.loadState(ctx, worktree)
-		if err != nil || state == nil {
-			continue
-		}
+	}
 
-		envInfo, err := r.Info(ctx, branch)
-		if err != nil {
-			return nil, err
-		}
+	// Use a worker pool for parallel processing
+	maxWorkers := min(8, runtime.NumCPU(), len(branchList))
 
-		envs = append(envs, envInfo)
+	if len(branchList) == 0 {
+		return []*environment.EnvironmentInfo{}, nil
+	}
+
+	// Channel for sending work to workers
+	branchChan := make(chan string, len(branchList))
+
+	// Slice to collect results with mutex protection
+	var envs []*environment.EnvironmentInfo
+	var envsMutex sync.Mutex
+
+	// Error group to manage goroutines and collect errors
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Start worker goroutines
+	for range maxWorkers {
+		g.Go(func() error {
+			for branch := range branchChan {
+				// Check if context was cancelled
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+
+				// note:  we used to do a loadState here to validate that branch contains an environment.
+				// r.Info does the exact same process, so instead we rely on its errors to determine if the branch is an env.
+				// we always need the full info here, even if it looks like we just use the ID, because we need it to sort the IDs by updated_at.
+				envInfo, err := r.Info(ctx, branch)
+				if err != nil {
+					// Skip branches where we can't load info
+					continue
+				}
+
+				// Thread-safe append to results
+				envsMutex.Lock()
+				envs = append(envs, envInfo)
+				envsMutex.Unlock()
+			}
+			return nil
+		})
+	}
+
+	// Send all branches to workers
+	for _, branch := range branchList {
+		branchChan <- branch
+	}
+	close(branchChan)
+
+	// Wait for all workers to complete
+	err = g.Wait()
+	if err != nil {
+		return nil, err
 	}
 
 	// Sort by most recently updated environments first
