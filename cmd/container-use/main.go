@@ -73,7 +73,7 @@ func calculateMaxTitleLength(terminalWidth int) int {
 	// - Some padding for safety
 
 	const (
-		avgEnvIdLength = 12 // typical environment ID length
+		avgEnvIDLength = 12 // typical environment ID length
 		tabSeparator   = 1  // tab character
 		descSuffix     = 11 // " (updated "
 		avgTimeLength  = 10 // "2 hours ago"
@@ -81,7 +81,7 @@ func calculateMaxTitleLength(terminalWidth int) int {
 		padding        = 5  // safety padding
 	)
 
-	usedSpace := avgEnvIdLength + tabSeparator + descSuffix + avgTimeLength + closeParen + padding
+	usedSpace := avgEnvIDLength + tabSeparator + descSuffix + avgTimeLength + closeParen + padding
 	maxTitleLength := terminalWidth - usedSpace
 
 	// Ensure we have a reasonable minimum and maximum
