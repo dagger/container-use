@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/fang"
 	"github.com/dagger/container-use/repository"
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
 
@@ -69,11 +70,16 @@ func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) (
 		return []string{}, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	// Extract IDs from environment info
-	ids := make([]string, len(envs))
+	// Create completions with descriptions showing title and update time
+	completions := make([]string, len(envs))
 	for i, env := range envs {
-		ids[i] = env.ID
+		title := env.State.Title
+		if len(title) > 30 {
+			title = title[:30] + "…"
+		}
+		description := fmt.Sprintf("%s (updated %s)", title, humanize.Time(env.State.UpdatedAt))
+		completions[i] = cobra.CompletionWithDesc(env.ID, description)
 	}
 
-	return ids, cobra.ShellCompDirectiveNoFileComp
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
