@@ -4,7 +4,7 @@
   "setup_commands": [
     "apt-get update && apt-get install -y curl git build-essential jq",
     "curl -fsSL https://get.docker.com | sh",
-    "cd /tmp && curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.11 sh && cp ./bin/dagger /usr/local/bin/dagger",
+    "cd /tmp && curl -L https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=v0.18.16 sh && cp ./bin/dagger /usr/local/bin/dagger",
     "git config --global user.name \"Test User\"",
     "git config --global user.email \"test@dagger.com\"",
     "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
