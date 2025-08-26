@@ -21,18 +21,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// SkippableBranchError indicates that a branch should be skipped during parallel processing
-// rather than failing the entire operation. This is used for branches that aren't valid
-// environments or have missing/invalid state.
-type SkippableBranchError struct {
-	Branch string
-	Reason string
-}
-
-func (e SkippableBranchError) Error() string {
-	return fmt.Sprintf("skipping branch %q: %s", e.Branch, e.Reason)
-}
-
 const (
 	containerUseRemote = "container-use"
 	gitNotesLogRef     = "container-use"
@@ -321,26 +309,58 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 		}
 	}
 
-	envs, err := processBranches(ctx, branchList, func(ctx context.Context, branch string) (*environment.EnvironmentInfo, error) {
-		// FIXME(aluzzardi): This is a hack to make sure the branch is actually an environment.
-		// There must be a better way to do this.
-		worktree, err := r.WorktreePath(branch)
-		if err != nil {
-			return nil, SkippableBranchError{Branch: branch, Reason: "invalid worktree path"}
-		}
+	// Use a worker pool for parallel processing
+	maxWorkers := min(8, runtime.NumCPU(), len(branchList))
 
-		state, err := r.loadState(ctx, worktree)
-		if err != nil || state == nil {
-			return nil, SkippableBranchError{Branch: branch, Reason: "missing or invalid state"}
-		}
+	if len(branchList) == 0 {
+		return []*environment.EnvironmentInfo{}, nil
+	}
 
-		envInfo, err := r.Info(ctx, branch)
-		if err != nil {
-			return nil, SkippableBranchError{Branch: branch, Reason: "failed to load environment info"}
-		}
+	// Channel for sending work to workers
+	branchChan := make(chan string, len(branchList))
 
-		return envInfo, nil
-	})
+	// Slice to collect results with mutex protection
+	var envs []*environment.EnvironmentInfo
+	var envsMutex sync.Mutex
+
+	// Error group to manage goroutines and collect errors
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Start worker goroutines
+	for range maxWorkers {
+		g.Go(func() error {
+			for branch := range branchChan {
+				// Check if context was cancelled
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+
+				// note:  we used to do a loadState here to validate that branch contains an environment.
+				// r.Info does the exact same process, so instead we rely on its errors to determine if the branch is an env.
+				// we always need the full info here, even if it looks like we just use the ID, because we need it to sort the IDs by updated_at.
+				envInfo, err := r.Info(ctx, branch)
+				if err != nil {
+					// Skip branches where we can't load info
+					continue
+				}
+
+				// Thread-safe append to results
+				envsMutex.Lock()
+				envs = append(envs, envInfo)
+				envsMutex.Unlock()
+			}
+			return nil
+		})
+	}
+
+	// Send all branches to workers
+	for _, branch := range branchList {
+		branchChan <- branch
+	}
+	close(branchChan)
+
+	// Wait for all workers to complete
+	err = g.Wait()
 	if err != nil {
 		return nil, err
 	}
@@ -351,107 +371,6 @@ func (r *Repository) List(ctx context.Context) ([]*environment.EnvironmentInfo, 
 	})
 
 	return envs, nil
-}
-
-// listParallel processes branches in parallel to improve performance
-// processBranches processes git branches in parallel using a worker pool.
-// The processor function is called for each branch and should return a result or error.
-// Invalid branches (where processor returns error) are skipped rather than failing the entire operation.
-func processBranches[T any](ctx context.Context, branches []string, processor func(context.Context, string) (T, error)) ([]T, error) {
-	if len(branches) == 0 {
-		return []T{}, nil
-	}
-
-	// Compute default parallelism based on available CPUs and number of branches
-	// Use at most 8 workers, limited by CPU count and number of branches
-	maxWorkers := min(8, runtime.NumCPU(), len(branches))
-
-	// Channel for sending work to workers
-	branchChan := make(chan string, len(branches))
-
-	// Slice to collect results with mutex protection
-	var results []T
-	var resultsMutex sync.Mutex
-
-	// Error group to manage goroutines and collect errors
-	g, ctx := errgroup.WithContext(ctx)
-
-	// Start worker goroutines
-	for i := 0; i < maxWorkers; i++ {
-		g.Go(func() error {
-			for branch := range branchChan {
-				// Check if context was cancelled
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-
-				result, err := processor(ctx, branch)
-				if err != nil {
-					var skippableErr SkippableBranchError
-					if errors.As(err, &skippableErr) {
-						// Skip invalid branches instead of failing the entire operation
-						continue
-					}
-					// Return non-skippable errors (e.g., context cancellation, system errors)
-					return err
-				}
-
-				// Thread-safe append to results
-				resultsMutex.Lock()
-				results = append(results, result)
-				resultsMutex.Unlock()
-			}
-			return nil
-		})
-	}
-
-	// Send all branches to workers
-	for _, branch := range branches {
-		branchChan <- branch
-	}
-	close(branchChan)
-
-	// Wait for all workers to complete
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
-	return results, nil
-}
-
-// ListIDs returns only the environment IDs for faster autocompletion.
-// This method avoids loading full environment state and info, making it more suitable
-// for shell completion scenarios where only IDs are needed.
-func (r *Repository) ListIDs(ctx context.Context) ([]string, error) {
-	branches, err := RunGitCommand(ctx, r.forkRepoPath, "branch", "--format", "%(refname:short)")
-	if err != nil {
-		return nil, err
-	}
-
-	branchList := []string{}
-	for branch := range strings.SplitSeq(branches, "\n") {
-		branch = strings.TrimSpace(branch)
-		if branch != "" {
-			branchList = append(branchList, branch)
-		}
-	}
-
-	return processBranches(ctx, branchList, func(ctx context.Context, branch string) (string, error) {
-		// Quick check: only verify that the branch is a valid environment
-		// by checking if a worktree path exists and has a state file
-		worktree, err := r.WorktreePath(branch)
-		if err != nil {
-			return "", SkippableBranchError{Branch: branch, Reason: "invalid worktree path"}
-		}
-
-		// Fast check: just see if state file exists without loading it
-		stateFile := filepath.Join(worktree, ".container-use", "state.json")
-		if _, err := os.Stat(stateFile); err != nil {
-			return "", SkippableBranchError{Branch: branch, Reason: "missing state file"}
-		}
-
-		return branch, nil
-	})
 }
 
 // ListDescendantEnvironments returns environments that are descendants of the given commit.
