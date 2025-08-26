@@ -10,6 +10,7 @@ import (
 	"github.com/dagger/container-use/repository"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -51,6 +52,49 @@ func main() {
 	}
 }
 
+func getTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		// Default to 120 columns if we can't detect terminal size -- this seems common
+		return 120
+	}
+	return width
+}
+
+// calculateMaxTitleLength calculates the maximum length for title truncation
+// based on terminal width, leaving room for environment ID, description format, and padding
+func calculateMaxTitleLength(terminalWidth int) int {
+	// Format: "env-id	description: title (updated time ago)"
+	// We need to account for:
+	// - Environment ID (typically 8-15 chars like "adapted-tetra")
+	// - Tab separator (1 char)
+	// - Description prefix/suffix like " (updated " and ")"
+	// - Time string like "2 hours ago" (typically 5-15 chars)
+	// - Some padding for safety
+
+	const (
+		avgEnvIdLength = 12 // typical environment ID length
+		tabSeparator   = 1  // tab character
+		descSuffix     = 11 // " (updated "
+		avgTimeLength  = 10 // "2 hours ago"
+		closeParen     = 1  // ")"
+		padding        = 5  // safety padding
+	)
+
+	usedSpace := avgEnvIdLength + tabSeparator + descSuffix + avgTimeLength + closeParen + padding
+	maxTitleLength := terminalWidth - usedSpace
+
+	// Ensure we have a reasonable minimum and maximum
+	if maxTitleLength < 10 {
+		return 10 // minimum readable length
+	}
+	if maxTitleLength > 100 {
+		return 100 // reasonable maximum
+	}
+
+	return maxTitleLength
+}
+
 func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	ctx := cmd.Context()
 
@@ -71,11 +115,14 @@ func suggestEnvironments(cmd *cobra.Command, args []string, toComplete string) (
 	}
 
 	// Create completions with descriptions showing title and update time
+	terminalWidth := getTerminalWidth()
+	maxTitleLength := calculateMaxTitleLength(terminalWidth)
+
 	completions := make([]string, len(envs))
 	for i, env := range envs {
 		title := env.State.Title
-		if len(title) > 30 {
-			title = title[:30] + "…"
+		if len(title) > maxTitleLength {
+			title = title[:maxTitleLength] + "…"
 		}
 		description := fmt.Sprintf("%s (updated %s)", title, humanize.Time(env.State.UpdatedAt))
 		completions[i] = cobra.CompletionWithDesc(env.ID, description)
