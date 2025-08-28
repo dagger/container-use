@@ -247,6 +247,11 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 		return err
 	}
 
+	return r.propagateToGit(ctx, env, explanation)
+}
+
+// propagateToGit commits exported changes and syncs them back to the user's git repository
+func (r *Repository) propagateToGit(ctx context.Context, env *environment.Environment, explanation string) error {
 	worktreePath, err := r.WorktreePath(env.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get worktree path: %w", err)
@@ -270,6 +275,10 @@ func (r *Repository) propagateToWorktree(ctx context.Context, env *environment.E
 
 	if err := r.propagateGitNotes(ctx, gitNotesStateRef); err != nil {
 		return err
+	}
+
+	if note := env.Notes.Pop(); note != "" {
+		return r.addGitNote(ctx, env, note)
 	}
 
 	return nil
@@ -310,6 +319,28 @@ func addSubmoduleGitdirFiles(baseDir *dagger.Directory, worktreePath string, sub
 	return result, nil
 }
 
+// propagateFileToWorktree propagates a single file from the environment to the worktree
+// This is more efficient than propagateToWorktree for single file operations
+func (r *Repository) propagateFileToWorktree(ctx context.Context, env *environment.Environment, filePath, explanation string) (rerr error) {
+	slog.Info("Propagating single file to worktree...",
+		"environment.id", env.ID,
+		"file", filePath,
+		"workdir", env.State.Config.Workdir)
+	defer func() {
+		slog.Info("Propagating single file to worktree... (DONE)",
+			"environment.id", env.ID,
+			"file", filePath,
+			"workdir", env.State.Config.Workdir,
+			"err", rerr)
+	}()
+
+	if err := r.exportEnvironmentFile(ctx, env, filePath); err != nil {
+		return err
+	}
+
+	return r.propagateToGit(ctx, env, explanation)
+}
+
 func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Environment) error {
 	worktreePointer := fmt.Sprintf("gitdir: %s", filepath.Join(r.forkRepoPath, "worktrees", env.ID))
 
@@ -330,6 +361,30 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	_, err = exportDir.Export(ctx, worktreePath, dagger.DirectoryExportOpts{Wipe: true})
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// exportEnvironmentFile exports a single file from the environment to the worktree
+func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment.Environment, filePath string) error {
+	worktreePath, err := r.WorktreePath(env.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get worktree path: %w", err)
+	}
+
+	// Get the absolute path for the file in the worktree
+	absoluteFilePath := filepath.Join(worktreePath, filePath)
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(filepath.Dir(absoluteFilePath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for file %s: %w", filePath, err)
+	}
+
+	// Export the single file from the environment
+	_, err = env.WorkdirFile(filePath).Export(ctx, absoluteFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to export file %s: %w", filePath, err)
 	}
 
 	return nil
