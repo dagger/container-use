@@ -31,21 +31,32 @@ type Environment struct {
 	mu sync.RWMutex
 }
 
-func New(ctx context.Context, dag *dagger.Client, id, title string, config *EnvironmentConfig, initialSourceDir *dagger.Directory) (*Environment, error) {
+// NewEnvArgs contains the arguments for creating a new environment
+type NewEnvArgs struct {
+	Dag              *dagger.Client
+	ID               string
+	Title            string
+	Config           *EnvironmentConfig
+	InitialSourceDir *dagger.Directory
+	SubmodulePaths   []string
+}
+
+func New(ctx context.Context, args NewEnvArgs) (*Environment, error) {
 	env := &Environment{
 		EnvironmentInfo: &EnvironmentInfo{
-			ID: id,
+			ID: args.ID,
 			State: &State{
-				Config:    config,
-				Title:     title,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				Config:         args.Config,
+				Title:          args.Title,
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+				SubmodulePaths: args.SubmodulePaths,
 			},
 		},
-		dag: dag,
+		dag: args.Dag,
 	}
 
-	container, err := env.buildBase(ctx, initialSourceDir)
+	container, err := env.buildBase(ctx, args.InitialSourceDir)
 	if err != nil {
 		return nil, err
 	}

@@ -189,7 +189,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		gitRef = "HEAD"
 	}
 	id := petname.Generate(2, "-")
-	worktree, err := r.initializeWorktree(ctx, id, gitRef)
+	worktree, submoduleWarning, err := r.initializeWorktree(ctx, id, gitRef)
 	if err != nil {
 		return nil, err
 	}
@@ -217,6 +217,7 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 			Ref(worktreeHead).
 			Tree(dagger.GitRefTreeOpts{DiscardGitDir: true}).
 			Sync(ctx) // don't bust cache when loading from state
+
 		return err
 	})
 	if err != nil {
@@ -228,9 +229,24 @@ func (r *Repository) Create(ctx context.Context, dag *dagger.Client, description
 		return nil, err
 	}
 
-	env, err := environment.New(ctx, dag, id, description, config, baseSourceDir)
+	// Detect submodules from the host worktree before creating the environment
+	submodulePaths := r.getSubmodulePaths(ctx, worktree)
+
+	env, err := environment.New(ctx, environment.NewEnvArgs{
+		Dag:              dag,
+		ID:               id,
+		Title:            description,
+		Config:           config,
+		InitialSourceDir: baseSourceDir,
+		SubmodulePaths:   submodulePaths,
+	})
 	if err != nil {
 		return nil, err
+	}
+
+	// Add submodule warning to environment notes if initialization failed
+	if submoduleWarning != "" {
+		env.Notes.Add("Warning: %s", submoduleWarning)
 	}
 
 	if err := r.propagateToWorktree(ctx, env, explanation); err != nil {

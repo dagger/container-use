@@ -118,19 +118,21 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 
 // initializeWorktree initializes a new worktree for environment creation.
 // It pushes the specified gitRef to create a new branch with the given id, then creates a worktree from that branch.
-func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) (string, error) {
+// Returns the worktree path, any submodule warning, and an error.
+func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) (string, string, error) {
 	if gitRef == "" {
 		gitRef = "HEAD"
 	}
 
 	worktreePath, err := r.WorktreePath(id)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	slog.Info("Initializing new worktree", "repository", r.userRepoPath, "environment-id", id, "from-ref", gitRef)
 
-	return worktreePath, r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
+	var submoduleWarning string
+	err = r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		resolvedRef, err := RunGitCommand(ctx, r.userRepoPath, "rev-parse", gitRef)
 		if err != nil {
 			return err
@@ -156,8 +158,28 @@ func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) 
 			return err
 		}
 
+		// Initialize submodules using host credentials
+		submoduleOutput, submoduleErr := RunGitCommand(ctx, worktreePath, "submodule", "update", "--init", "--recursive")
+		if submoduleErr != nil {
+			// Log warning but don't fail - submodules might require auth
+			slog.Warn("Failed to initialize submodules",
+				"error", submoduleErr,
+				"output", submoduleOutput)
+			submoduleWarning = fmt.Sprintf("Failed to initialize submodules: %v", submoduleErr)
+		}
+
+		// Absorb git directories for submodules to ensure paths are consistent
+		// This is especially important for recursive submodules
+		_, absorbErr := RunGitCommand(ctx, worktreePath, "submodule", "absorbgitdirs")
+		if absorbErr != nil {
+			slog.Warn("Failed to absorb git modules for submodules",
+				"error", absorbErr)
+		}
+
 		return nil
 	})
+
+	return worktreePath, submoduleWarning, err
 }
 
 // getWorktree gets or recreates a worktree for an existing environment.
@@ -235,7 +257,7 @@ func (r *Repository) propagateToGit(ctx context.Context, env *environment.Enviro
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation); err != nil {
+	if err := r.commitWorktreeChanges(ctx, worktreePath, explanation, env.State.SubmodulePaths); err != nil {
 		return fmt.Errorf("failed to commit worktree changes: %w", err)
 	}
 
@@ -260,6 +282,41 @@ func (r *Repository) propagateToGit(ctx context.Context, env *environment.Enviro
 	}
 
 	return nil
+}
+
+// readSubmoduleGitdirPath reads the gitdir path from a submodule's .git file
+// reading these files on every export is unfortunate-- ideally we'd compute their values,
+// but doing so requires complete knowledge of the tree structure of the submodules.
+func readSubmoduleGitdirPath(worktreePath, submodulePath string) (string, error) {
+	submoduleGitPath := filepath.Join(worktreePath, submodulePath, ".git")
+
+	gitContent, err := os.ReadFile(submoduleGitPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read submodule .git file %s: %w", submoduleGitPath, err)
+	}
+
+	gitContentStr := strings.TrimSpace(string(gitContent))
+	if !strings.HasPrefix(gitContentStr, "gitdir: ") {
+		return "", fmt.Errorf("invalid .git file format in submodule %s: %s", submoduleGitPath, gitContentStr)
+	}
+
+	return gitContentStr, nil
+}
+
+// addSubmoduleGitdirFiles adds .git files for all submodules to the provided directory
+func addSubmoduleGitdirFiles(baseDir *dagger.Directory, worktreePath string, submodulePaths []string) (*dagger.Directory, error) {
+	result := baseDir
+
+	for _, submodulePath := range submodulePaths {
+		gitdirPath, err := readSubmoduleGitdirPath(worktreePath, submodulePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read gitdir path for submodule %s: %w", submodulePath, err)
+		}
+
+		result = result.WithNewFile(filepath.Join(submodulePath, ".git"), gitdirPath)
+	}
+
+	return result, nil
 }
 
 // propagateFileToWorktree propagates a single file from the environment to the worktree
@@ -292,13 +349,16 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	_, err = env.Workdir().
-		WithNewFile(".git", worktreePointer).
-		Export(
-			ctx,
-			worktreePath,
-			dagger.DirectoryExportOpts{Wipe: true},
-		)
+	// Start with the container's workdir and add the main .git file
+	exportDir := env.Workdir().WithNewFile(".git", worktreePointer)
+
+	exportDir, err = addSubmoduleGitdirFiles(exportDir, worktreePath, env.State.SubmodulePaths)
+	if err != nil {
+		return err
+	}
+
+	// Export with wipe to ensure clean state
+	_, err = exportDir.Export(ctx, worktreePath, dagger.DirectoryExportOpts{Wipe: true})
 	if err != nil {
 		return err
 	}
@@ -329,6 +389,7 @@ func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment
 
 	return nil
 }
+
 func (r *Repository) propagateGitNotes(ctx context.Context, ref string) error {
 	fullRef := fmt.Sprintf("refs/notes/%s", ref)
 
@@ -439,7 +500,7 @@ func (r *Repository) revisionRange(ctx context.Context, env *environment.Environ
 	return fmt.Sprintf("%s..%s", mergeBase, envGitRef), nil
 }
 
-func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string) error {
+func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, explanation string, submodulePaths []string) error {
 	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
 		status, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 		if err != nil {
@@ -450,7 +511,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, ex
 			return nil
 		}
 
-		if err := r.addNonBinaryFiles(ctx, worktreePath); err != nil {
+		if err := r.addNonBinaryFiles(ctx, worktreePath, submodulePaths); err != nil {
 			return err
 		}
 
@@ -462,11 +523,65 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, ex
 // AI slop below!
 // this is just to keep us moving fast because big git repos get hard to work with
 // and our demos like to download large dependencies.
-func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string) error {
+// getSubmodulePaths returns a slice of submodule paths relative to the worktree root
+func (r *Repository) getSubmodulePaths(ctx context.Context, worktreePath string) []string {
+	submodulePaths := []string{}
+
+	// Check if .gitmodules exists
+	gitmodulesPath := filepath.Join(worktreePath, ".gitmodules")
+	if _, err := os.Stat(gitmodulesPath); os.IsNotExist(err) {
+		return submodulePaths
+	}
+
+	// Use git submodule status to get submodule paths with correct relative paths from root
+	output, err := RunGitCommand(ctx, worktreePath, "submodule", "status", "--recursive")
+	if err != nil {
+		// If command fails, return empty slice - don't block regular operation
+		slog.Debug("Failed to get submodule paths", "error", err)
+		return submodulePaths
+	}
+
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			// Parse the submodule status line: " <commit> <path> (<description>)"
+			// The path is the second field
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				submodulePaths = append(submodulePaths, fields[1])
+			}
+		}
+	}
+
+	return submodulePaths
+}
+
+// isWithinSubmodule checks if a file path is within any of the submodule directories
+func (r *Repository) isWithinSubmodule(filePath string, submodulePaths []string) bool {
+	cleanFilePath := filepath.Clean(filePath)
+	for _, submodulePath := range submodulePaths {
+		cleanSubmodulePath := filepath.Clean(submodulePath)
+
+		// Check if the file is exactly the submodule path or within it
+		if cleanFilePath == cleanSubmodulePath {
+			return true
+		}
+
+		// Check if the file is within the submodule directory
+		if strings.HasPrefix(cleanFilePath, cleanSubmodulePath+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string, submodulePaths []string) error {
 	statusOutput, err := RunGitCommand(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return err
 	}
+
+	// Use cached submodule paths from environment state instead of re-detecting
 
 	for line := range strings.SplitSeq(strings.TrimSpace(statusOutput), "\n") {
 		if line == "" {
@@ -484,6 +599,12 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string)
 		}
 
 		if r.shouldSkipFile(fileName) {
+			continue
+		}
+
+		// Skip files within submodule directories
+		if r.isWithinSubmodule(fileName, submodulePaths) {
+			slog.Debug("Skipping file within submodule", "file", fileName)
 			continue
 		}
 
