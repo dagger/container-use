@@ -240,7 +240,7 @@ func gitCommit(t *testing.T, repoDir, message string) {
 	ctx := context.Background()
 	_, err := repository.RunGitCommand(ctx, repoDir, "add", ".")
 	require.NoError(t, err, "Failed to stage files")
-	_, err = repository.RunGitCommand(ctx, repoDir, "commit", "-m", message)
+	_, err = repository.RunGitCommand(ctx, repoDir, "-c", "core.hooksPath=/dev/null", "commit", "-m", message)
 	require.NoError(t, err, "Failed to commit")
 }
 

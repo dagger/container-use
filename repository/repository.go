@@ -459,6 +459,8 @@ func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, e
 		branch = "cu-" + id
 	}
 
+
+
 	// set up remote tracking branch if it's not already there
 	_, err := RunGitCommand(ctx, r.userRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))
 	localBranchExists := err == nil
@@ -489,7 +491,7 @@ func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, e
 		aheadCount, behindCount := parts[0], parts[1]
 
 		if behindCount != "0" && aheadCount == "0" {
-			_, err = RunGitCommand(ctx, r.userRepoPath, "merge", "--ff-only", remoteRef)
+			_, err = RunGitCommand(ctx, r.userRepoPath, "-c", noHooks, "merge", "--ff-only", remoteRef)
 			if err != nil {
 				return branch, err
 			}
@@ -554,7 +556,7 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 		return err
 	}
 
-	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--no-ff", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "-c", noHooks, "merge", "--no-ff", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
 
 func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
@@ -563,5 +565,5 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
 		return err
 	}
 
-	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--autostash", "--squash", "--", "container-use/"+envInfo.ID)
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "-c", noHooks, "merge", "--autostash", "--squash", "--", "container-use/"+envInfo.ID)
 }
