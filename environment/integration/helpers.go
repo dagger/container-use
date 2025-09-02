@@ -131,6 +131,99 @@ var (
 		writeFile(t, repoDir, "README.md", "# Test Project\n")
 		gitCommit(t, repoDir, "Initial commit")
 	}
+
+	SetupRepoWithGitConfig = func(t *testing.T, repoDir string) {
+		// Set project-specific git config
+		ctx := context.Background()
+		_, err := repository.RunGitCommand(ctx, repoDir, "config", "user.name", "Project User")
+		require.NoError(t, err, "Failed to set project user.name")
+		_, err = repository.RunGitCommand(ctx, repoDir, "config", "user.email", "project@example.com")
+		require.NoError(t, err, "Failed to set project user.email")
+
+		writeFile(t, repoDir, "README.md", "# Project with custom git config\n")
+		gitCommit(t, repoDir, "Initial commit with project config")
+	}
+
+	SetupRepoWithGPGConfig = func(t *testing.T, repoDir string) {
+		// Set project-specific git config including GPG
+		ctx := context.Background()
+		_, err := repository.RunGitCommand(ctx, repoDir, "config", "user.name", "GPG User")
+		require.NoError(t, err, "Failed to set GPG user.name")
+		_, err = repository.RunGitCommand(ctx, repoDir, "config", "user.email", "gpg@example.com")
+		require.NoError(t, err, "Failed to set GPG user.email")
+		_, err = repository.RunGitCommand(ctx, repoDir, "config", "commit.gpgsign", "true")
+		require.NoError(t, err, "Failed to set commit.gpgsign")
+
+		writeFile(t, repoDir, "README.md", "# Project with GPG signing\n")
+		gitCommit(t, repoDir, "Initial commit with GPG config")
+	}
+
+	SetupRepoWithConflictingConfig = func(t *testing.T, repoDir string) {
+		// This assumes there might be global config, and sets local config to override it
+		ctx := context.Background()
+		_, err := repository.RunGitCommand(ctx, repoDir, "config", "user.name", "Local Project User")
+		require.NoError(t, err, "Failed to set local user.name")
+		_, err = repository.RunGitCommand(ctx, repoDir, "config", "user.email", "local@project.com")
+		require.NoError(t, err, "Failed to set local user.email")
+
+		writeFile(t, repoDir, "README.md", "# Project with conflicting config\n")
+		gitCommit(t, repoDir, "Initial commit with local config")
+	}
+
+	SetupRepoWithGitHooks = func(t *testing.T, repoDir string) {
+		// Create git hooks directory
+		hooksDir := filepath.Join(repoDir, ".git/hooks")
+		err := os.MkdirAll(hooksDir, 0755)
+		require.NoError(t, err, "Failed to create hooks directory")
+
+		// Pre-commit hook that would block "forbidden.txt"
+		preCommitHook := `#!/bin/sh
+echo "This pre-commit hook should never run in container-use"
+if [ -f "forbidden.txt" ]; then
+    echo "Error: forbidden.txt is not allowed"
+    exit 1
+fi
+exit 0`
+		writeFile(t, hooksDir, "pre-commit", preCommitHook)
+		err = os.Chmod(filepath.Join(hooksDir, "pre-commit"), 0755)
+		require.NoError(t, err, "Failed to make pre-commit hook executable")
+
+		// Post-commit hook that creates evidence file
+		postCommitHook := `#!/bin/sh
+echo "Hook ran at $(date)" >> .hook-evidence`
+		writeFile(t, hooksDir, "post-commit", postCommitHook)
+		err = os.Chmod(filepath.Join(hooksDir, "post-commit"), 0755)
+		require.NoError(t, err, "Failed to make post-commit hook executable")
+
+		writeFile(t, repoDir, "README.md", "# Project with git hooks\n")
+		gitCommit(t, repoDir, "Initial commit with hooks")
+	}
+
+	SetupRepoWithFailingHooks = func(t *testing.T, repoDir string) {
+		// Create git hooks directory
+		hooksDir := filepath.Join(repoDir, ".git/hooks")
+		err := os.MkdirAll(hooksDir, 0755)
+		require.NoError(t, err, "Failed to create hooks directory")
+
+		// Pre-commit hook that always fails
+		preCommitHook := `#!/bin/sh
+echo "This failing pre-commit hook should never run"
+exit 1`
+		writeFile(t, hooksDir, "pre-commit", preCommitHook)
+		err = os.Chmod(filepath.Join(hooksDir, "pre-commit"), 0755)
+		require.NoError(t, err, "Failed to make pre-commit hook executable")
+
+		// Pre-push hook that also fails
+		prePushHook := `#!/bin/sh
+echo "This failing pre-push hook should never run"
+exit 1`
+		writeFile(t, hooksDir, "pre-push", prePushHook)
+		err = os.Chmod(filepath.Join(hooksDir, "pre-push"), 0755)
+		require.NoError(t, err, "Failed to make pre-push hook executable")
+
+		writeFile(t, repoDir, "README.md", "# Project with failing hooks\n")
+		gitCommit(t, repoDir, "Initial commit with failing hooks")
+	}
 )
 
 // Helper functions for repository setup
