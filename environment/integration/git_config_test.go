@@ -193,7 +193,7 @@ func TestProjectSpecificGitHooks(t *testing.T) {
 			_, err = repo.Checkout(ctx, env.ID, "")
 			assert.NoError(t, err, "Checkout should succeed")
 
-			// Verify no hook evidence file in source repo either
+			// this is very defensive, but wanna make sure there's not some wacky uncommitted deletion in the worktree
 			sourcePath := repo.SourcePath()
 			sourceHookEvidencePath := filepath.Join(sourcePath, ".hook-evidence")
 			_, err = os.Stat(sourceHookEvidencePath)
