@@ -143,7 +143,8 @@ func (r *Repository) ensureFork(ctx context.Context) error {
 			os.RemoveAll(r.forkRepoPath)
 			return err
 		}
-		return nil
+
+		return r.ensureForkIdentity(ctx)
 	})
 }
 
