@@ -143,8 +143,54 @@ func (r *Repository) ensureFork(ctx context.Context) error {
 			os.RemoveAll(r.forkRepoPath)
 			return err
 		}
+
+		// Copy project-specific git config from user repo to fork repo
+		// This ensures that worktrees inherit the correct configuration
+		if err := r.copyGitConfig(ctx); err != nil {
+			slog.Warn("Failed to copy git config to fork repo", "error", err)
+			// Don't fail the entire operation if config copy fails
+		}
+
 		return nil
 	})
+}
+
+// copyGitConfig copies relevant git configuration from the user repository to the fork repository
+func (r *Repository) copyGitConfig(ctx context.Context) error {
+	// List of config keys to copy from user repo to fork repo
+	configKeys := []string{
+		"user.name",
+		"user.email",
+		"user.signingkey",
+		"commit.gpgsign",
+		"commit.template",
+		"core.editor",
+		"core.autocrlf",
+		"core.safecrlf",
+		"core.filemode",
+	}
+
+	for _, key := range configKeys {
+		// Get config value from user repo
+		value, err := RunGitCommand(ctx, r.userRepoPath, "config", "--get", key)
+		if err != nil {
+			// Config key doesn't exist in user repo, skip it
+			continue
+		}
+
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+
+		// Set config value in fork repo
+		_, err = RunGitCommand(ctx, r.forkRepoPath, "config", key, value)
+		if err != nil {
+			return fmt.Errorf("failed to set config %s in fork repo: %w", key, err)
+		}
+	}
+
+	return nil
 }
 
 func (r *Repository) ensureUserRemote(ctx context.Context) error {
@@ -458,8 +504,6 @@ func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, e
 	if branch == "" {
 		branch = "cu-" + id
 	}
-
-
 
 	// set up remote tracking branch if it's not already there
 	_, err := RunGitCommand(ctx, r.userRepoPath, "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))

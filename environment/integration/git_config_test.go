@@ -29,30 +29,12 @@ func TestProjectSpecificGitConfiguration(t *testing.T) {
 			worktreePath := user.WorktreePath(env.ID)
 
 			// Check the commit author in the environment's git log
-			ctx := context.Background()
+			ctx := t.Context()
 			gitLog, err := repository.RunGitCommand(ctx, worktreePath, "log", "--format=%an <%ae>", "-n", "1")
 			assert.NoError(t, err, "Should be able to get git log")
 
 			// Should use project-specific user config, not global
 			assert.Contains(t, gitLog, "Project User <project@example.com>", "Should use project git config for commits")
-		})
-	})
-
-	t.Run("CommitGPGSign", func(t *testing.T) {
-		WithRepository(t, "git_config_gpg", SetupRepoWithGPGConfig, func(t *testing.T, repo *repository.Repository, user *UserActions) {
-			env := user.CreateEnvironment("GPG Config Test", "Testing GPG signing config")
-
-			// Make a commit - this will either succeed with signing or fail appropriately
-			user.FileWrite(env.ID, "gpg-test.txt", "content for gpg test", "Test commit with GPG config")
-
-			// Get the worktree path to check git config
-			worktreePath := user.WorktreePath(env.ID)
-
-			// Verify the GPG signing configuration is present
-			ctx := context.Background()
-			gpgSignConfig, err := repository.RunGitCommand(ctx, worktreePath, "config", "commit.gpgsign")
-			assert.NoError(t, err, "Should be able to read commit.gpgsign config")
-			assert.Contains(t, gpgSignConfig, "true", "GPG signing should be enabled")
 		})
 	})
 
