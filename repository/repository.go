@@ -128,66 +128,68 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 
 func (r *Repository) ensureFork(ctx context.Context) error {
 	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
-		if _, err := os.Stat(r.forkRepoPath); err == nil {
-			return nil
-		} else if !os.IsNotExist(err) {
-			return err
+		// Check if fork repo already exists
+		forkExists := true
+		if _, err := os.Stat(r.forkRepoPath); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			forkExists = false
 		}
 
-		slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
-		if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
-			return err
-		}
-		_, err := RunGitCommand(ctx, r.forkRepoPath, "init", "--bare", "--template=")
-		if err != nil {
-			os.RemoveAll(r.forkRepoPath)
-			return err
+		// Create fork repo if it doesn't exist
+		if !forkExists {
+			slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
+			if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
+				return err
+			}
+			_, err := RunGitCommand(ctx, r.forkRepoPath, "init", "--bare", "--template=")
+			if err != nil {
+				os.RemoveAll(r.forkRepoPath)
+				return err
+			}
 		}
 
-		// Copy project-specific git config from user repo to fork repo
-		// This ensures that worktrees inherit the correct configuration
-		if err := r.copyGitConfig(ctx); err != nil {
-			slog.Warn("Failed to copy git config to fork repo", "error", err)
-			// Don't fail the entire operation if config copy fails
+		// Always ensure include directive is set up correctly (for both new and existing fork repos)
+		if err := r.setupConfigInclude(ctx); err != nil {
+			slog.Warn("Failed to setup git config include in fork repo", "error", err)
+			// Don't fail the entire operation if config setup fails
 		}
 
 		return nil
 	})
 }
 
-// copyGitConfig copies relevant git configuration from the user repository to the fork repository
-func (r *Repository) copyGitConfig(ctx context.Context) error {
-	// List of config keys to copy from user repo to fork repo
-	configKeys := []string{
-		"user.name",
-		"user.email",
-		"user.signingkey",
-		"commit.gpgsign",
-		"commit.template",
-		"core.editor",
-		"core.autocrlf",
-		"core.safecrlf",
-		"core.filemode",
+// setupConfigInclude sets up an include directive in the fork repository config
+// to dynamically inherit git configuration from the user repository
+func (r *Repository) setupConfigInclude(ctx context.Context) error {
+	// Path to user repo's git config file
+	userConfigPath := filepath.Join(r.userRepoPath, ".git", "config")
+
+	// Use absolute path to avoid any path resolution issues
+	absUserConfigPath, err := filepath.Abs(userConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for user config: %w", err)
 	}
 
-	for _, key := range configKeys {
-		// Get config value from user repo
-		value, err := RunGitCommand(ctx, r.userRepoPath, "config", "--get", key)
-		if err != nil {
-			// Config key doesn't exist in user repo, skip it
-			continue
-		}
+	// Check if include.path already exists and points to our user config
+	existingPath, err := RunGitCommand(ctx, r.forkRepoPath, "config", "--get", "include.path")
+	if err == nil && strings.TrimSpace(existingPath) == absUserConfigPath {
+		// Already correctly configured
+		return nil
+	}
 
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
+	// Remove any existing include.path entries to avoid conflicts
+	_, err = RunGitCommand(ctx, r.forkRepoPath, "config", "--unset-all", "include.path")
+	if err != nil {
+		// Ignore error if no include.path exists
+		slog.Debug("No existing include.path to remove (this is fine)", "error", err)
+	}
 
-		// Set config value in fork repo
-		_, err = RunGitCommand(ctx, r.forkRepoPath, "config", key, value)
-		if err != nil {
-			return fmt.Errorf("failed to set config %s in fork repo: %w", key, err)
-		}
+	// Add our include directive
+	_, err = RunGitCommand(ctx, r.forkRepoPath, "config", "include.path", absUserConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to set include.path in fork repo: %w", err)
 	}
 
 	return nil

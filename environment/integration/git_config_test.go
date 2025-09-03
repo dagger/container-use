@@ -83,6 +83,69 @@ func TestProjectSpecificGitConfiguration(t *testing.T) {
 			assert.Contains(t, userEmail, "local@project.com", "Local config should override global")
 		})
 	})
+
+	t.Run("DynamicConfigUpdates", func(t *testing.T) {
+		WithRepository(t, "git_config_dynamic", SetupRepoWithGitConfig, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+			env := user.CreateEnvironment("Dynamic Config Test", "Testing dynamic config updates")
+
+			// Make initial commit and verify it uses initial config
+			user.FileWrite(env.ID, "initial.txt", "initial content", "Initial commit")
+			worktreePath := user.WorktreePath(env.ID)
+			ctx := context.Background()
+
+			gitLog, err := repository.RunGitCommand(ctx, worktreePath, "log", "--format=%an <%ae>", "-n", "1")
+			assert.NoError(t, err)
+			assert.Contains(t, gitLog, "Project User <project@example.com>", "Should use initial project config")
+
+			// Update config in source repo
+			user.GitCommand("config", "user.name", "Updated Project User")
+			user.GitCommand("config", "user.email", "updated@project.com")
+
+			// Make another commit and verify it uses updated config automatically
+			user.FileWrite(env.ID, "updated.txt", "updated content", "Updated commit")
+
+			gitLog, err = repository.RunGitCommand(ctx, worktreePath, "log", "--format=%an <%ae>", "-n", "1")
+			assert.NoError(t, err)
+			assert.Contains(t, gitLog, "Updated Project User <updated@project.com>", "Should use updated project config dynamically")
+
+			// Verify config is readable from worktree
+			userName, err := repository.RunGitCommand(ctx, worktreePath, "config", "user.name")
+			assert.NoError(t, err)
+			assert.Contains(t, userName, "Updated Project User", "Config should be readable in worktree")
+		})
+	})
+
+	t.Run("IncludeDirectiveWorksWithExistingRepo", func(t *testing.T) {
+		WithRepository(t, "git_config_existing_fork", SetupRepoWithGitConfig, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+			// Create first environment to establish fork repo
+			env1 := user.CreateEnvironment("First Environment", "Create fork repo")
+			user.FileWrite(env1.ID, "first.txt", "first content", "First commit")
+
+			// Change the user repo config
+			user.GitCommand("config", "user.name", "Modified Project User")
+			user.GitCommand("config", "user.email", "modified@project.com")
+
+			// Create second environment - this should work with existing fork repo
+			// and pick up the modified config via the include directive
+			env2 := user.CreateEnvironment("Second Environment", "Should use include directive")
+			user.FileWrite(env2.ID, "second.txt", "second content", "Second commit")
+
+			// Verify the commit uses the modified project config
+			// This proves the include directive is working for existing repos
+			ctx := context.Background()
+			worktreePath := user.WorktreePath(env2.ID)
+			gitLog, err := repository.RunGitCommand(ctx, worktreePath, "log", "--format=%an <%ae>", "-n", "1")
+			assert.NoError(t, err)
+			assert.Contains(t, gitLog, "Modified Project User <modified@project.com>", "Should use modified project config via include directive")
+
+			// Also verify first environment picks up the change
+			worktreePath1 := user.WorktreePath(env1.ID)
+			user.FileWrite(env1.ID, "updated.txt", "updated content", "Updated commit")
+			gitLog1, err := repository.RunGitCommand(ctx, worktreePath1, "log", "--format=%an <%ae>", "-n", "1")
+			assert.NoError(t, err)
+			assert.Contains(t, gitLog1, "Modified Project User <modified@project.com>", "Existing environment should also use modified config")
+		})
+	})
 }
 
 // TestProjectSpecificGitHooks tests that git hooks are properly ignored in environments
