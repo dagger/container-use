@@ -42,6 +42,10 @@ func (c *ConfigureClaude) description() string {
 }
 
 func (c *ConfigureClaude) editMcpConfig() error {
+	// Remove existing MCP server (ignore errors if it doesn't exist)
+	removeCmd := exec.Command("claude", "mcp", "remove", "container-use")
+	_ = removeCmd.Run() // Ignore error - server might not exist
+
 	// Add MCP server
 	cmd := exec.Command("claude", "mcp", "add", "container-use", "--", ContainerUseBinary, "stdio")
 	err := cmd.Run()
