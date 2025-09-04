@@ -153,7 +153,9 @@ func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container,
 		if !found {
 			return nil, fmt.Errorf("invalid environment variable: %s", env)
 		}
-		container = container.WithEnvVariable(k, v)
+		container = container.WithEnvVariable(k, v, dagger.ContainerWithEnvVariableOpts{
+			Expand: true,
+		})
 	}
 
 	for _, secret := range secrets {
