@@ -128,23 +128,71 @@ func OpenWithBasePath(ctx context.Context, repo string, basePath string) (*Repos
 
 func (r *Repository) ensureFork(ctx context.Context) error {
 	return r.lockManager.WithLock(ctx, LockTypeForkRepo, func() error {
-		if _, err := os.Stat(r.forkRepoPath); err == nil {
-			return nil
-		} else if !os.IsNotExist(err) {
-			return err
+		// Check if fork repo already exists
+		forkExists := true
+		if _, err := os.Stat(r.forkRepoPath); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			forkExists = false
 		}
 
-		slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
-		if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
-			return err
+		// Create fork repo if it doesn't exist
+		if !forkExists {
+			slog.Info("Initializing local remote", "user-repo", r.userRepoPath, "fork-repo", r.forkRepoPath)
+			if err := os.MkdirAll(r.forkRepoPath, 0755); err != nil {
+				return err
+			}
+			_, err := RunGitCommand(ctx, r.forkRepoPath, "init", "--bare", "--template=")
+			if err != nil {
+				os.RemoveAll(r.forkRepoPath)
+				return err
+			}
 		}
-		_, err := RunGitCommand(ctx, r.forkRepoPath, "init", "--bare", "--template=")
-		if err != nil {
-			os.RemoveAll(r.forkRepoPath)
-			return err
+
+		// Always ensure include directive is set up correctly (for both new and existing fork repos)
+		if err := r.setupConfigInclude(ctx); err != nil {
+			slog.Warn("Failed to setup git config include in fork repo", "error", err)
+			// Don't fail the entire operation if config setup fails
 		}
+
 		return nil
 	})
+}
+
+// setupConfigInclude sets up an include directive in the fork repository config
+// to dynamically inherit git configuration from the user repository
+func (r *Repository) setupConfigInclude(ctx context.Context) error {
+	// Path to user repo's git config file
+	userConfigPath := filepath.Join(r.userRepoPath, ".git", "config")
+
+	// Use absolute path to avoid any path resolution issues
+	absUserConfigPath, err := filepath.Abs(userConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for user config: %w", err)
+	}
+
+	// Check if include.path already exists and points to our user config
+	existingPath, err := RunGitCommand(ctx, r.forkRepoPath, "config", "--get", "include.path")
+	if err == nil && strings.TrimSpace(existingPath) == absUserConfigPath {
+		// Already correctly configured
+		return nil
+	}
+
+	// Remove any existing include.path entries to avoid conflicts
+	_, err = RunGitCommand(ctx, r.forkRepoPath, "config", "--unset-all", "include.path")
+	if err != nil {
+		// Ignore error if no include.path exists
+		slog.Debug("No existing include.path to remove (this is fine)", "error", err)
+	}
+
+	// Add our include directive
+	_, err = RunGitCommand(ctx, r.forkRepoPath, "config", "include.path", absUserConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to set include.path in fork repo: %w", err)
+	}
+
+	return nil
 }
 
 func (r *Repository) ensureUserRemote(ctx context.Context) error {
@@ -489,7 +537,7 @@ func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, e
 		aheadCount, behindCount := parts[0], parts[1]
 
 		if behindCount != "0" && aheadCount == "0" {
-			_, err = RunGitCommand(ctx, r.userRepoPath, "merge", "--ff-only", remoteRef)
+			_, err = RunGitCommand(ctx, r.userRepoPath, "-c", noHooks, "merge", "--ff-only", remoteRef)
 			if err != nil {
 				return branch, err
 			}
@@ -554,7 +602,7 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 		return err
 	}
 
-	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--no-ff", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "-c", noHooks, "merge", "--no-ff", "--autostash", "-m", "Merge environment "+envInfo.ID, "--", "container-use/"+envInfo.ID)
 }
 
 func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
@@ -563,5 +611,5 @@ func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
 		return err
 	}
 
-	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "merge", "--autostash", "--squash", "--", "container-use/"+envInfo.ID)
+	return RunInteractiveGitCommand(ctx, r.userRepoPath, w, "-c", noHooks, "merge", "--autostash", "--squash", "--", "container-use/"+envInfo.ID)
 }
