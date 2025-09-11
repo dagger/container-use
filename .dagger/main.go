@@ -82,6 +82,7 @@ func (m *ContainerUse) Test(ctx context.Context,
 	// Run tests including integration tests
 	integration bool,
 ) (string, error) {
+	// Use a plain Debian-based Go image to avoid Wolfi package constraints (e.g. protoc version pins)
 	ctr := dag.Go(m.Source).
 		Base().
 		WithMountedDirectory("/src", m.Source).
