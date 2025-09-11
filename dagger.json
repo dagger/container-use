@@ -1,6 +1,6 @@
 {
   "name": "container-use",
-  "engineVersion": "v0.18.16",
+  "engineVersion": "v0.18.17",
   "sdk": {
     "source": "go"
   },
@@ -8,17 +8,17 @@
     {
       "name": "go",
       "source": "github.com/dagger/dagger/modules/go",
-      "pin": "ccb4c2d98bce247d22c6b281126eac0ed7c41071"
+      "pin": "000dcbce85be95fe5954cda7611efda0bb1bb115"
     },
     {
       "name": "golangci",
       "source": "github.com/dagger/dagger/modules/golangci",
-      "pin": "a569ec610a25df6c94cfe4bb55be02a8ade11f32"
+      "pin": "000dcbce85be95fe5954cda7611efda0bb1bb115"
     },
     {
       "name": "goreleaser",
       "source": "github.com/act3-ai/dagger/goreleaser",
-      "pin": "6ac42e7bfbf36ea6257ebdad0446def425081a59"
+      "pin": "4b4c32c851a380f02ba53fabf8e4704d8330cb7f"
     }
   ],
   "source": ".dagger"
