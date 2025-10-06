@@ -499,6 +499,14 @@ args = ["stdio"]
 env = {}
 ```
 
+**Add Agent Rules (Optional):**
+Instruct Codex to use container-use for all projects:
+
+```sh
+mkdir -p ~/.codex
+curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> ~/.codex/AGENTS.md
+```
+
 <Info>
   Learn more: [OpenAI Codex
   Documentation](https://github.com/openai/codex/tree/main/codex-rs)
