@@ -7,8 +7,8 @@
   "dependencies": [
     {
       "name": "go",
-      "source": "github.com/dagger/dagger/modules/go",
-      "pin": "000dcbce85be95fe5954cda7611efda0bb1bb115"
+      "source": "github.com/dagger/dagger/modules/go@main",
+      "pin": "ce291e358cf9e74f38f7c86972dc6478918513d7"
     },
     {
       "name": "golangci",
