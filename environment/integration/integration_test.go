@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -202,14 +203,17 @@ func TestLargeProjectPerformance(t *testing.T) {
 		WithRepository(t, "large_project_performance", largeProjectSetup, func(t *testing.T, repo *repository.Repository, user *UserActions) {
 			env := user.CreateEnvironment("Performance Test", "Testing performance with large project")
 
-			// Time file operations
 			start := time.Now()
 			user.FileWrite(env.ID, "new.txt", "test", "Test write performance")
 			writeTime := time.Since(start)
 
 			t.Logf("File write took: %v", writeTime)
 
-			assert.LessOrEqual(t, writeTime, 2*time.Second, "File write should be fast")
+			threshold := 2 * time.Second
+			if runtime.GOOS == "windows" {
+				threshold = 5 * time.Second
+			}
+			assert.LessOrEqual(t, writeTime, threshold, "File write should be fast")
 		})
 	})
 }
@@ -338,13 +342,8 @@ func TestWeirdUserScenarios(t *testing.T) {
 		ctx := context.Background()
 
 		// Create first repository
-		repoDir1, err := os.MkdirTemp("", "cu-test-repo1-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(repoDir1)
-
-		configDir1, err := os.MkdirTemp("", "cu-test-config1-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(configDir1)
+		repoDir1 := createTestTempDir(t, "cu1-")
+		configDir1 := createTestTempDir(t, "cuc1-")
 
 		// Initialize git repo1
 		cmds := [][]string{
@@ -360,13 +359,7 @@ func TestWeirdUserScenarios(t *testing.T) {
 		SetupNodeRepo(t, repoDir1)
 
 		// Create second repository
-		repoDir2, err := os.MkdirTemp("", "cu-test-repo2-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(repoDir2)
-
-		configDir2, err := os.MkdirTemp("", "cu-test-config2-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(configDir2)
+		repoDir2 := createTestTempDir(t, "cu2-")
 
 		// Initialize git repo2
 		for _, cmd := range cmds {
