@@ -28,7 +28,7 @@ claude mcp add container-use -- container-use stdio
 **Add Agent Rules (Optional):**
 Save the CLAUDE.md file at the root of your repository:
 ```sh
-curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CLAUDE.md
+curl https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md >> CLAUDE.md
 ```
 
 **Trust Only Container Use Tools (Optional):**
@@ -92,7 +92,7 @@ Add this configuration to `~/.aws/amazonq/mcp.json`:
 **Add Agent Rules:**
 Save agent instructions to your project root:
 ```sh
-mkdir -p ./.amazonq/rules && curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md > .amazonq/rules/container-use.md
+mkdir -p ./.amazonq/rules && curl https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md > .amazonq/rules/container-use.md
 ```
 
 **Trust Only Container Use Tools (Optional):**
@@ -117,7 +117,7 @@ Use the one-click deeplink to install (requires Cursor and Container Use already
 Add the rules file to your project or home directory:
 
 ```sh
-curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/cursor.mdc
+curl --create-dirs -o .cursor/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/cursor.mdc
 ```
 
 <Info>
@@ -148,7 +148,7 @@ In `~/.codeium/windsurf/mcp_config.json`, add the following configuration:
 Add the rules file to your project or home directory:
 
 ```sh
-curl --create-dirs -o .windsurf/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/main/rules/windsurf.mdc
+curl --create-dirs -o .windsurf/rules/container-use.mdc https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/windsurf.mdc
 ```
 
 ## VSCode / GitHub Copilot
@@ -172,7 +172,7 @@ Update your VSCode settings with:
 **Add Copilot Instructions (Optional):**
 
 ```sh
-curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md
 ```
 
 <Card title="Video Tutorial" icon="youtube" href="https://youtu.be/Nz2sOef0gW0">
@@ -191,7 +191,7 @@ curl --create-dirs -o .github/copilot-instructions.md https://raw.githubusercont
 First add the agent rules file, either as `.rules` in the root of your project or as one of the [other acceptable files/locations](https://zed.dev/docs/ai/rules?highlight=agent.md#rules-files).
 
 ```sh
-curl -o .rules https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+curl -o .rules https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md
 ```
 
 Then, choose one of the methods to add the Container Use MCP server in Zed:
@@ -285,7 +285,7 @@ Configure the Container Use MCP server:
 Add the `AGENTS.md` file using this command (this is optional but usually provides the best results):
 
 ```sh
-curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> AGENTS.md
+curl https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md >> AGENTS.md
 ```
 
 Run `opencode` and dispatch your agents to complete your tasks!
@@ -352,7 +352,7 @@ Add this configuration to `~/.config/amp/settings.json`:
 **Add Agent Rules:**
 Save agent instructions to your project root:
 ```sh
-curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> AGENT.md
+curl https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md >> AGENT.md
 ```
 
 <Info>Learn more: [Sourcegraph Amp Documentation](https://ampcode.com/manual/)</Info>
@@ -394,7 +394,7 @@ Add this configuration to [a valid location](https://github.com/charmbracelet/cr
 **Add Agent Rules:**
 Save agent instructions to your project root:
 ```sh
-curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> CRUSH.md
+curl https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md >> CRUSH.md
 ```
 
 <Info>Learn more: [Crush project on GitHub](https://github.com/charmbracelet/crush)</Info>
@@ -425,7 +425,7 @@ Add to your Cline MCP server configuration JSON:
 **Add Agent Rules:**
 
 ```sh
-curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md
+curl --create-dirs -o .clinerules/container-use.md https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md
 ```
 
 <Info>Learn more: [Cline Documentation](https://cline.bot/)</Info>
@@ -535,7 +535,7 @@ Instruct Codex to use container-use for all projects:
 
 ```sh
 mkdir -p ~/.codex
-curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> ~/.codex/AGENTS.md
+curl https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md >> ~/.codex/AGENTS.md
 ```
 
 <Info>
@@ -617,7 +617,7 @@ Add or edit the MCP configuration in Settings under Tools → Junie → MCP Sett
 Save agent instructions to your project root:
 
 ```sh
-mkdir -p ./.junie && curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md >> .junie/guidelines.md
+mkdir -p ./.junie && curl https://raw.githubusercontent.com/dagger/container-use/refs/heads/main/rules/agent.md >> .junie/guidelines.md
 ```
 
 <Info>
