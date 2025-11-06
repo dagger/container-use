@@ -32,13 +32,44 @@ curl https://raw.githubusercontent.com/dagger/container-use/main/rules/agent.md 
 ```
 
 **Trust Only Container Use Tools (Optional):**
-For maximum security, restrict Claude Code to only use Container Use tools:
-```sh
-claude --allowedTools mcp__container-use__environment_add_service,mcp__container-use__environment_checkpoint,mcp__container-use__environment_config,mcp__container-use__environment_create,mcp__container-use__environment_file_delete,mcp__container-use__environment_file_edit,mcp__container-use__environment_file_list,mcp__container-use__environment_file_read,mcp__container-use__environment_file_write,mcp__container-use__environment_open,mcp__container-use__environment_run_cmd,mcp__container-use__environment_update_metadata
+For maximum security, restrict Claude Code to only use Container Use tools by adding the standard tools to the permissions deny list. You may also wish to add Container Use tools to the allow list so that you are not prompted when Claude tries to use them.
+
+In `~/.claude/settings.json` — or one of the other [settings files](https://code.claude.com/docs/en/settings) — add the following configuration:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp__container-use__environment_checkpoint",
+      "mcp__container-use__environment_config",
+      "mcp__container-use__environment_create",
+      "mcp__container-use__environment_add_service",
+      "mcp__container-use__environment_file_delete",
+      "mcp__container-use__environment_file_edit",
+      "mcp__container-use__environment_file_list",
+      "mcp__container-use__environment_file_read",
+      "mcp__container-use__environment_file_write",
+      "mcp__container-use__environment_list",
+      "mcp__container-use__environment_open",
+      "mcp__container-use__environment_run_cmd",
+      "mcp__container-use__environment_update_metadata"
+    ],
+    "deny": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "NotebookRead"
+    ]
+  }
+}
 ```
 
 <Info>
-  Learn more: [Claude Code MCP Documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
+  Learn more: [Claude Code MCP Documentation](https://code.claude.com/docs/en/mcp)
 </Info>
 
 ## Amazon Q Developer
