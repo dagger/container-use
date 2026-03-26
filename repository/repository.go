@@ -143,6 +143,14 @@ func (r *Repository) ensureFork(ctx context.Context) error {
 			os.RemoveAll(r.forkRepoPath)
 			return err
 		}
+		// Enable push options support so that pushes from user repos with
+		// push.pushOption configured (or git versions that send push options
+		// by default) don't fail with "the receiving end does not support
+		// push options". See https://github.com/dagger/container-use/issues/323
+		if _, err := RunGitCommand(ctx, r.forkRepoPath, "config", "receive.advertisePushOptions", "true"); err != nil {
+			os.RemoveAll(r.forkRepoPath)
+			return err
+		}
 		return nil
 	})
 }
