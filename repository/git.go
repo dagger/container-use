@@ -113,7 +113,60 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 		return err
 	}
 
+	// Delete any local branches in the user repo that were tracking this environment's remote branch.
+	// The checkout command creates local branches (default: cu-<id>) that track container-use/<id>.
+	r.deleteUserTrackingBranches(id)
+
 	return nil
+}
+
+// deleteUserTrackingBranches finds and deletes local branches in the user repo
+// that were tracking the container-use remote branch for the given environment.
+func (r *Repository) deleteUserTrackingBranches(id string) {
+	remoteRef := fmt.Sprintf("%s/%s", containerUseRemote, id)
+
+	// List all local branches with their upstream tracking info
+	output, err := RunGitCommand(context.Background(), r.userRepoPath, "for-each-ref",
+		"--format=%(refname:short) %(upstream:short)", "refs/heads/")
+	if err != nil {
+		slog.Warn("Failed to list local branches for cleanup", "err", err)
+		return
+	}
+
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		branchName := parts[0]
+		upstream := parts[1]
+
+		if upstream == remoteRef {
+			// Check if the user is currently on this branch
+			currentBranch, err := RunGitCommand(context.Background(), r.userRepoPath, "branch", "--show-current")
+			if err == nil && strings.TrimSpace(currentBranch) == branchName {
+				slog.Warn("Cannot delete branch because it is currently checked out",
+					"branch", branchName, "environment", id)
+				fmt.Printf("Warning: branch '%s' is currently checked out and was not deleted. Switch to another branch first.\n", branchName)
+				continue
+			}
+
+			slog.Info("Deleting local tracking branch", "branch", branchName, "environment", id)
+			if _, err := RunGitCommand(context.Background(), r.userRepoPath, "branch", "-D", branchName); err != nil {
+				slog.Warn("Failed to delete local tracking branch",
+					"branch", branchName, "environment", id, "err", err)
+				fmt.Printf("Warning: failed to delete local branch '%s': %v\n", branchName, err)
+			} else {
+				fmt.Printf("Deleted local branch '%s'.\n", branchName)
+			}
+		}
+	}
 }
 
 // initializeWorktree initializes a new worktree for environment creation.
