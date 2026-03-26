@@ -376,6 +376,12 @@ func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment
 	// Get the absolute path for the file in the worktree
 	absoluteFilePath := filepath.Join(worktreePath, filePath)
 
+	// Validate the resolved path stays within the worktree to prevent path traversal
+	rel, err := filepath.Rel(worktreePath, absoluteFilePath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("path traversal detected: %s resolves outside worktree", filePath)
+	}
+
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(absoluteFilePath), 0755); err != nil {
 		return fmt.Errorf("failed to create directory for file %s: %w", filePath, err)
