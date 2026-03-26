@@ -64,5 +64,10 @@ func TestRepositoryOpen(t *testing.T) {
 		remote, err := RunGitCommand(ctx, tempDir, "remote", "get-url", "container-use")
 		require.NoError(t, err)
 		assert.Equal(t, repo.forkRepoPath, strings.TrimSpace(remote))
+
+		// Verify push options are enabled on the fork repo (issue #323)
+		pushOpts, err := RunGitCommand(ctx, repo.forkRepoPath, "config", "receive.advertisePushOptions")
+		require.NoError(t, err)
+		assert.Equal(t, "true", strings.TrimSpace(pushOpts))
 	})
 }
