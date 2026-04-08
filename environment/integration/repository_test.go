@@ -297,6 +297,36 @@ func TestRepositoryWithSubmodule(t *testing.T) {
 	})
 }
 
+func TestRepositoryWithNestedSubmodule(t *testing.T) {
+	t.Parallel()
+	WithRepository(t, "repository-with-nested-submodule", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {
+		ctx := t.Context()
+
+		// Add a submodule at a nested path (not at the repo root)
+		user.GitCommand("submodule", "add", "https://github.com/dagger/dagger-test-modules.git", "libs/nested-submodule")
+		user.GitCommand("submodule", "update", "--init")
+
+		user.GitCommand("commit", "-am", "add nested submodule")
+
+		env := user.CreateEnvironment("Test Nested Submodule", "Testing repository with nested submodule")
+
+		// Add a file to the base repo (triggers exportEnvironment + commitWorktreeChanges)
+		user.FileWrite(env.ID, "test.txt", "initial content\n", "Initial commit")
+
+		assert.NoError(t, repo.Update(ctx, env, "write the env back to the repo"))
+
+		// Check that the nested submodule content is readable inside the container
+		readmeContent, err := env.FileRead(ctx, "libs/nested-submodule/README.md", true, 0, 0)
+		require.NoError(t, err, "Should be able to read libs/nested-submodule/README.md from inside container")
+		assert.Contains(t, readmeContent, "Test fixtures used by dagger integration tests.")
+
+		// Verify that the git working tree remains clean
+		gitStatus, err := repository.RunGitCommand(ctx, repo.SourcePath(), "status", "--porcelain")
+		require.NoError(t, err, "Should be able to check git status")
+		assert.Empty(t, strings.TrimSpace(gitStatus), "Git working tree should remain clean")
+	})
+}
+
 func TestRepositoryWithRecursiveSubmodule(t *testing.T) {
 	t.Parallel()
 	WithRepository(t, "repository-with-submodule", SetupEmptyRepo, func(t *testing.T, repo *repository.Repository, user *UserActions) {

@@ -300,7 +300,18 @@ func readSubmoduleGitdirPath(worktreePath, submodulePath string) (string, error)
 		return "", fmt.Errorf("invalid .git file format in submodule %s: %s", submoduleGitPath, gitContentStr)
 	}
 
-	return gitContentStr, nil
+	gitdirValue := strings.TrimPrefix(gitContentStr, "gitdir: ")
+
+	// Resolve relative paths to absolute, matching the approach used for
+	// the root .git pointer in exportEnvironment. Relative paths like
+	// "../../.git/modules/libs/foo" break after the worktree is wiped and
+	// the root .git is recreated as a pointer file (not a directory).
+	if !filepath.IsAbs(gitdirValue) {
+		submoduleDir := filepath.Join(worktreePath, submodulePath)
+		gitdirValue = filepath.Clean(filepath.Join(submoduleDir, gitdirValue))
+	}
+
+	return fmt.Sprintf("gitdir: %s", gitdirValue), nil
 }
 
 // addSubmoduleGitdirFiles adds .git files for all submodules to the provided directory
