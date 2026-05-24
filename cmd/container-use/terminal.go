@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"dagger.io/dagger"
 	"github.com/dagger/container-use/repository"
@@ -46,7 +47,11 @@ container-use terminal`,
 				}
 				return fmt.Errorf("failed to look up dagger binary: %w", err)
 			}
-			return execDaggerRun(daggerBin, append([]string{"dagger", "run"}, os.Args...), os.Environ())
+			sourcePath, err := terminalSourcePath(repo.SourcePath())
+			if err != nil {
+				return fmt.Errorf("failed to determine source path: %w", err)
+			}
+			return execDaggerRun(daggerBin, terminalDaggerRunArgs(os.Args, sourcePath), os.Environ())
 		}
 
 		dag, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
@@ -74,4 +79,12 @@ container-use terminal`,
 
 func init() {
 	rootCmd.AddCommand(terminalCmd)
+}
+
+func terminalSourcePath(source string) (string, error) {
+	return filepath.Abs(source)
+}
+
+func terminalDaggerRunArgs(args []string, source string) []string {
+	return append([]string{"dagger", "run", "--source", source}, args...)
 }

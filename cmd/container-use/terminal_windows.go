@@ -9,8 +9,8 @@ import (
 )
 
 func execDaggerRun(daggerBin string, args []string, env []string) error {
-	cmd := exec.Command(daggerBin, args...)
-	cmd.Args = append([]string{"dagger", "run"}, os.Args...)
+	cmd := exec.Command(daggerBin, args[1:]...)
+	cmd.Args = args
 	cmd.Env = env
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
