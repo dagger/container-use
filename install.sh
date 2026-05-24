@@ -109,21 +109,77 @@ get_latest_version() {
     curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
 }
 
+# Resolve completion script destination for each shell
+completion_path() {
+    local os="$1"
+    local shell_name="$2"
+    local command_name="$3"
+
+    local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+    case "$shell_name" in
+        bash)
+            if [ "$os" = "darwin" ]; then
+                echo "/usr/local/etc/bash_completion.d/$command_name"
+            else
+                echo "$data_home/bash-completion/completions/$command_name"
+            fi
+            ;;
+        zsh)
+            if [ "$os" = "darwin" ]; then
+                echo "/usr/local/share/zsh/site-functions/_$command_name"
+            else
+                echo "$data_home/zsh/site-functions/_$command_name"
+            fi
+            ;;
+        fish)
+            echo "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/$command_name.fish"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+completion_dir() {
+    local os="$1"
+    local shell_name="$2"
+
+    case "$shell_name" in
+        bash | zsh)
+            dirname "$(completion_path "$os" "$shell_name" container-use)"
+            ;;
+        fish)
+            echo "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
 # Show shell completion setup instructions
 show_completion_instructions() {
     local binary="$1"
+    local os="$(detect_os)"
 
     log_info "To enable shell completions:"
     echo ""
     echo "  # For container-use command:"
-    echo "  $binary completion bash > /usr/local/etc/bash_completion.d/container-use"
-    echo "  $binary completion zsh > /usr/local/share/zsh/site-functions/_container-use"
-    echo "  $binary completion fish > ~/.config/fish/completions/container-use.fish"
+    echo "  mkdir -p $(completion_dir "$os" bash)"
+    echo "  $binary completion bash > $(completion_path "$os" bash container-use)"
+    echo "  mkdir -p $(completion_dir "$os" zsh)"
+    echo "  $binary completion zsh > $(completion_path "$os" zsh container-use)"
+    echo "  mkdir -p $(completion_dir "$os" fish)"
+    echo "  $binary completion fish > $(completion_path "$os" fish container-use)"
     echo ""
     echo "  # For cu command:"
-    echo "  $binary completion --command-name=cu bash > /usr/local/etc/bash_completion.d/cu"
-    echo "  $binary completion --command-name=cu zsh > /usr/local/share/zsh/site-functions/_cu"
-    echo "  $binary completion --command-name=cu fish > ~/.config/fish/completions/cu.fish"
+    echo "  mkdir -p $(completion_dir "$os" bash)"
+    echo "  $binary completion --command-name=cu bash > $(completion_path "$os" bash cu)"
+    echo "  mkdir -p $(completion_dir "$os" zsh)"
+    echo "  $binary completion --command-name=cu zsh > $(completion_path "$os" zsh cu)"
+    echo "  mkdir -p $(completion_dir "$os" fish)"
+    echo "  $binary completion --command-name=cu fish > $(completion_path "$os" fish cu)"
 }
 
 # Verify checksum of downloaded file
@@ -299,4 +355,6 @@ main() {
     fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
