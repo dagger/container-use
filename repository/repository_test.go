@@ -66,3 +66,55 @@ func TestRepositoryOpen(t *testing.T) {
 		assert.Equal(t, repo.forkRepoPath, strings.TrimSpace(remote))
 	})
 }
+
+func TestInitializeWorktreeUnshallowOnShallowClone(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+
+	originRepo := filepath.Join(tempDir, "origin")
+	shallowRepo := filepath.Join(tempDir, "shallow")
+	bareRemote := filepath.Join(tempDir, "remote.git")
+	base := filepath.Join(tempDir, "base")
+
+	err := os.MkdirAll(originRepo, 0755)
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, originRepo, "init")
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, originRepo, "config", "user.email", "test@example.com")
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, originRepo, "config", "user.name", "Test User")
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(originRepo, "README.md"), []byte("initial"), 0644)
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, originRepo, "add", "README.md")
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, originRepo, "commit", "-m", "initial")
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(originRepo, "README.md"), []byte("updated"), 0644)
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, originRepo, "commit", "-am", "update")
+	require.NoError(t, err)
+
+	_, err = RunGitCommand(ctx, tempDir, "clone", "--bare", originRepo, bareRemote)
+	require.NoError(t, err)
+	_, err = RunGitCommand(ctx, tempDir, "clone", "--depth=1", "file://"+bareRemote, shallowRepo)
+	require.NoError(t, err)
+	isShallow, err := isShallowRepository(ctx, shallowRepo)
+	require.NoError(t, err)
+	require.True(t, isShallow, "test setup should create a shallow repository")
+
+	repo, err := OpenWithBasePath(ctx, shallowRepo, base)
+	require.NoError(t, err)
+	defer repo.deleteWorktree("issue-248-shallow")
+
+	_, _, err = repo.initializeWorktree(ctx, "issue-248-shallow", "HEAD")
+	require.NoError(t, err)
+
+	isShallow, err = isShallowRepository(ctx, shallowRepo)
+	require.NoError(t, err)
+	assert.False(t, isShallow, "shallow repository should be unshallowed during environment creation")
+
+	_, err = RunGitCommand(ctx, repo.forkRepoPath, "rev-parse", "--verify", "issue-248-shallow")
+	require.NoError(t, err)
+}
