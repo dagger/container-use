@@ -28,6 +28,86 @@ func withConfig(cmd *cobra.Command, fn func(*environment.EnvironmentConfig) erro
 	return fn(config)
 }
 
+func runConfigShow(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+
+	repo, err := repository.Open(ctx, ".")
+	if err != nil {
+		return fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	var config *environment.EnvironmentConfig
+
+	// If no environment is specified, use the default configuration
+	if len(args) == 0 {
+		config = environment.DefaultConfig()
+		if err := config.Load(repo.SourcePath()); err != nil {
+			return fmt.Errorf("failed to load configuration: %w", err)
+		}
+	} else {
+		envID := args[0]
+		env, err := repo.Info(ctx, envID)
+		if err != nil {
+			return err
+		}
+		config = env.State.Config
+	}
+
+	if ok, _ := cmd.Flags().GetBool("json"); ok {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(config)
+	}
+
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	defer tw.Flush()
+
+	fmt.Fprintf(tw, "Base Image:\t%s\n", config.BaseImage)
+	fmt.Fprintf(tw, "Workdir:\t%s\n", config.Workdir)
+
+	if len(config.SetupCommands) > 0 {
+		fmt.Fprintf(tw, "Setup Commands:\t\n")
+		for i, cmd := range config.SetupCommands {
+			fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
+		}
+	} else {
+		fmt.Fprintf(tw, "Setup Commands:\t(none)\n")
+	}
+
+	if len(config.InstallCommands) > 0 {
+		fmt.Fprintf(tw, "Install Commands:\t\n")
+		for i, cmd := range config.InstallCommands {
+			fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
+		}
+	} else {
+		fmt.Fprintf(tw, "Install Commands:\t(none)\n")
+	}
+
+	envKeys := config.Env.Keys()
+	if len(envKeys) > 0 {
+		fmt.Fprintf(tw, "Environment Variables:\t\n")
+		for i, key := range envKeys {
+			value := config.Env.Get(key)
+			fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
+		}
+	} else {
+		fmt.Fprintf(tw, "Environment Variables:\t(none)\n")
+	}
+
+	secretKeys := config.Secrets.Keys()
+	if len(secretKeys) > 0 {
+		fmt.Fprintf(tw, "Secrets:\t\n")
+		for i, key := range secretKeys {
+			value := config.Secrets.Get(key)
+			fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
+		}
+	} else {
+		fmt.Fprintf(tw, "Secrets:\t(none)\n")
+	}
+
+	return nil
+}
+
 // Helper function for config update operations
 func updateConfig(cmd *cobra.Command, fn func(*environment.EnvironmentConfig) error) error {
 	ctx := cmd.Context()
@@ -59,10 +139,6 @@ var configCmd = &cobra.Command{
 These settings are stored in .container-use/environment.json and apply to all new environments.`,
 }
 
-func init() {
-	configShowCmd.Flags().Bool("json", false, "Dump the configuration in JSON")
-}
-
 var configShowCmd = &cobra.Command{
 	Use:   "show [<env>]",
 	Short: "Show environment configuration",
@@ -73,89 +149,24 @@ With an environment argument, shows the configuration for that specific environm
 container-use config show
 
 # Show the configuration for a specific environment
-container-use config show my-env
-`,
+container-use config show my-env`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: suggestEnvironments,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
+	RunE:              runConfigShow,
+}
 
-		repo, err := repository.Open(ctx, ".")
-		if err != nil {
-			return fmt.Errorf("failed to open repository: %w", err)
-		}
+var showCmd = &cobra.Command{
+	Use:   configShowCmd.Use,
+	Short: configShowCmd.Short,
+	Long:  configShowCmd.Long,
+	Example: `# Show the default environment configuration
+container-use show
 
-		var config *environment.EnvironmentConfig
-
-		// If no environment is specified, use the default configuration
-		if len(args) == 0 {
-			config = environment.DefaultConfig()
-			if err := config.Load(repo.SourcePath()); err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
-			}
-		} else {
-			envID := args[0]
-			env, err := repo.Info(ctx, envID)
-			if err != nil {
-				return err
-			}
-			config = env.State.Config
-		}
-
-		if ok, _ := cmd.Flags().GetBool("json"); ok {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(config)
-		}
-
-		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		defer tw.Flush()
-
-		fmt.Fprintf(tw, "Base Image:\t%s\n", config.BaseImage)
-		fmt.Fprintf(tw, "Workdir:\t%s\n", config.Workdir)
-
-		if len(config.SetupCommands) > 0 {
-			fmt.Fprintf(tw, "Setup Commands:\t\n")
-			for i, cmd := range config.SetupCommands {
-				fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
-			}
-		} else {
-			fmt.Fprintf(tw, "Setup Commands:\t(none)\n")
-		}
-
-		if len(config.InstallCommands) > 0 {
-			fmt.Fprintf(tw, "Install Commands:\t\n")
-			for i, cmd := range config.InstallCommands {
-				fmt.Fprintf(tw, "  %d.\t%s\n", i+1, cmd)
-			}
-		} else {
-			fmt.Fprintf(tw, "Install Commands:\t(none)\n")
-		}
-
-		envKeys := config.Env.Keys()
-		if len(envKeys) > 0 {
-			fmt.Fprintf(tw, "Environment Variables:\t\n")
-			for i, key := range envKeys {
-				value := config.Env.Get(key)
-				fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
-			}
-		} else {
-			fmt.Fprintf(tw, "Environment Variables:\t(none)\n")
-		}
-
-		secretKeys := config.Secrets.Keys()
-		if len(secretKeys) > 0 {
-			fmt.Fprintf(tw, "Secrets:\t\n")
-			for i, key := range secretKeys {
-				value := config.Secrets.Get(key)
-				fmt.Fprintf(tw, "  %d.\t%s=%s\n", i+1, key, value)
-			}
-		} else {
-			fmt.Fprintf(tw, "Secrets:\t(none)\n")
-		}
-
-		return nil
-	},
+# Show the configuration for a specific environment
+container-use show my-env`,
+	Args:              configShowCmd.Args,
+	ValidArgsFunction: configShowCmd.ValidArgsFunction,
+	RunE:              runConfigShow,
 }
 
 var configImportCmd = &cobra.Command{
@@ -557,6 +568,9 @@ var configSecretClearCmd = &cobra.Command{
 }
 
 func init() {
+	configShowCmd.Flags().Bool("json", false, "Dump the configuration in JSON")
+	showCmd.Flags().Bool("json", false, "Dump the configuration in JSON")
+
 	// Add base-image commands
 	configBaseImageCmd.AddCommand(configBaseImageSetCmd)
 	configBaseImageCmd.AddCommand(configBaseImageGetCmd)
@@ -599,5 +613,6 @@ func init() {
 	configCmd.AddCommand(agent.AgentCmd)
 
 	// Add config command to root
+	rootCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(configCmd)
 }
