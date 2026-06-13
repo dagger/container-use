@@ -13,6 +13,8 @@
     <a href="https://github.com/clinebot/awesome-claude-code">
       <img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Claude Code">
     </a>
+
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/dagger/container-use)](https://archestra.ai/mcp-catalog/dagger__container-use)
   </p>
 </div>
 
