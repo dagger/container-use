@@ -67,6 +67,30 @@ func RunInteractiveGitCommand(ctx context.Context, dir string, w io.Writer, args
 	return cmd.Run()
 }
 
+func isShallowRepository(ctx context.Context, repo string) (bool, error) {
+	isShallow, err := RunGitCommand(ctx, repo, "rev-parse", "--is-shallow-repository")
+	if err != nil {
+		return false, err
+	}
+
+	return strings.TrimSpace(isShallow) == "true", nil
+}
+
+func ensureRepositoryNotShallow(ctx context.Context, repo string) error {
+	isShallow, err := isShallowRepository(ctx, repo)
+	if err != nil {
+		return err
+	}
+
+	if !isShallow {
+		return nil
+	}
+
+	slog.Info("Repository is shallow, fetching full history", "repository", repo)
+	_, err = RunGitCommand(ctx, repo, "fetch", "--unshallow")
+	return err
+}
+
 func getContainerUseRemote(ctx context.Context, repo string) (string, error) {
 	// Check if we already have a container-use remote
 	cuRemote, err := RunGitCommand(ctx, repo, "remote", "get-url", "container-use")
@@ -138,6 +162,10 @@ func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) 
 			return err
 		}
 		resolvedRef = strings.TrimSpace(resolvedRef)
+
+		if err := ensureRepositoryNotShallow(ctx, r.userRepoPath); err != nil {
+			return err
+		}
 
 		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
 		if err != nil {
