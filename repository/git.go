@@ -19,6 +19,11 @@ import (
 	"github.com/mitchellh/go-homedir"
 )
 
+var (
+	// noHooks is the git config value to disable all hooks
+	noHooks = "core.hooksPath=/dev/null"
+)
+
 const (
 	maxFileSizeForTextCheck = 10 * 1024 * 1024 // 10MB
 )
@@ -139,10 +144,10 @@ func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) 
 		}
 		resolvedRef = strings.TrimSpace(resolvedRef)
 
-		_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
+		_, err = RunGitCommand(ctx, r.userRepoPath, "-c", noHooks, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
 		if err != nil {
 			// Retry once on failure
-			_, err = RunGitCommand(ctx, r.userRepoPath, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
+			_, err = RunGitCommand(ctx, r.userRepoPath, "-c", noHooks, "push", containerUseRemote, fmt.Sprintf("%s:refs/heads/%s", resolvedRef, id))
 			if err != nil {
 				return err
 			}
@@ -226,7 +231,7 @@ func (r *Repository) getWorktree(ctx context.Context, id string) (string, error)
 // createInitialCommit creates an empty commit with the environment creation message - this prevents multiple environments from overwriting the container-use-state on the parent commit
 func (r *Repository) createInitialCommit(ctx context.Context, worktreePath, id, title string) error {
 	commitMessage := fmt.Sprintf("Create environment %s: %s", id, title)
-	_, err := RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "-m", commitMessage)
+	_, err := RunGitCommand(ctx, worktreePath, "-c", noHooks, "commit", "--allow-empty", "-m", commitMessage)
 	return err
 }
 
@@ -515,7 +520,7 @@ func (r *Repository) commitWorktreeChanges(ctx context.Context, worktreePath, ex
 			return err
 		}
 
-		_, err = RunGitCommand(ctx, worktreePath, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
+		_, err = RunGitCommand(ctx, worktreePath, "-c", noHooks, "commit", "--allow-empty", "--allow-empty-message", "-m", explanation)
 		return err
 	})
 }
