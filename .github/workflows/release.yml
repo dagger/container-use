@@ -22,6 +22,7 @@ jobs:
         with:
           version: "latest"
           verb: call
-          args: release --version "${GITHUB_REF#refs/tags/}" --github-token env:RELEASE_GITHUB_TOKEN --github-org-name=${{ github.repository_owner }}
+          args: release --version "${GITHUB_REF#refs/tags/}" --github-token env:RELEASE_GITHUB_TOKEN --github-org-name=${{ github.repository_owner }} --chocolatey-api-key env:CHOCOLATEY_API_KEY
         env:
           RELEASE_GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}

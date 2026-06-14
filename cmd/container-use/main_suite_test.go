@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -20,7 +21,11 @@ var (
 func getContainerUseBinary(t *testing.T) string {
 	binaryPathOnce.Do(func() {
 		t.Log("Building fresh container-use binary...")
-		cmd := exec.Command("go", "build", "-o", "container-use", ".")
+		binaryName := "container-use"
+		if runtime.GOOS == "windows" {
+			binaryName = "container-use.exe"
+		}
+		cmd := exec.Command("go", "build", "-o", binaryName, ".")
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout
 		err := cmd.Run()
@@ -28,7 +33,7 @@ func getContainerUseBinary(t *testing.T) string {
 			t.Fatalf("Failed to build container-use binary: %v", err)
 		}
 
-		abs, err := filepath.Abs("container-use")
+		abs, err := filepath.Abs(binaryName)
 		if err != nil {
 			t.Fatalf("Failed to get absolute path: %v", err)
 		}
