@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -144,14 +145,29 @@ func (env *Environment) apply(ctx context.Context, newState *dagger.Container) e
 	return nil
 }
 
+// resolveSecretValue resolves a secret reference value.
+// If the value has an "env://" prefix, it looks up the referenced
+// environment variable from the host and returns the resolved plaintext
+// along with resolved=true.
+// For other schemes (e.g., "op://", "vault://"), it returns the value
+// unchanged with resolved=false, so the caller can pass it to Dagger's
+// native secret resolution.
+func resolveSecretValue(key, value string) (resolved string, isPlaintext bool, err error) {
+	if envVar, ok := strings.CutPrefix(value, "env://"); ok {
+		plaintext := os.Getenv(envVar)
+		if plaintext == "" {
+			return "", false, fmt.Errorf("secret %s references environment variable %s, but it is not set", key, envVar)
+		}
+		return plaintext, true, nil
+	}
+	return value, false, nil
+}
+
 func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
 	for _, env := range envs {
 		k, v, found := strings.Cut(env, "=")
 		if !found {
 			return nil, fmt.Errorf("invalid env variable: %s", env)
-		}
-		if !found {
-			return nil, fmt.Errorf("invalid environment variable: %s", env)
 		}
 		container = container.WithEnvVariable(k, v, dagger.ContainerWithEnvVariableOpts{
 			Expand: true,
@@ -163,7 +179,17 @@ func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container,
 		if !found {
 			return nil, fmt.Errorf("invalid secret: %s", secret)
 		}
-		container = container.WithSecretVariable(k, dag.Secret(v))
+		resolved, isPlaintext, err := resolveSecretValue(k, v)
+		if err != nil {
+			return nil, err
+		}
+		var daggerSecret *dagger.Secret
+		if isPlaintext {
+			daggerSecret = dag.SetSecret(k, resolved)
+		} else {
+			daggerSecret = dag.Secret(resolved)
+		}
+		container = container.WithSecretVariable(k, daggerSecret)
 	}
 
 	return container, nil
