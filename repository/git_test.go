@@ -202,3 +202,44 @@ func createDir(t *testing.T, dir, name string) {
 	err := os.MkdirAll(path, 0755)
 	require.NoError(t, err)
 }
+
+func TestValidateGitRefComponent(t *testing.T) {
+	valid := []string{
+		"main",
+		"cu-adverb-animal",
+		"v1.0.0",
+		"feature/test_123",
+		"HEAD",
+	}
+	for _, name := range valid {
+		assert.NoError(t, validateGitRefComponent(name), "expected %q to be valid", name)
+	}
+
+	invalid := []string{
+		"",
+		"--help",
+		"-foo",
+		"feature test",
+		"foo\nbar",
+		"foo\x00bar",
+	}
+	for _, name := range invalid {
+		assert.Error(t, validateGitRefComponent(name), "expected %q to be invalid", name)
+	}
+}
+
+func TestExportEnvironmentFileRejectsPathTraversal(t *testing.T) {
+	tmp := t.TempDir()
+	worktreePath := filepath.Join(tmp, "worktree")
+	require.NoError(t, os.MkdirAll(worktreePath, 0755))
+
+	for _, filePath := range []string{
+		"../../../etc/cron.d/evil",
+		"/etc/passwd",
+		"foo/../../etc/passwd",
+		"../secret.txt",
+	} {
+		assert.True(t, filepath.IsAbs(filePath) || strings.HasPrefix(filepath.Clean(filePath), ".."),
+			"test case %q should be classified as escaping the workdir", filePath)
+	}
+}

@@ -26,7 +26,28 @@ const (
 var (
 	urlSchemeRegExp  = regexp.MustCompile(`^[^:]+://`)
 	scpLikeURLRegExp = regexp.MustCompile(`^(?:(?P<user>[^@]+)@)?(?P<host>[^:\s]+):(?:(?P<port>[0-9]{1,5})(?:\/|:))?(?P<path>[^\\].*\/[^\\].*)$`)
+	// validGitRefComponent rejects ref/branch names that git would interpret as
+	// flags (leading "-") or that contain characters likely to break argument
+	// parsing (whitespace, control characters, NUL). It is intentionally
+	// conservative; real branch names use the petname generator today.
+	validGitRefComponent = regexp.MustCompile(`^[a-zA-Z0-9._~/-]+$`)
 )
+
+// validateGitRefComponent rejects ref names that could be interpreted by git as
+// options or that contain unsafe characters. It returns an error describing why
+// the name was rejected.
+func validateGitRefComponent(name string) error {
+	if name == "" {
+		return fmt.Errorf("ref name is empty")
+	}
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("ref name %q starts with '-', which git would interpret as an option", name)
+	}
+	if !validGitRefComponent.MatchString(name) {
+		return fmt.Errorf("ref name %q contains characters not allowed in a git ref component", name)
+	}
+	return nil
+}
 
 // RunGitCommand executes a git command in the specified directory.
 // This is exported for use in tests and other packages that need direct git access.
@@ -120,8 +141,13 @@ func (r *Repository) deleteLocalRemoteBranch(id string) error {
 // It pushes the specified gitRef to create a new branch with the given id, then creates a worktree from that branch.
 // Returns the worktree path, any submodule warning, and an error.
 func (r *Repository) initializeWorktree(ctx context.Context, id, gitRef string) (string, string, error) {
+	if err := validateGitRefComponent(id); err != nil {
+		return "", "", fmt.Errorf("invalid environment id: %w", err)
+	}
 	if gitRef == "" {
 		gitRef = "HEAD"
+	} else if err := validateGitRefComponent(gitRef); err != nil {
+		return "", "", fmt.Errorf("invalid git ref: %w", err)
 	}
 
 	worktreePath, err := r.WorktreePath(id)
@@ -373,8 +399,17 @@ func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
+	// Reject absolute paths and paths that escape the worktree via "..".
+	if filepath.IsAbs(filePath) {
+		return fmt.Errorf("file path must be relative to the workdir: %s", filePath)
+	}
+	clean := filepath.Clean(filePath)
+	if strings.HasPrefix(clean, "..") {
+		return fmt.Errorf("file path escapes workdir: %s", filePath)
+	}
+
 	// Get the absolute path for the file in the worktree
-	absoluteFilePath := filepath.Join(worktreePath, filePath)
+	absoluteFilePath := filepath.Join(worktreePath, clean)
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(absoluteFilePath), 0755); err != nil {
@@ -382,7 +417,7 @@ func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment
 	}
 
 	// Export the single file from the environment
-	_, err = env.WorkdirFile(filePath).Export(ctx, absoluteFilePath)
+	_, err = env.WorkdirFile(clean).Export(ctx, absoluteFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to export file %s: %w", filePath, err)
 	}

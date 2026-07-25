@@ -451,12 +451,17 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 // Checkout changes the user's current branch to that of the identified environment.
 // It attempts to get the most recent commit from the environment without discarding any user changes.
 func (r *Repository) Checkout(ctx context.Context, id, branch string) (string, error) {
+	if err := validateGitRefComponent(id); err != nil {
+		return "", fmt.Errorf("invalid environment id: %w", err)
+	}
 	if err := r.exists(ctx, id); err != nil {
 		return "", err
 	}
 
 	if branch == "" {
 		branch = "cu-" + id
+	} else if err := validateGitRefComponent(branch); err != nil {
+		return "", fmt.Errorf("invalid branch name: %w", err)
 	}
 
 	// set up remote tracking branch if it's not already there
@@ -549,6 +554,9 @@ func (r *Repository) Diff(ctx context.Context, id string, w io.Writer) error {
 }
 
 func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
+	if err := validateGitRefComponent(id); err != nil {
+		return fmt.Errorf("invalid environment id: %w", err)
+	}
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
@@ -558,6 +566,9 @@ func (r *Repository) Merge(ctx context.Context, id string, w io.Writer) error {
 }
 
 func (r *Repository) Apply(ctx context.Context, id string, w io.Writer) error {
+	if err := validateGitRefComponent(id); err != nil {
+		return fmt.Errorf("invalid environment id: %w", err)
+	}
 	envInfo, err := r.Info(ctx, id)
 	if err != nil {
 		return err
