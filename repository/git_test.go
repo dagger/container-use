@@ -243,3 +243,48 @@ func TestExportEnvironmentFileRejectsPathTraversal(t *testing.T) {
 			"test case %q should be classified as escaping the workdir", filePath)
 	}
 }
+
+func TestNormalizeGitURL(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"https://github.com/user/repo.git", "github.com/user/repo"},
+		{"https://github.com/user/repo", "github.com/user/repo"},
+		{"git@github.com:user/repo.git", "github.com/user/repo"},
+		{"git@github.com:user/repo", "github.com/user/repo"},
+	}
+
+	for _, tc := range cases {
+		got, err := normalizeGitURL(tc.input)
+		require.NoError(t, err, tc.input)
+		assert.Equal(t, tc.expected, got, tc.input)
+	}
+}
+
+func TestNormalizeGitURLInvalid(t *testing.T) {
+	_, err := normalizeGitURL("not-a-url")
+	assert.Error(t, err)
+}
+
+func TestCreateSafePathFromAbsolute(t *testing.T) {
+	assert.Equal(t, "home/user/project", createSafePathFromAbsolute("/home/user/project"))
+	assert.Equal(t, "C_\\Users\\user\\project", createSafePathFromAbsolute("C:\\Users\\user\\project"))
+	assert.Equal(t, "path______", createSafePathFromAbsolute("/path<>|?*\""))
+}
+
+func TestIsBinaryFile(t *testing.T) {
+	tmp := t.TempDir()
+	textFile := filepath.Join(tmp, "text.txt")
+	binFile := filepath.Join(tmp, "binary.bin")
+	emptyFile := filepath.Join(tmp, "empty")
+
+	require.NoError(t, os.WriteFile(textFile, []byte("hello world\n"), 0644))
+	require.NoError(t, os.WriteFile(binFile, []byte{0x00, 0x01, 0x02}, 0644))
+	require.NoError(t, os.WriteFile(emptyFile, []byte{}, 0644))
+
+	r := &Repository{}
+	assert.False(t, r.isBinaryFile(tmp, "text.txt"))
+	assert.True(t, r.isBinaryFile(tmp, "binary.bin"))
+	assert.False(t, r.isBinaryFile(tmp, "empty"))
+}
