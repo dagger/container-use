@@ -144,6 +144,15 @@ func (env *Environment) apply(ctx context.Context, newState *dagger.Container) e
 	return nil
 }
 
+func isAllowedShell(shell string) bool {
+	switch shell {
+	case "sh", "/bin/sh", "bash", "/bin/bash", "zsh", "/bin/zsh", "ash", "/bin/ash":
+		return true
+	default:
+		return false
+	}
+}
+
 func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
 	for _, env := range envs {
 		k, v, found := strings.Cut(env, "=")
@@ -252,6 +261,10 @@ func (env *Environment) UpdateConfig(ctx context.Context, newConfig *Environment
 }
 
 func (env *Environment) Run(ctx context.Context, command, shell string, useEntrypoint bool) (string, error) {
+	if !isAllowedShell(shell) {
+		return "", fmt.Errorf("unsupported shell: %s", shell)
+	}
+
 	args := []string{}
 	if command != "" {
 		args = []string{shell, "-c", command}
