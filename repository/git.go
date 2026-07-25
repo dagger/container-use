@@ -429,6 +429,9 @@ func (r *Repository) saveState(ctx context.Context, env *environment.Environment
 	if _, err := f.Write(state); err != nil {
 		return err
 	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary state file: %w", err)
+	}
 
 	return r.lockManager.WithLock(ctx, LockTypeNotes, func() error {
 		_, err = RunGitCommand(ctx, worktreePath, "notes", "--ref", gitNotesStateRef, "add", "-f", "-F", f.Name())
