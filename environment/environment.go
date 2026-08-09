@@ -313,65 +313,27 @@ func (env *Environment) RunBackground(ctx context.Context, command, shell string
 		args = []string{shell, "-c", command}
 	}
 	displayCommand := command + " &"
-	serviceState := env.container()
 
-	// Expose ports
-	for _, port := range ports {
-		serviceState = serviceState.WithExposedPort(port, dagger.ContainerWithExposedPortOpts{
-			Protocol:    dagger.NetworkProtocolTcp,
-			Description: fmt.Sprintf("Port %d", port),
-		})
-	}
-
-	// Start the service
-	startCtx, cancel := context.WithTimeout(ctx, serviceStartTimeout)
-	defer cancel()
-	svc, err := serviceState.AsService(dagger.ContainerAsServiceOpts{
-		Args:          args,
-		UseEntrypoint: useEntrypoint,
-	}).Start(startCtx)
+	svc, err := env.exposeAndStartService(ctx, env.container(), args, ports, useEntrypoint)
 	if err != nil {
+		err = translateServiceStartError(err)
 		var exitErr *dagger.ExecError
 		if errors.As(err, &exitErr) {
 			env.Notes.AddCommand(displayCommand, exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-			return nil, fmt.Errorf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			err = fmt.Errorf("service failed to start within %s timeout", serviceStartTimeout)
+		} else if errors.Is(err, context.DeadlineExceeded) {
 			env.Notes.AddCommand(displayCommand, 137, "", err.Error())
-			return nil, err
 		}
 		return nil, err
 	}
 
 	env.Notes.AddCommand(displayCommand, 0, "", "")
 
-	endpoints := EndpointMappings{}
+	endpoints, err := env.tunnelServiceEndpoints(ctx, svc, ports)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, port := range ports {
-		endpoint := &EndpointMapping{}
-		endpoints[port] = endpoint
-
-		// Expose port on the host
-		tunnel, err := env.dag.Host().Tunnel(svc, dagger.HostTunnelOpts{
-			Ports: []dagger.PortForward{
-				{
-					Backend:  port,
-					Protocol: dagger.NetworkProtocolTcp,
-				},
-			},
-		}).Start(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		externalEndpoint, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{
-			Scheme: "tcp",
-		})
-		if err != nil {
-			return nil, err
-		}
-		endpoint.HostExternal = externalEndpoint
-
 		internalEndpoint, err := svc.Endpoint(ctx, dagger.ServiceEndpointOpts{
 			Port:   port,
 			Scheme: "tcp",
@@ -379,7 +341,7 @@ func (env *Environment) RunBackground(ctx context.Context, command, shell string
 		if err != nil {
 			return nil, err
 		}
-		endpoint.EnvironmentInternal = internalEndpoint
+		endpoints[port].EnvironmentInternal = internalEndpoint
 	}
 
 	return endpoints, nil
