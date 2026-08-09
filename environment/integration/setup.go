@@ -1,0 +1,251 @@
+package integration
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+
+	"dagger.io/dagger"
+	"github.com/dagger/container-use/repository"
+	"github.com/stretchr/testify/require"
+)
+
+var (
+	testDaggerClient *dagger.Client
+	daggerOnce       sync.Once
+	daggerErr        error
+)
+
+// init sets up logging for tests
+func init() {
+	// Only show warnings and errors in tests unless TEST_VERBOSE is set
+	level := slog.LevelWarn
+	if os.Getenv("TEST_VERBOSE") != "" {
+		level = slog.LevelInfo
+	}
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: level,
+	})))
+}
+
+// WithRepository runs a test function with an isolated repository and UserActions
+func WithRepository(t *testing.T, name string, setup RepositorySetup, fn func(t *testing.T, repo *repository.Repository, user *UserActions)) {
+	// Initialize Dagger (needed for environment operations)
+	initializeDaggerOnce(t)
+
+	ctx := context.Background()
+
+	// Create isolated temp directories
+	repoDir, err := os.MkdirTemp("", "cu-test-"+name+"-*")
+	require.NoError(t, err, "Failed to create repo dir")
+
+	configDir, err := os.MkdirTemp("", "cu-test-config-"+name+"-*")
+	require.NoError(t, err, "Failed to create config dir")
+
+	// Initialize git repo
+	cmds := [][]string{
+		{"init", "--initial-branch=main"},
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "Test User"},
+		{"config", "commit.gpgsign", "false"},
+	}
+
+	for _, cmd := range cmds {
+		_, err := repository.RunGitCommand(ctx, repoDir, cmd...)
+		require.NoError(t, err, "Failed to run git %v", cmd)
+	}
+
+	// Run setup to populate repo
+	if setup != nil {
+		setup(t, repoDir)
+	}
+
+	// Open repository with isolated base path
+	repo, err := repository.OpenWithBasePath(ctx, repoDir, configDir)
+	require.NoError(t, err, "Failed to open repository")
+
+	// Create UserActions with extended capabilities
+	user := NewUserActions(t, repo, testDaggerClient).WithDirectAccess(repoDir, configDir)
+
+	// Cleanup
+	t.Cleanup(func() {
+		// Clean up any environments created during the test
+		envs, _ := repo.List(context.Background())
+		for _, env := range envs {
+			repo.Delete(context.Background(), env.ID)
+		}
+
+		// Remove directories
+		os.RemoveAll(repoDir)
+		os.RemoveAll(configDir)
+	})
+
+	// Run the test function
+	fn(t, repo, user)
+}
+
+// RepositorySetup is a function that prepares a test repository
+type RepositorySetup func(t *testing.T, repoDir string)
+
+// Common repository setups
+var (
+	SetupPythonRepo = func(t *testing.T, repoDir string) {
+		writeFile(t, repoDir, "main.py", "def main():\n    print('Hello World')\n\nif __name__ == '__main__':\n    main()\n")
+		writeFile(t, repoDir, "requirements.txt", "requests==2.31.0\nnumpy==1.24.0\n")
+		writeFile(t, repoDir, ".gitignore", "__pycache__/\n*.pyc\n.env\nvenv/\n")
+		gitCommit(t, repoDir, "Initial Python project")
+	}
+
+	SetupPythonRepoNoGitignore = func(t *testing.T, repoDir string) {
+		writeFile(t, repoDir, "main.py", "def main():\n    print('Hello World')\n\nif __name__ == '__main__':\n    main()\n")
+		writeFile(t, repoDir, "requirements.txt", "requests==2.31.0\nnumpy==1.24.0\n")
+		gitCommit(t, repoDir, "Initial Python project")
+	}
+
+	SetupNodeRepo = func(t *testing.T, repoDir string) {
+		packageJSON := `{
+  "name": "test-project",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}`
+		writeFile(t, repoDir, "package.json", packageJSON)
+		writeFile(t, repoDir, "index.js", "console.log('Hello from Node.js');\n")
+		writeFile(t, repoDir, ".gitignore", "node_modules/\n.env\n")
+		gitCommit(t, repoDir, "Initial Node project")
+	}
+
+	SetupEmptyRepo = func(t *testing.T, repoDir string) {
+		writeFile(t, repoDir, "README.md", "# Test Project\n")
+		gitCommit(t, repoDir, "Initial commit")
+	}
+
+	SetupRepoWithGitConfig = func(t *testing.T, repoDir string) {
+		// Set project-specific git config
+		ctx := context.Background()
+		_, err := repository.RunGitCommand(ctx, repoDir, "config", "user.name", "Project User")
+		require.NoError(t, err, "Failed to set project user.name")
+		_, err = repository.RunGitCommand(ctx, repoDir, "config", "user.email", "project@example.com")
+		require.NoError(t, err, "Failed to set project user.email")
+
+		writeFile(t, repoDir, "README.md", "# Project with custom git config\n")
+		gitCommit(t, repoDir, "Initial commit with project config")
+	}
+
+	SetupRepoWithConflictingConfig = func(t *testing.T, repoDir string) {
+		// This assumes there might be global config, and sets local config to override it
+		ctx := context.Background()
+		_, err := repository.RunGitCommand(ctx, repoDir, "config", "user.name", "Local Project User")
+		require.NoError(t, err, "Failed to set local user.name")
+		_, err = repository.RunGitCommand(ctx, repoDir, "config", "user.email", "local@project.com")
+		require.NoError(t, err, "Failed to set local user.email")
+
+		writeFile(t, repoDir, "README.md", "# Project with conflicting config\n")
+		gitCommit(t, repoDir, "Initial commit with local config")
+	}
+
+	SetupRepoWithGitHooks = func(t *testing.T, repoDir string) {
+		// Create git hooks directory
+		hooksDir := filepath.Join(repoDir, ".git/hooks")
+		err := os.MkdirAll(hooksDir, 0755)
+		require.NoError(t, err, "Failed to create hooks directory")
+
+		// Pre-commit hook that would block "forbidden.txt"
+		preCommitHook := `#!/bin/sh
+echo "This pre-commit hook should never run in container-use"
+if [ -f "forbidden.txt" ]; then
+    echo "Error: forbidden.txt is not allowed"
+    exit 1
+fi
+exit 0`
+		writeFile(t, hooksDir, "pre-commit", preCommitHook)
+		err = os.Chmod(filepath.Join(hooksDir, "pre-commit"), 0755)
+		require.NoError(t, err, "Failed to make pre-commit hook executable")
+
+		// Post-commit hook that creates evidence file
+		postCommitHook := `#!/bin/sh
+echo "Hook ran at $(date)" >> .hook-evidence`
+		writeFile(t, hooksDir, "post-commit", postCommitHook)
+		err = os.Chmod(filepath.Join(hooksDir, "post-commit"), 0755)
+		require.NoError(t, err, "Failed to make post-commit hook executable")
+
+		writeFile(t, repoDir, "README.md", "# Project with git hooks\n")
+		gitCommit(t, repoDir, "Initial commit with hooks")
+	}
+
+	SetupRepoWithFailingHooks = func(t *testing.T, repoDir string) {
+		// Create git hooks directory
+		hooksDir := filepath.Join(repoDir, ".git/hooks")
+		err := os.MkdirAll(hooksDir, 0755)
+		require.NoError(t, err, "Failed to create hooks directory")
+
+		// Pre-commit hook that always fails
+		preCommitHook := `#!/bin/sh
+echo "This failing pre-commit hook should never run"
+exit 1`
+		writeFile(t, hooksDir, "pre-commit", preCommitHook)
+		err = os.Chmod(filepath.Join(hooksDir, "pre-commit"), 0755)
+		require.NoError(t, err, "Failed to make pre-commit hook executable")
+
+		// Pre-push hook that also fails
+		prePushHook := `#!/bin/sh
+echo "This failing pre-push hook should never run"
+exit 1`
+		writeFile(t, hooksDir, "pre-push", prePushHook)
+		err = os.Chmod(filepath.Join(hooksDir, "pre-push"), 0755)
+		require.NoError(t, err, "Failed to make pre-push hook executable")
+
+		writeFile(t, repoDir, "README.md", "# Project with failing hooks\n")
+		gitCommit(t, repoDir, "Initial commit with failing hooks")
+	}
+)
+
+// Helper functions for repository setup
+func writeFile(t *testing.T, repoDir, path, content string) {
+	fullPath := filepath.Join(repoDir, path)
+	dir := filepath.Dir(fullPath)
+	err := os.MkdirAll(dir, 0755)
+	require.NoError(t, err, "Failed to create dir")
+	err = os.WriteFile(fullPath, []byte(content), 0600)
+	require.NoError(t, err, "Failed to write file")
+}
+
+func gitCommit(t *testing.T, repoDir, message string) {
+	ctx := context.Background()
+	_, err := repository.RunGitCommand(ctx, repoDir, "add", ".")
+	require.NoError(t, err, "Failed to stage files")
+	_, err = repository.RunGitCommand(ctx, repoDir, "-c", "core.hooksPath=/dev/null", "commit", "-m", message)
+	require.NoError(t, err, "Failed to commit")
+}
+
+// initializeDaggerOnce initializes Dagger client once for all tests
+func initializeDaggerOnce(t *testing.T) {
+	daggerOnce.Do(func() {
+		if testDaggerClient != nil {
+			return
+		}
+
+		ctx := context.Background()
+		client, err := dagger.Connect(ctx)
+		if err != nil {
+			daggerErr = err
+			return
+		}
+
+		testDaggerClient = client
+	})
+
+	if daggerErr != nil {
+		t.Skipf("Skipping test - Dagger not available: %v", daggerErr)
+	}
+}
