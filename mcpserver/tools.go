@@ -693,10 +693,15 @@ func createEnvironmentFileReadTool(singleTenant bool) *Tool {
 			}
 
 			shouldReadEntireFile := request.GetBool("should_read_entire_file", false)
-			startLineOneIndexedInclusive := request.GetInt("start_line_one_indexed_inclusive", 0)
-			endLineOneIndexedInclusive := request.GetInt("end_line_one_indexed_inclusive", 0)
 
-			fileContents, err := env.FileRead(ctx, targetFile, shouldReadEntireFile, startLineOneIndexedInclusive, endLineOneIndexedInclusive)
+			var fileContents string
+			if shouldReadEntireFile {
+				fileContents, err = env.FileRead(ctx, targetFile)
+			} else {
+				startLine := request.GetInt("start_line_one_indexed_inclusive", 0)
+				endLine := request.GetInt("end_line_one_indexed_inclusive", 0)
+				fileContents, err = env.FileReadRange(ctx, targetFile, startLine, endLine)
+			}
 			if err != nil {
 				return nil, fmt.Errorf("failed to read file: %w", err)
 			}

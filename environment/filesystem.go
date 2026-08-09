@@ -10,13 +10,14 @@ import (
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 )
 
-func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexedInclusive int, endLineOneIndexedInclusive int) (string, error) {
+func (env *Environment) FileRead(ctx context.Context, targetFile string) (string, error) {
+	return env.container().File(targetFile).Contents(ctx)
+}
+
+func (env *Environment) FileReadRange(ctx context.Context, targetFile string, startLineOneIndexedInclusive, endLineOneIndexedInclusive int) (string, error) {
 	file, err := env.container().File(targetFile).Contents(ctx)
 	if err != nil {
 		return "", err
-	}
-	if shouldReadEntireFile {
-		return file, err
 	}
 
 	lines := strings.Split(file, "\n")

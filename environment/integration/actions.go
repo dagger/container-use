@@ -104,7 +104,7 @@ func (u *UserActions) FileRead(envID, targetFile string) string {
 	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
-	content, err := env.FileRead(u.ctx, targetFile, true, 0, 0)
+	content, err := env.FileRead(u.ctx, targetFile)
 	require.NoError(u.t, err, "FileRead should succeed")
 	return content
 }
@@ -114,7 +114,7 @@ func (u *UserActions) FileReadExpectError(envID, targetFile string) {
 	env, err := u.repo.Get(u.ctx, u.dag, envID)
 	require.NoError(u.t, err, "Failed to get environment %s", envID)
 
-	_, err = env.FileRead(u.ctx, targetFile, true, 0, 0)
+	_, err = env.FileRead(u.ctx, targetFile)
 	assert.Error(u.t, err, "FileRead should fail for %s", targetFile)
 }
 

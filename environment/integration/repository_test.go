@@ -192,7 +192,7 @@ func TestRepositoryCreateFromGitRef(t *testing.T) {
 
 		// Test creating environment from HEAD (default behavior)
 		envFromHead := user.CreateEnvironment("From HEAD", "Environment from HEAD")
-		content, err := envFromHead.FileRead(ctx, "main.txt", true, 0, 0)
+		content, err := envFromHead.FileRead(ctx, "main.txt")
 		require.NoError(t, err)
 		assert.Contains(t, content, "main content")
 
@@ -202,11 +202,11 @@ func TestRepositoryCreateFromGitRef(t *testing.T) {
 		assert.NotNil(t, envFromBranch)
 
 		// Should have feature.txt but not main.txt
-		featureContent, err := envFromBranch.FileRead(ctx, "feature.txt", true, 0, 0)
+		featureContent, err := envFromBranch.FileRead(ctx, "feature.txt")
 		require.NoError(t, err)
 		assert.Contains(t, featureContent, "feature content")
 
-		_, err = envFromBranch.FileRead(ctx, "main.txt", true, 0, 0)
+		_, err = envFromBranch.FileRead(ctx, "main.txt")
 		assert.Error(t, err, "main.txt should not exist in feature branch environment")
 
 		// Test creating environment from specific SHA
@@ -215,14 +215,14 @@ func TestRepositoryCreateFromGitRef(t *testing.T) {
 		assert.NotNil(t, envFromSHA)
 
 		// Should have only initial.txt
-		initialContent, err := envFromSHA.FileRead(ctx, "initial.txt", true, 0, 0)
+		initialContent, err := envFromSHA.FileRead(ctx, "initial.txt")
 		require.NoError(t, err)
 		assert.Contains(t, initialContent, "initial content")
 
-		_, err = envFromSHA.FileRead(ctx, "main.txt", true, 0, 0)
+		_, err = envFromSHA.FileRead(ctx, "main.txt")
 		assert.Error(t, err, "main.txt should not exist in SHA environment")
 
-		_, err = envFromSHA.FileRead(ctx, "feature.txt", true, 0, 0)
+		_, err = envFromSHA.FileRead(ctx, "feature.txt")
 		assert.Error(t, err, "feature.txt should not exist in SHA environment")
 
 		// Test invalid git ref
@@ -265,7 +265,7 @@ func TestRepositoryWithSubmodule(t *testing.T) {
 
 		// check that the contents of the repo are being cloned into the env
 		checkSubmoduleReadme := func(submodulePath string) {
-			readmeContent, readErr := env.FileRead(ctx, submodulePath+"/README.md", true, 0, 0)
+			readmeContent, readErr := env.FileRead(ctx, submodulePath+"/README.md")
 			require.NoError(t, readErr, "Should be able to read %s/README.md from inside container", submodulePath)
 			assert.Contains(t, readmeContent, "Test fixtures used by dagger integration tests.")
 		}
@@ -280,7 +280,7 @@ func TestRepositoryWithSubmodule(t *testing.T) {
 		require.NoError(t, err, "env_run_cmd should be able to write files in submodules")
 
 		// Verify the file was created inside the container
-		fileContent, err := env.FileRead(ctx, "submodule/test-from-cmd.txt", true, 0, 0)
+		fileContent, err := env.FileRead(ctx, "submodule/test-from-cmd.txt")
 		require.NoError(t, err, "Should be able to read the file created by env_run_cmd")
 		assert.Contains(t, fileContent, "content from env_run_cmd")
 
@@ -330,7 +330,7 @@ func TestRepositoryWithRecursiveSubmodule(t *testing.T) {
 
 		// check that the contents of the repo are being cloned into the env
 		checkSubmoduleReadme := func(submodulePath string) {
-			readmeContent, readErr := env.FileRead(ctx, submodulePath+"/README.md", true, 0, 0)
+			readmeContent, readErr := env.FileRead(ctx, submodulePath+"/README.md")
 			require.NoError(t, readErr, "Should be able to read %s/README.md from inside container", submodulePath)
 			assert.Contains(t, readmeContent, "A test repository that uses submodules")
 		}
@@ -341,7 +341,7 @@ func TestRepositoryWithRecursiveSubmodule(t *testing.T) {
 
 		// Check nested submodules (recursive submodules)
 		checkNestedSubmoduleReadme := func(submodulePath string) {
-			nestedReadmeContent, readErr := env.FileRead(ctx, submodulePath+"/rebase/base/README.md", true, 0, 0)
+			nestedReadmeContent, readErr := env.FileRead(ctx, submodulePath+"/rebase/base/README.md")
 			require.NoError(t, readErr, "Should be able to read %s/rebase/base/README.md from inside container", submodulePath)
 			assert.Contains(t, nestedReadmeContent, "A simple test repository")
 		}
