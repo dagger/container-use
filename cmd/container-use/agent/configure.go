@@ -174,3 +174,30 @@ func tools(prefix string) []string {
 	}
 	return tools
 }
+
+// writeMcpConfig handles the common read-update-write cycle for agent MCP
+// configuration files. It creates the parent directory if needed, reads and
+// unmarshals any existing config, applies the update, and writes the result
+// back to disk.
+func writeMcpConfig[T any](path string, unmarshal func([]byte, *T) error, update func(T) ([]byte, error)) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	var cfg T
+	if data, err := os.ReadFile(path); err == nil {
+		if err := unmarshal(data, &cfg); err != nil {
+			return fmt.Errorf("failed to parse existing config: %w", err)
+		}
+	}
+
+	data, err := update(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to update config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	return nil
+}

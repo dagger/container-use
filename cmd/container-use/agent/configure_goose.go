@@ -101,12 +101,7 @@ func (a *ConfigureGoose) updateGooseConfig(config map[string]any) ([]byte, error
 		"envs":    map[string]any{},
 	}
 
-	// Write config back
-	data, err := yaml.Marshal(&config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %w", err)
-	}
-	return data, nil
+	return yaml.Marshal(&config)
 }
 
 // Save the agent rules with the container-use prompt

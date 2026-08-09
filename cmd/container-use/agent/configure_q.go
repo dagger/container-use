@@ -2,7 +2,6 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,12 +74,7 @@ func (a *ConfigureQ) updateMcpConfig(config MCPServersConfig) ([]byte, error) {
 		Timeout: &[]int{60000}[0],
 	}
 
-	// Write config back
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %w", err)
-	}
-	return data, nil
+	return json.MarshalIndent(config, "", "  ")
 }
 
 // Save the agent rules with the container-use prompt
