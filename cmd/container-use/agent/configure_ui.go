@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -45,19 +46,41 @@ var agents = []Agent{
 	},
 }
 
-// getSupportedAgents returns agents that are supported on the current platform
+// getSupportedAgents returns agents that are supported on the current platform,
+// ordered with installed agents first (stable) so the most relevant options
+// surface at the top of the list.
 func getSupportedAgents() []Agent {
+	supportedAgents := agents
 	if runtime.GOOS == "windows" {
 		// Filter out Windows-incompatible agents
-		var supportedAgents []Agent
+		supportedAgents = nil
 		for _, agent := range agents {
 			if agent.Key != "codex" && agent.Key != "amazonq" {
 				supportedAgents = append(supportedAgents, agent)
 			}
 		}
-		return supportedAgents
 	}
-	return agents
+
+	slices.SortStableFunc(supportedAgents, func(a, b Agent) int {
+		aInstalled := agentInstalled(a.Key)
+		bInstalled := agentInstalled(b.Key)
+		switch {
+		case aInstalled == bInstalled:
+			return 0
+		case aInstalled:
+			return -1
+		default:
+			return 1
+		}
+	})
+	return supportedAgents
+}
+
+// agentInstalled reports whether the agent's CLI is installed. Unknown or
+// misconfigured agents are treated as not installed.
+func agentInstalled(agentKey string) bool {
+	agent, err := selectAgent(agentKey)
+	return err == nil && agent.isInstalled()
 }
 
 // AgentSelectorModel represents the bubbletea model for agent selection
@@ -164,7 +187,7 @@ func (m AgentSelectorModel) View() string {
 		s.WriteString("\n\n")
 	}
 
-	// Agent list TODO: filter or sort agents based on if they are installed (ConfigurableAgent.isInstalled())
+	// Agent list (installed agents sorted first by getSupportedAgents)
 	supportedAgents := getSupportedAgents()
 	for i, agent := range supportedAgents {
 		cursor := "  " // not selected

@@ -29,8 +29,20 @@
    - Edit the draft release if needed
    - Click "Publish release"
 
-6. **Merge the homebrew tap PR**
-   - After publishing the release, a PR will be automatically created in [dagger/homebrew-tap](https://github.com/dagger/homebrew-tap)
-   - Review and merge the PR to make the release available via Homebrew
-
 The Dagger CI automatically handles building binaries and creating the draft release when tags are pushed.
+
+## Docs Hotfix
+
+Publishing a release also publishes the docs branch (via the
+[publish-docs workflow](https://github.com/dagger/container-use/actions/workflows/publish-docs.yml)).
+For documentation fixes that need to be published without waiting for a full release:
+
+1. **Merge your documentation PR to main**
+
+2. **Run the publish-docs workflow manually**
+   ```sh
+   gh workflow run publish-docs.yml -R dagger/container-use
+   ```
+
+3. **Verify publication**
+   - Check the [docs branch commits](https://github.com/dagger/container-use/commits/docs/) to verify the docs were published successfully

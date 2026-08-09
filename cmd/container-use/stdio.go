@@ -40,3 +40,10 @@ func init() {
 	stdioCmd.Flags().BoolVar(&singleTenant, "single-tenant", false, "Enable single-tenant mode where environment ID is optional (assumes one session per server)")
 	rootCmd.AddCommand(stdioCmd)
 }
+
+// isStdioCommand reports whether cobra will resolve args to the stdio
+// command, regardless of any flags preceding the subcommand.
+func isStdioCommand(args []string) bool {
+	cmd, _, err := rootCmd.Find(args)
+	return err == nil && cmd == stdioCmd
+}

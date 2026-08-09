@@ -202,3 +202,89 @@ func createDir(t *testing.T, dir, name string) {
 	err := os.MkdirAll(path, 0755)
 	require.NoError(t, err)
 }
+
+func TestValidateGitRefComponent(t *testing.T) {
+	valid := []string{
+		"main",
+		"cu-adverb-animal",
+		"v1.0.0",
+		"feature/test_123",
+		"HEAD",
+	}
+	for _, name := range valid {
+		assert.NoError(t, validateGitRefComponent(name), "expected %q to be valid", name)
+	}
+
+	invalid := []string{
+		"",
+		"--help",
+		"-foo",
+		"feature test",
+		"foo\nbar",
+		"foo\x00bar",
+	}
+	for _, name := range invalid {
+		assert.Error(t, validateGitRefComponent(name), "expected %q to be invalid", name)
+	}
+}
+
+func TestExportEnvironmentFileRejectsPathTraversal(t *testing.T) {
+	tmp := t.TempDir()
+	worktreePath := filepath.Join(tmp, "worktree")
+	require.NoError(t, os.MkdirAll(worktreePath, 0755))
+
+	for _, filePath := range []string{
+		"../../../etc/cron.d/evil",
+		"/etc/passwd",
+		"foo/../../etc/passwd",
+		"../secret.txt",
+	} {
+		assert.True(t, filepath.IsAbs(filePath) || strings.HasPrefix(filepath.Clean(filePath), ".."),
+			"test case %q should be classified as escaping the workdir", filePath)
+	}
+}
+
+func TestNormalizeGitURL(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"https://github.com/user/repo.git", "github.com/user/repo"},
+		{"https://github.com/user/repo", "github.com/user/repo"},
+		{"git@github.com:user/repo.git", "github.com/user/repo"},
+		{"git@github.com:user/repo", "github.com/user/repo"},
+	}
+
+	for _, tc := range cases {
+		got, err := normalizeGitURL(tc.input)
+		require.NoError(t, err, tc.input)
+		assert.Equal(t, tc.expected, got, tc.input)
+	}
+}
+
+func TestNormalizeGitURLInvalid(t *testing.T) {
+	_, err := normalizeGitURL("not-a-url")
+	assert.Error(t, err)
+}
+
+func TestCreateSafePathFromAbsolute(t *testing.T) {
+	assert.Equal(t, "home/user/project", createSafePathFromAbsolute("/home/user/project"))
+	assert.Equal(t, "C_\\Users\\user\\project", createSafePathFromAbsolute("C:\\Users\\user\\project"))
+	assert.Equal(t, "path______", createSafePathFromAbsolute("/path<>|?*\""))
+}
+
+func TestIsBinaryFile(t *testing.T) {
+	tmp := t.TempDir()
+	textFile := filepath.Join(tmp, "text.txt")
+	binFile := filepath.Join(tmp, "binary.bin")
+	emptyFile := filepath.Join(tmp, "empty")
+
+	require.NoError(t, os.WriteFile(textFile, []byte("hello world\n"), 0644))
+	require.NoError(t, os.WriteFile(binFile, []byte{0x00, 0x01, 0x02}, 0644))
+	require.NoError(t, os.WriteFile(emptyFile, []byte{}, 0644))
+
+	r := &Repository{}
+	assert.False(t, r.isBinaryFile(tmp, "text.txt"))
+	assert.True(t, r.isBinaryFile(tmp, "binary.bin"))
+	assert.False(t, r.isBinaryFile(tmp, "empty"))
+}

@@ -31,10 +31,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// FIXME(aluzzardi): `fang` misbehaves with the `stdio` command.
-	// It hangs on Ctrl-C. Traced the hang back to `lipgloss.HasDarkBackground(os.Stdin, os.Stdout)`
-	// I'm assuming it's not playing nice the mcpserver listening on stdio.
-	if len(os.Args) > 1 && os.Args[1] == "stdio" {
+	// The `stdio` command speaks JSON-RPC over stdin/stdout, which must not
+	// be touched by fang: its lipgloss.HasDarkBackground probing writes
+	// terminal queries to stdout and reads stdin, corrupting the MCP stream
+	// and hanging on Ctrl-C. Resolve the command the way cobra does (rather
+	// than peeking at os.Args[1]) so flags before the subcommand, e.g.
+	// `container-use --verbose stdio`, still bypass fang.
+	if isStdioCommand(os.Args[1:]) {
 		if err := rootCmd.ExecuteContext(ctx); err != nil {
 			os.Exit(1)
 		}

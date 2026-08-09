@@ -122,21 +122,28 @@ func runGitLogWindows(ctx context.Context) error {
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		pw.Close()
-		pr.Close()
+		pw.Close() //nolint:errcheck // best effort cleanup on start failure
+		pr.Close() //nolint:errcheck
 		return fmt.Errorf("failed to start git log: %w", err)
 	}
 
 	// Close write end so we can read
-	pw.Close()
+	if err := pw.Close(); err != nil {
+		return fmt.Errorf("failed to close pipe writer: %w", err)
+	}
 
 	// Read all output into buffer
 	scanner := bufio.NewScanner(pr)
 	for scanner.Scan() {
-		buf.WriteString(scanner.Text() + "\n")
+		buf.WriteString(scanner.Text() + "\n") //nolint:errcheck // scanner text write never fails in practice
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read git log output: %w", err)
 	}
 
-	pr.Close()
+	if err := pr.Close(); err != nil {
+		return fmt.Errorf("failed to close pipe reader: %w", err)
+	}
 
 	// Wait for command to complete
 	if err := cmd.Wait(); err != nil {
@@ -144,7 +151,9 @@ func runGitLogWindows(ctx context.Context) error {
 	}
 
 	// Output everything at once for smooth rendering
-	os.Stdout.Write(buf.Bytes())
+	if _, err := os.Stdout.Write(buf.Bytes()); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
+	}
 
 	return nil
 }

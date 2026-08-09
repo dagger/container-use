@@ -86,44 +86,57 @@ func TestVersionParsing(t *testing.T) {
 	// Test that version parsing handles common formats gracefully
 	// This is a focused integration test of the parsing logic
 	tests := []struct {
-		name  string
-		input string
-		valid bool
+		name     string
+		input    string
+		expected string
 	}{
 		{
-			name:  "docker standard format",
-			input: "Docker version 24.0.5, build 1234567",
-			valid: true,
+			name:     "docker standard format",
+			input:    "Docker version 24.0.5, build 1234567",
+			expected: "24.0.5",
 		},
 		{
-			name:  "git standard format",
-			input: "git version 2.39.3",
-			valid: true,
+			name:     "git standard format",
+			input:    "git version 2.39.3",
+			expected: "2.39.3",
 		},
 		{
-			name:  "git with vendor info",
-			input: "git version 2.39.3 (Apple Git-145)",
-			valid: true,
+			name:     "git with vendor info",
+			input:    "git version 2.39.3 (Apple Git-145)",
+			expected: "2.39.3",
 		},
 		{
-			name:  "empty string",
-			input: "",
-			valid: false,
+			name:     "dagger with v prefix",
+			input:    "dagger v0.21.7 (image://...)",
+			expected: "0.21.7",
 		},
 		{
-			name:  "unrelated output",
-			input: "command not found",
-			valid: false,
+			name:     "empty string",
+			input:    "",
+			expected: "unknown",
+		},
+		{
+			name:     "unrelated output",
+			input:    "command not found",
+			expected: "unknown",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This test primarily validates that our regex patterns work
-			// The actual parsing is tested implicitly through the command tests
-			if tt.valid {
-				assert.NotEmpty(t, tt.input)
-			}
+			assert.Equal(t, tt.expected, extractVersion(tt.input))
 		})
 	}
+}
+
+func TestRuntimeInfoString(t *testing.T) {
+	assert.Equal(t, "Docker 29.6.2", (&runtimeInfo{Name: "Docker", Version: "29.6.2", Running: true}).String())
+	assert.Equal(t, "Podman unknown (daemon not running)", (&runtimeInfo{Name: "Podman", Version: "unknown", Running: false}).String())
+}
+
+func TestGetBuildInfoFromBinary(t *testing.T) {
+	commit, date := getBuildInfoFromBinary()
+	// In test builds this may be "unknown" or real values; just ensure no panic.
+	assert.True(t, commit == "unknown" || len(commit) >= 7)
+	assert.NotEmpty(t, date)
 }
