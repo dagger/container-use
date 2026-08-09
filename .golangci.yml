@@ -1,0 +1,24 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Benign, intentionally-ignored return values (CLI output, deferred
+      # cleanup, best-effort writes).
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Writer).Write
+        - (*os.File).Close
+        - (*text/tabwriter.Writer).Flush
+        - (*dagger.io/dagger.Client).Close
+        - os.RemoveAll
+        - (*github.com/dagger/container-use/repository.RepositoryLock).Unlock
+        - (*github.com/dagger/container-use/repository.Repository).Delete
+  exclusions:
+    rules:
+      # Error handling is relaxed in test code.
+      - path: _test\.go$
+        linters:
+          - errcheck
