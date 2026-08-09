@@ -51,7 +51,7 @@ func openRepository(ctx context.Context, request mcp.CallToolRequest) (*reposito
 
 	repo, err := repository.Open(ctx, source)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open repository: %w", err)
+		return nil, repoOpenErrorMessage(source, err)
 	}
 	return repo, nil
 }
@@ -105,11 +105,35 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client, singleTenant bool) 
 	// Store single-tenant mode in context for tool handlers
 	ctx = context.WithValue(ctx, singleTenantKey{}, singleTenant)
 
+	hooks := &server.Hooks{}
 	s := server.NewMCPServer(
 		"Dagger",
 		"1.0.0",
 		server.WithInstructions(rules.AgentRules),
+		server.WithHooks(hooks),
 	)
+
+	// Request the client's roots after initialization so we can produce
+	// helpful error messages when repository opening fails. Async because
+	// hooks run before the initialize response is written: a synchronous
+	// roots/list request would deadlock against a client still waiting
+	// for that response.
+	hooks.AddAfterInitialize(func(ctx context.Context, id any, message *mcp.InitializeRequest, result *mcp.InitializeResult) {
+		if message.Params.Capabilities.Roots != nil {
+			slog.Info("Client supports roots capability", "listChanged", message.Params.Capabilities.Roots.ListChanged)
+			go requestRoots(ctx, s)
+		} else {
+			slog.Info("Client does not support roots capability")
+		}
+	})
+
+	// Re-request roots when the client tells us they changed. Async for the
+	// same reason: notifications are processed in the stdio read loop, which
+	// is also where the client's roots/list response would arrive.
+	s.AddNotificationHandler(string(mcp.MethodNotificationRootsListChanged), func(ctx context.Context, notification mcp.JSONRPCNotification) {
+		slog.Info("Received notifications/roots/list_changed from client")
+		go requestRoots(ctx, s)
+	})
 
 	for _, t := range createTools(singleTenant) {
 		s.AddTool(t.Definition, wrapToolWithClient(t, dag, singleTenant).Handler)
