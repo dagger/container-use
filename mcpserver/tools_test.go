@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"dagger.io/dagger"
 	"github.com/dagger/container-use/environment"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
@@ -104,17 +105,19 @@ func TestWrapTool(t *testing.T) {
 
 func TestWrapToolWithClient(t *testing.T) {
 	called := false
+	sentinel := &dagger.Client{}
 	tool := createEnvironmentOpenTool()
 	tool.Handler = func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		_, hasDag := ctx.Value(daggerClientKey{}).(any)
+		dag, hasDag := ctx.Value(daggerClientKey{}).(*dagger.Client)
 		_, hasSingleTenant := ctx.Value(singleTenantKey{}).(bool)
 		called = true
-		assert.NotNil(t, hasDag)
+		assert.True(t, hasDag)
+		assert.Same(t, sentinel, dag)
 		assert.True(t, hasSingleTenant)
 		return mcp.NewToolResultText("ok"), nil
 	}
 
-	wrapped := wrapToolWithClient(tool, nil, true)
+	wrapped := wrapToolWithClient(tool, sentinel, true)
 	_, err := wrapped.Handler(context.Background(), mcp.CallToolRequest{})
 	require.NoError(t, err)
 	assert.True(t, called)

@@ -39,9 +39,11 @@ func TestSuggestEnvironmentsNoRepo(t *testing.T) {
 	defer cancel()
 	cmd.SetContext(ctx)
 
+	orig, err := os.Getwd()
+	require.NoError(t, err)
 	tmp := t.TempDir()
 	require.NoError(t, os.Chdir(tmp))
-	t.Cleanup(func() { _ = os.Chdir("/var/home/a/code/container-use") })
+	t.Cleanup(func() { _ = os.Chdir(orig) })
 
 	completions, directive := suggestEnvironments(cmd, nil, "")
 	assert.Empty(t, completions)
