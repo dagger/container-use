@@ -783,13 +783,13 @@ func createEnvironmentFileEditTool(singleTenant bool) *Tool {
 				return nil, err
 			}
 
-			if err := env.FileEdit(ctx,
-				request.GetString("explanation", ""),
-				targetFile,
-				search,
-				replace,
-				request.GetString("which_match", ""),
-			); err != nil {
+			if err := env.FileEdit(ctx, environment.FileEditRequest{
+				Explanation: request.GetString("explanation", ""),
+				TargetFile:  targetFile,
+				Search:      search,
+				Replace:     replace,
+				MatchID:     request.GetString("which_match", ""),
+			}); err != nil {
 				return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
 			}
 
