@@ -76,7 +76,7 @@ func TestEnvironmentInfoToCallResult(t *testing.T) {
 
 func TestCreateTools(t *testing.T) {
 	tools := createTools(false)
-	assert.Len(t, tools, 13)
+	assert.Len(t, tools, 15)
 
 	names := make(map[string]bool)
 	for _, tool := range tools {
@@ -85,6 +85,8 @@ func TestCreateTools(t *testing.T) {
 	assert.Contains(t, names, "environment_open")
 	assert.Contains(t, names, "environment_create")
 	assert.Contains(t, names, "environment_run_cmd")
+	assert.Contains(t, names, "environment_log")
+	assert.Contains(t, names, "environment_diff")
 }
 
 func TestWrapTool(t *testing.T) {
