@@ -193,7 +193,7 @@ func writeMcpConfig[T any](path string, unmarshal func([]byte, *T) error, update
 
 	data, err := update(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to update config: %w", err)
+		return err
 	}
 
 	if err := os.WriteFile(path, data, 0600); err != nil {

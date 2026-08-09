@@ -2,7 +2,7 @@ package agent
 
 import (
 	"encoding/json"
-	"os"
+	"fmt"
 	"path/filepath"
 
 	"github.com/dagger/container-use/rules"
@@ -20,43 +20,18 @@ func NewConfigureCursor() *ConfigureCursor {
 	}
 }
 
-// Return the agents full name
 func (a *ConfigureCursor) name() string {
 	return a.Name
 }
 
-// Return a description of the agent
 func (a *ConfigureCursor) description() string {
 	return a.Description
 }
 
-// Save the MCP config with container-use enabled
 func (a *ConfigureCursor) editMcpConfig() error {
-	configPath := filepath.Join(".cursor", "mcp.json")
-
-	// Create directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	// Read existing config or create new
-	var config MCPServersConfig
-	if data, err := os.ReadFile(configPath); err == nil {
-		if err := json.Unmarshal(data, &config); err != nil {
-			return fmt.Errorf("failed to parse existing config: %w", err)
-		}
-	}
-
-	data, err := a.updateMcpConfig(config)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(configPath, data, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
-	}
-	return nil
+	return writeMcpConfig(filepath.Join(".cursor", "mcp.json"), func(data []byte, cfg *MCPServersConfig) error {
+		return json.Unmarshal(data, cfg)
+	}, a.updateMcpConfig)
 }
 
 func (a *ConfigureCursor) updateMcpConfig(config MCPServersConfig) ([]byte, error) {
@@ -65,16 +40,18 @@ func (a *ConfigureCursor) updateMcpConfig(config MCPServersConfig) ([]byte, erro
 		config.MCPServers = make(map[string]MCPServer)
 	}
 
-	// Add container-use server
 	config.MCPServers["container-use"] = MCPServer{
 		Command: ContainerUseBinary,
 		Args:    []string{"stdio"},
 	}
 
-	return json.MarshalIndent(config, "", "  ")
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+	return data, nil
 }
 
-// Save the agent rules with the container-use prompt
 func (a *ConfigureCursor) editRules() error {
 	rulesFile := filepath.Join(".cursor", "rules", "container-use.mdc")
 	return saveRulesFile(rulesFile, rules.CursorRules)
