@@ -171,7 +171,7 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client, singleTenant bool) 
 	})
 
 	for _, t := range createTools(singleTenant) {
-		s.AddTool(t.Definition, wrapToolWithClient(t, dag, singleTenant).Handler)
+		s.AddTool(t.Definition, wrapTool(t, dag, singleTenant).Handler)
 	}
 
 	slog.Info("starting server")
@@ -191,21 +191,21 @@ func RunStdioServer(ctx context.Context, dag *dagger.Client, singleTenant bool) 
 
 func createTools(singleTenant bool) []*Tool {
 	return []*Tool{
-		wrapTool(createEnvironmentOpenTool()),
-		wrapTool(createEnvironmentCreateTool(singleTenant)),
-		wrapTool(createEnvironmentUpdateMetadataTool(singleTenant)),
-		wrapTool(createEnvironmentConfigTool(singleTenant)),
-		wrapTool(createEnvironmentListTool(singleTenant)),
-		wrapTool(createEnvironmentRunCmdTool(singleTenant)),
-		wrapTool(createEnvironmentFileReadTool(singleTenant)),
-		wrapTool(createEnvironmentFileListTool(singleTenant)),
-		wrapTool(createEnvironmentFileWriteTool(singleTenant)),
-		wrapTool(createEnvironmentFileEditTool(singleTenant)),
-		wrapTool(createEnvironmentFileDeleteTool(singleTenant)),
-		wrapTool(createEnvironmentAddServiceTool(singleTenant)),
-		wrapTool(createEnvironmentCheckpointTool(singleTenant)),
-		wrapTool(createEnvironmentLogTool()),
-		wrapTool(createEnvironmentDiffTool()),
+		createEnvironmentOpenTool(),
+		createEnvironmentCreateTool(singleTenant),
+		createEnvironmentUpdateMetadataTool(singleTenant),
+		createEnvironmentConfigTool(singleTenant),
+		createEnvironmentListTool(singleTenant),
+		createEnvironmentRunCmdTool(singleTenant),
+		createEnvironmentFileReadTool(singleTenant),
+		createEnvironmentFileListTool(singleTenant),
+		createEnvironmentFileWriteTool(singleTenant),
+		createEnvironmentFileEditTool(singleTenant),
+		createEnvironmentFileDeleteTool(singleTenant),
+		createEnvironmentAddServiceTool(singleTenant),
+		createEnvironmentCheckpointTool(singleTenant),
+		createEnvironmentLogTool(),
+		createEnvironmentDiffTool(),
 	}
 }
 
@@ -213,7 +213,7 @@ func Tools() []*Tool {
 	return createTools(false) // Default to multi-tenant mode when called outside of RunStdioServer
 }
 
-func wrapTool(tool *Tool) *Tool {
+func wrapTool(tool *Tool, dag *dagger.Client, singleTenant bool) *Tool {
 	return &Tool{
 		Definition: tool.Definition,
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -221,23 +221,13 @@ func wrapTool(tool *Tool) *Tool {
 			defer func() {
 				slog.Info("Tool finished", "tool", tool.Definition.Name)
 			}()
+			ctx = context.WithValue(ctx, daggerClientKey{}, dag)
+			ctx = context.WithValue(ctx, singleTenantKey{}, singleTenant)
 			response, err := tool.Handler(ctx, request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			return response, nil
-		},
-	}
-}
-
-// keeping this modular for now. we could move tool registration to RunStdioServer and collapse the 2 wrapTool functions.
-func wrapToolWithClient(tool *Tool, dag *dagger.Client, singleTenant bool) *Tool {
-	return &Tool{
-		Definition: tool.Definition,
-		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			ctx = context.WithValue(ctx, daggerClientKey{}, dag)
-			ctx = context.WithValue(ctx, singleTenantKey{}, singleTenant)
-			return tool.Handler(ctx, request)
 		},
 	}
 }
