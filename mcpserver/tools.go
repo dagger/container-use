@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -96,6 +97,40 @@ func openEnvironment(ctx context.Context, request mcp.CallToolRequest) (*reposit
 	return repo, env, nil
 }
 
+// openEnvironmentTarget resolves the repository and environment ID for tools
+// that only need git access to the environment's history (log, diff) and
+// therefore don't need to load the environment itself.
+func openEnvironmentTarget(ctx context.Context, request mcp.CallToolRequest) (*repository.Repository, string, error) {
+	repo, err := openRepository(ctx, request)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Check if we're in single-tenant mode
+	singleTenant, _ := ctx.Value(singleTenantKey{}).(bool)
+
+	var envID string
+	if singleTenant {
+		envID = request.GetString("environment_id", "")
+		if envID == "" {
+			currentEnvID, err := getCurrentEnvironmentID()
+			if err != nil {
+				return nil, "", err
+			}
+			envID = currentEnvID
+		}
+	} else {
+		// In multi-tenant mode, environment_id is required
+		var err error
+		envID, err = request.RequireString("environment_id")
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	return repo, envID, nil
+}
+
 type Tool struct {
 	Definition mcp.Tool
 	Handler    server.ToolHandlerFunc
@@ -145,6 +180,8 @@ func createTools(singleTenant bool) []*Tool {
 		wrapTool(createEnvironmentFileDeleteTool(singleTenant)),
 		wrapTool(createEnvironmentAddServiceTool(singleTenant)),
 		wrapTool(createEnvironmentCheckpointTool(singleTenant)),
+		wrapTool(createEnvironmentLogTool()),
+		wrapTool(createEnvironmentDiffTool()),
 	}
 }
 
@@ -939,6 +976,59 @@ func createEnvironmentAddServiceTool(singleTenant bool) *Tool {
 			}
 
 			return mcp.NewToolResultText(fmt.Sprintf("Service added and started successfully: %s", string(output))), nil
+		},
+	}
+}
+
+func createEnvironmentLogTool() *Tool {
+	return &Tool{
+		Definition: newEnvironmentTool(
+			envToolOptions{
+				name:                  "environment_log",
+				description:           "View the development history of an environment, showing all commits made by the agent plus command execution notes.",
+				useCurrentEnvironment: false,
+			},
+			mcp.WithBoolean("patch",
+				mcp.Description("Include code patches in the output (default: false)."),
+			),
+		),
+		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			repo, envID, err := openEnvironmentTarget(ctx, request)
+			if err != nil {
+				return nil, err
+			}
+
+			var buf bytes.Buffer
+			if err := repo.Log(ctx, envID, request.GetBool("patch", false), &buf); err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to get environment log", err), nil
+			}
+
+			return mcp.NewToolResultText(buf.String()), nil
+		},
+	}
+}
+
+func createEnvironmentDiffTool() *Tool {
+	return &Tool{
+		Definition: newEnvironmentTool(
+			envToolOptions{
+				name:                  "environment_diff",
+				description:           "View the cumulative changes made in an environment from its creation point, showing all code modifications as a unified diff.",
+				useCurrentEnvironment: false,
+			},
+		),
+		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			repo, envID, err := openEnvironmentTarget(ctx, request)
+			if err != nil {
+				return nil, err
+			}
+
+			var buf bytes.Buffer
+			if err := repo.Diff(ctx, envID, &buf); err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to get environment diff", err), nil
+			}
+
+			return mcp.NewToolResultText(buf.String()), nil
 		},
 	}
 }
