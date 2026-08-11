@@ -17,7 +17,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -33,6 +33,14 @@ jobs:
           fi
 
           SOURCE_SHA=$(git rev-parse $SOURCE)
-          git push -f https://github-actions[bot]:${{ secrets.RELEASE_GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$SOURCE_SHA:refs/heads/docs"
-        env:
-          RELEASE_GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+
+          # Build the docs snapshot WITHOUT .github: GITHUB_TOKEN is not
+          # allowed to push workflow file changes, and the docs branch
+          # (Mintlify source) does not need CI configuration anyway.
+          TMP=$(mktemp -d)
+          git archive "$SOURCE_SHA" | tar -x -C "$TMP"
+          rm -rf "$TMP/.github"
+          git -C "$TMP" init -q
+          git -C "$TMP" add -A
+          git -C "$TMP" -c user.name="github-actions[bot]" -c user.email="github-actions[bot]@users.noreply.github.com" commit -qm "docs snapshot of $SOURCE ($SOURCE_SHA)"
+          git -C "$TMP" push -f https://github-actions[bot]:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:refs/heads/docs

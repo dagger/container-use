@@ -123,7 +123,8 @@ func saveRulesFile(rulesFile, content string) error {
 		return err
 	}
 
-	// Append to file if it exists, create if it doesn't TODO make it re-entrant with a marker
+	// Append to file if it exists, create if it doesn't (re-entrant via the
+	// container-use-rules marker in editRulesFile)
 	existing, err := os.ReadFile(rulesFile)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read existing rules: %w", err)

@@ -126,11 +126,9 @@ func LoadInfo(ctx context.Context, id string, state []byte, worktree string) (*E
 }
 
 func (env *Environment) apply(ctx context.Context, newState *dagger.Container) error {
-	// TODO(braa): is this sync redundant with newState.ID?
-	if _, err := newState.Sync(ctx); err != nil {
-		return err
-	}
-
+	// ID alone forces full evaluation of the container and returns its
+	// digest; a separate Sync would be redundant here since its returned
+	// container handle would go unused.
 	containerID, err := newState.ID(ctx)
 	if err != nil {
 		return err
@@ -142,6 +140,15 @@ func (env *Environment) apply(ctx context.Context, newState *dagger.Container) e
 	env.State.Container = string(containerID)
 
 	return nil
+}
+
+func isAllowedShell(shell string) bool {
+	switch shell {
+	case "sh", "/bin/sh", "bash", "/bin/bash", "zsh", "/bin/zsh", "ash", "/bin/ash":
+		return true
+	default:
+		return false
+	}
 }
 
 func containerWithEnvAndSecrets(dag *dagger.Client, container *dagger.Container, envs, secrets []string) (*dagger.Container, error) {
@@ -252,6 +259,10 @@ func (env *Environment) UpdateConfig(ctx context.Context, newConfig *Environment
 }
 
 func (env *Environment) Run(ctx context.Context, command, shell string, useEntrypoint bool) (string, error) {
+	if !isAllowedShell(shell) {
+		return "", fmt.Errorf("unsupported shell: %s", shell)
+	}
+
 	args := []string{}
 	if command != "" {
 		args = []string{shell, "-c", command}

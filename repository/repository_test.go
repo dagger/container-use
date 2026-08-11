@@ -66,3 +66,16 @@ func TestRepositoryOpen(t *testing.T) {
 		assert.Equal(t, repo.forkRepoPath, strings.TrimSpace(remote))
 	})
 }
+
+func TestDefaultConfigPath(t *testing.T) {
+	path := getDefaultConfigPath()
+	assert.NotEmpty(t, path)
+	assert.True(t, strings.HasSuffix(path, "container-use"))
+}
+
+func TestRepositoryPaths(t *testing.T) {
+	tmp := t.TempDir()
+	r := &Repository{basePath: tmp}
+	assert.Equal(t, filepath.Join(tmp, "repos"), r.getRepoPath())
+	assert.Equal(t, filepath.Join(tmp, "worktrees"), r.getWorktreePath())
+}

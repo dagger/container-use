@@ -36,8 +36,10 @@ container-use terminal`,
 			return err
 		}
 
-		// FIXME(aluzzardi): This is a hack to make sure we're wrapped in `dagger run` since `Terminal()` only works with the CLI.
-		// If not, it will auto-wrap this command in a `dagger run`.
+		// Container.Terminal() requires an interactive session attach, which
+		// only the dagger CLI implements (via DAGGER_SESSION_PORT/TOKEN) - the
+		// Go SDK (as of v0.21.8) has no native TTY forwarding. If we're not
+		// already under `dagger run`, re-exec ourselves wrapped in it.
 		if _, ok := os.LookupEnv("DAGGER_SESSION_TOKEN"); !ok {
 			daggerBin, err := exec.LookPath("dagger")
 			if err != nil {
