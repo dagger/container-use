@@ -398,7 +398,9 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	return nil
 }
 
-// exportEnvironmentFile exports a single file from the environment to the worktree
+// exportEnvironmentFile exports a single file from the environment to the worktree.
+// Prevents directory traversal by ensuring the resolved file path stays inside the
+// worktree. Based on the bug report in https://github.com/dagger/container-use/issues/337.
 func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment.Environment, filePath string) error {
 	worktreePath, err := r.WorktreePath(env.ID)
 	if err != nil {
@@ -414,8 +416,13 @@ func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment
 		return fmt.Errorf("file path escapes workdir: %s", filePath)
 	}
 
-	// Get the absolute path for the file in the worktree
+	// Get the absolute path for the file in the worktree and verify it does not
+	// escape the worktree root.
 	absoluteFilePath := filepath.Join(worktreePath, clean)
+	rel, err := filepath.Rel(worktreePath, absoluteFilePath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("file path escapes worktree: %s", filePath)
+	}
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(absoluteFilePath), 0755); err != nil {
