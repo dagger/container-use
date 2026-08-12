@@ -102,3 +102,25 @@ func TestConfigureCursorUpdateConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, string(editedConfig), expect)
 }
+
+func TestConfigureCopilotUpdateConfig(t *testing.T) {
+	copilot := &ConfigureCopilot{}
+	config := make(map[string]any)
+	expect := `{
+  "mcpServers": {
+    "container-use": {
+      "args": [
+        "stdio"
+      ],
+      "command": "container-use",
+      "tools": [
+        "*"
+      ],
+      "type": "local"
+    }
+  }
+}`
+	editedConfig, err := copilot.updateMcpConfig(config)
+	assert.NoError(t, err)
+	assert.Equal(t, string(editedConfig), expect)
+}

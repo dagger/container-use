@@ -91,6 +91,8 @@ func selectAgent(agentKey string) (ConfigurableAgent, error) {
 		return &ConfigureCodex{}, nil
 	case "amazonq":
 		return &ConfigureQ{}, nil
+	case "copilot":
+		return &ConfigureCopilot{}, nil
 	}
 	return nil, fmt.Errorf("unknown agent: %s", agentKey)
 }

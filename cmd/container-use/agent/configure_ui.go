@@ -44,6 +44,11 @@ var agents = []Agent{
 		Name:        "Amazon Q Developer",
 		Description: "Amazon's agentic chat experience in your terminal (Linux/macOS/WSL)",
 	},
+	{
+		Key:         "copilot",
+		Name:        "GitHub Copilot CLI",
+		Description: "GitHub's AI-powered coding assistant in your terminal",
+	},
 }
 
 // getSupportedAgents returns agents that are supported on the current platform,
