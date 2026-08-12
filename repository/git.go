@@ -398,6 +398,31 @@ func (r *Repository) exportEnvironment(ctx context.Context, env *environment.Env
 	return nil
 }
 
+// validateExportFilePath validates that a file path intended for export from an
+// environment stays within the given worktree root. It rejects absolute paths
+// and paths that resolve outside the worktree. Based on the bug report in
+// https://github.com/dagger/container-use/issues/337.
+func validateExportFilePath(worktreePath, filePath string) (clean string, absoluteFilePath string, err error) {
+	// Reject absolute paths and paths that escape the worktree via "..".
+	if filepath.IsAbs(filePath) {
+		return "", "", fmt.Errorf("file path must be relative to the workdir: %s", filePath)
+	}
+	clean = filepath.Clean(filePath)
+	if strings.HasPrefix(clean, "..") {
+		return "", "", fmt.Errorf("file path escapes workdir: %s", filePath)
+	}
+
+	// Get the absolute path for the file in the worktree and verify it does not
+	// escape the worktree root.
+	absoluteFilePath = filepath.Join(worktreePath, clean)
+	rel, err := filepath.Rel(worktreePath, absoluteFilePath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", "", fmt.Errorf("file path escapes worktree: %s", filePath)
+	}
+
+	return clean, absoluteFilePath, nil
+}
+
 // exportEnvironmentFile exports a single file from the environment to the worktree.
 // Prevents directory traversal by ensuring the resolved file path stays inside the
 // worktree. Based on the bug report in https://github.com/dagger/container-use/issues/337.
@@ -407,21 +432,9 @@ func (r *Repository) exportEnvironmentFile(ctx context.Context, env *environment
 		return fmt.Errorf("failed to get worktree path: %w", err)
 	}
 
-	// Reject absolute paths and paths that escape the worktree via "..".
-	if filepath.IsAbs(filePath) {
-		return fmt.Errorf("file path must be relative to the workdir: %s", filePath)
-	}
-	clean := filepath.Clean(filePath)
-	if strings.HasPrefix(clean, "..") {
-		return fmt.Errorf("file path escapes workdir: %s", filePath)
-	}
-
-	// Get the absolute path for the file in the worktree and verify it does not
-	// escape the worktree root.
-	absoluteFilePath := filepath.Join(worktreePath, clean)
-	rel, err := filepath.Rel(worktreePath, absoluteFilePath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return fmt.Errorf("file path escapes worktree: %s", filePath)
+	clean, absoluteFilePath, err := validateExportFilePath(worktreePath, filePath)
+	if err != nil {
+		return err
 	}
 
 	// Ensure the directory exists

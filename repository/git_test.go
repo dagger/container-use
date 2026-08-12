@@ -228,20 +228,42 @@ func TestValidateGitRefComponent(t *testing.T) {
 	}
 }
 
-func TestExportEnvironmentFileRejectsPathTraversal(t *testing.T) {
+func TestValidateExportFilePath(t *testing.T) {
 	tmp := t.TempDir()
 	worktreePath := filepath.Join(tmp, "worktree")
 	require.NoError(t, os.MkdirAll(worktreePath, 0755))
 
-	for _, filePath := range []string{
-		"../../../etc/cron.d/evil",
-		"/etc/passwd",
-		"foo/../../etc/passwd",
-		"../secret.txt",
-	} {
-		assert.True(t, filepath.IsAbs(filePath) || strings.HasPrefix(filepath.Clean(filePath), ".."),
-			"test case %q should be classified as escaping the workdir", filePath)
-	}
+	t.Run("rejects_absolute_paths", func(t *testing.T) {
+		_, _, err := validateExportFilePath(worktreePath, "/etc/passwd")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "must be relative to the workdir")
+	})
+
+	t.Run("rejects_paths_escaping_worktree", func(t *testing.T) {
+		for _, filePath := range []string{
+			"../../../etc/cron.d/evil",
+			"foo/../../etc/passwd",
+			"../secret.txt",
+		} {
+			_, _, err := validateExportFilePath(worktreePath, filePath)
+			require.Error(t, err, "expected %q to be rejected", filePath)
+			assert.Contains(t, err.Error(), "escapes workdir", filePath)
+		}
+	})
+
+	t.Run("accepts_valid_relative_paths", func(t *testing.T) {
+		clean, abs, err := validateExportFilePath(worktreePath, "foo/bar.txt")
+		require.NoError(t, err)
+		assert.Equal(t, "foo/bar.txt", clean)
+		assert.Equal(t, filepath.Join(worktreePath, "foo/bar.txt"), abs)
+	})
+
+	t.Run("normalizes_relative_paths", func(t *testing.T) {
+		clean, abs, err := validateExportFilePath(worktreePath, "./foo/../baz.txt")
+		require.NoError(t, err)
+		assert.Equal(t, "baz.txt", clean)
+		assert.Equal(t, filepath.Join(worktreePath, "baz.txt"), abs)
+	})
 }
 
 func TestNormalizeGitURL(t *testing.T) {
