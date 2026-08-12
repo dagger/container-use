@@ -44,20 +44,6 @@ func getCurrentEnvironmentSource() (string, error) {
 	return currentEnvironmentSource, nil
 }
 
-// setCurrentEnvironmentID sets the current environment ID for single-tenant mode
-func setCurrentEnvironmentID(envID string) {
-	currentEnvMutex.Lock()
-	defer currentEnvMutex.Unlock()
-	currentEnvironmentID = envID
-}
-
-// setCurrentEnvironmentSource sets the current environment source for single-tenant mode
-func setCurrentEnvironmentSource(envSource string) {
-	currentEnvMutex.Lock()
-	defer currentEnvMutex.Unlock()
-	currentEnvironmentSource = envSource
-}
-
 // setCurrentEnvironment sets both the current environment ID and source for single-tenant mode
 func setCurrentEnvironment(envID, envSource string) {
 	currentEnvMutex.Lock()

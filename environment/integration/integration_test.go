@@ -388,11 +388,11 @@ func TestWeirdUserScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to use env1 while in repo2 (should fail)
-		_, err = env1.FileRead(ctx, "main.py", true, 0, 0)
+		_, err = env1.FileRead(ctx, "main.py")
 		assert.Error(t, err, "Should fail to read repo2 files from repo1 environment")
 
 		// The environment is still tied to repo1
-		jsContent, err := env1.FileRead(ctx, "app.js", true, 0, 0)
+		jsContent, err := env1.FileRead(ctx, "app.js")
 		require.NoError(t, err)
 		assert.Contains(t, jsContent, "repo1", "Environment should still access its original repo")
 	})

@@ -39,56 +39,39 @@ func (env *Environment) startServices(ctx context.Context) ([]*Service, error) {
 	return services, nil
 }
 
-func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*Service, error) {
-	container := env.dag.Container().From(cfg.Image)
-	container, err := containerWithEnvAndSecrets(env.dag, container, cfg.Env, env.State.Config.Secrets)
-	if err != nil {
-		return nil, err
+func translateServiceStartError(err error) error {
+	var exitErr *dagger.ExecError
+	if errors.As(err, &exitErr) {
+		return fmt.Errorf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
 	}
-
-	if cfg.Command != "" {
-		container = container.WithExec([]string{"sh", "-c", cfg.Command})
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("service failed to start within %s timeout", serviceStartTimeout)
 	}
+	return err
+}
 
-	args := []string{}
-	if cfg.Command != "" {
-		args = []string{"sh", "-c", cfg.Command}
-	}
-
-	// Expose ports
-	for _, port := range cfg.ExposedPorts {
+func (env *Environment) exposeAndStartService(ctx context.Context, container *dagger.Container, args []string, ports []int, useEntrypoint bool) (*dagger.Service, error) {
+	for _, port := range ports {
 		container = container.WithExposedPort(port, dagger.ContainerWithExposedPortOpts{
 			Protocol:    dagger.NetworkProtocolTcp,
 			Description: fmt.Sprintf("Port %d", port),
 		})
 	}
 
-	// Start the service
 	startCtx, cancel := context.WithTimeout(ctx, serviceStartTimeout)
 	defer cancel()
-	svc, err := container.AsService(dagger.ContainerAsServiceOpts{
+	return container.AsService(dagger.ContainerAsServiceOpts{
 		Args:          args,
-		UseEntrypoint: true,
+		UseEntrypoint: useEntrypoint,
 	}).Start(startCtx)
-	if err != nil {
-		var exitErr *dagger.ExecError
-		if errors.As(err, &exitErr) {
-			return nil, fmt.Errorf("command failed with exit code %d.\nstdout: %s\nstderr: %s", exitErr.ExitCode, exitErr.Stdout, exitErr.Stderr)
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("service failed to start within %s timeout", serviceStartTimeout)
-		}
-		return nil, err
-	}
+}
 
+func (env *Environment) tunnelServiceEndpoints(ctx context.Context, svc *dagger.Service, ports []int) (EndpointMappings, error) {
 	endpoints := EndpointMappings{}
-	for _, port := range cfg.ExposedPorts {
-		endpoint := &EndpointMapping{
-			EnvironmentInternal: fmt.Sprintf("tcp://%s:%d", cfg.Name, port),
-		}
+	for _, port := range ports {
+		endpoint := &EndpointMapping{}
 		endpoints[port] = endpoint
 
-		// Expose ports on the host
 		tunnel, err := env.dag.Host().Tunnel(svc, dagger.HostTunnelOpts{
 			Ports: []dagger.PortForward{
 				{
@@ -106,9 +89,42 @@ func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*
 			Scheme: "tcp",
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to get endpoint for service %s: %w", cfg.Name, err)
+			return nil, err
 		}
 		endpoint.HostExternal = externalEndpoint
+	}
+
+	return endpoints, nil
+}
+
+func (env *Environment) startService(ctx context.Context, cfg *ServiceConfig) (*Service, error) {
+	container := env.dag.Container().From(cfg.Image)
+	container, err := containerWithEnvAndSecrets(env.dag, container, cfg.Env, env.State.Config.Secrets)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.Command != "" {
+		container = container.WithExec([]string{"sh", "-c", cfg.Command})
+	}
+
+	args := []string{}
+	if cfg.Command != "" {
+		args = []string{"sh", "-c", cfg.Command}
+	}
+
+	svc, err := env.exposeAndStartService(ctx, container, args, cfg.ExposedPorts, true)
+	if err != nil {
+		return nil, translateServiceStartError(err)
+	}
+
+	endpoints, err := env.tunnelServiceEndpoints(ctx, svc, cfg.ExposedPorts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get endpoint for service %s: %w", cfg.Name, err)
+	}
+
+	for _, port := range cfg.ExposedPorts {
+		endpoints[port].EnvironmentInternal = fmt.Sprintf("tcp://%s:%d", cfg.Name, port)
 	}
 
 	return &Service{

@@ -97,7 +97,7 @@ func TestWrapTool(t *testing.T) {
 		return mcp.NewToolResultText("ok"), nil
 	}
 
-	wrapped := wrapTool(tool)
+	wrapped := wrapTool(tool, nil, false)
 	assert.Equal(t, tool.Definition.Name, wrapped.Definition.Name)
 
 	_, err := wrapped.Handler(context.Background(), mcp.CallToolRequest{})
@@ -119,7 +119,7 @@ func TestWrapToolWithClient(t *testing.T) {
 		return mcp.NewToolResultText("ok"), nil
 	}
 
-	wrapped := wrapToolWithClient(tool, sentinel, true)
+	wrapped := wrapTool(tool, sentinel, true)
 	_, err := wrapped.Handler(context.Background(), mcp.CallToolRequest{})
 	require.NoError(t, err)
 	assert.True(t, called)

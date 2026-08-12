@@ -9,9 +9,8 @@ func TestSingleTenantEnvironmentStorage(t *testing.T) {
 	testEnvID := "test-env-id"
 	testEnvSource := "/test/source/path"
 
-	// Test individual setters and getters
-	setCurrentEnvironmentID(testEnvID)
-	setCurrentEnvironmentSource(testEnvSource)
+	// Test setting and getting environment ID and source
+	setCurrentEnvironment(testEnvID, testEnvSource)
 
 	retrievedID, err := getCurrentEnvironmentID()
 	if err != nil {
@@ -29,7 +28,7 @@ func TestSingleTenantEnvironmentStorage(t *testing.T) {
 		t.Fatalf("Expected environment source %s, got: %s", testEnvSource, retrievedSource)
 	}
 
-	// Test combined setter
+	// Test updating environment ID and source
 	newEnvID := "new-env-id"
 	newEnvSource := "/new/source/path"
 	setCurrentEnvironment(newEnvID, newEnvSource)

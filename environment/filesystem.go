@@ -10,13 +10,14 @@ import (
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 )
 
-func (env *Environment) FileRead(ctx context.Context, targetFile string, shouldReadEntireFile bool, startLineOneIndexedInclusive int, endLineOneIndexedInclusive int) (string, error) {
+func (env *Environment) FileRead(ctx context.Context, targetFile string) (string, error) {
+	return env.container().File(targetFile).Contents(ctx)
+}
+
+func (env *Environment) FileReadRange(ctx context.Context, targetFile string, startLineOneIndexedInclusive, endLineOneIndexedInclusive int) (string, error) {
 	file, err := env.container().File(targetFile).Contents(ctx)
 	if err != nil {
 		return "", err
-	}
-	if shouldReadEntireFile {
-		return file, err
 	}
 
 	lines := strings.Split(file, "\n")
@@ -54,22 +55,28 @@ func (env *Environment) FileWrite(ctx context.Context, explanation, targetFile, 
 	return nil
 }
 
-func (env *Environment) FileEdit(ctx context.Context, explanation, targetFile, search, replace, matchID string) error {
-	// Check if the file is within a submodule
-	if err := env.validateNotSubmoduleFile(targetFile); err != nil {
+type FileEditRequest struct {
+	Explanation string
+	TargetFile  string
+	Search      string
+	Replace     string
+	MatchID     string
+}
+
+func (env *Environment) FileEdit(ctx context.Context, req FileEditRequest) error {
+	if err := env.validateNotSubmoduleFile(req.TargetFile); err != nil {
 		return err
 	}
 
-	contents, err := env.container().File(targetFile).Contents(ctx)
+	contents, err := env.container().File(req.TargetFile).Contents(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Find all matches of the search text
 	matches := []int{}
 	cursor := 0
 	for {
-		index := strings.Index(contents[cursor:], search)
+		index := strings.Index(contents[cursor:], req.Search)
 		if index == -1 {
 			break
 		}
@@ -79,58 +86,48 @@ func (env *Environment) FileEdit(ctx context.Context, explanation, targetFile, s
 	}
 
 	if len(matches) == 0 {
-		return fmt.Errorf("search text not found in file %s", targetFile)
+		return fmt.Errorf("search text not found in file %s", req.TargetFile)
 	}
 
-	// If there are multiple matches and no matchID is provided, return an error with all matches
-	if len(matches) > 1 && matchID == "" {
+	if len(matches) > 1 && req.MatchID == "" {
 		var matchDescriptions []string
 		for i, matchIndex := range matches {
-			// Generate a unique ID for each match
-			id := generateMatchID(targetFile, search, replace, i)
-
-			// Get context around the match (3 lines before and after)
+			id := generateMatchID(req.TargetFile, req.Search, req.Replace, i)
 			context := getMatchContext(contents, matchIndex)
-
 			matchDescriptions = append(matchDescriptions, fmt.Sprintf("Match %d (ID: %s):\n%s", i+1, id, context))
 		}
 
 		return fmt.Errorf("multiple matches found for search text in %s. Please specify which_match parameter with one of the following IDs:\n\n%s",
-			targetFile, strings.Join(matchDescriptions, "\n\n"))
+			req.TargetFile, strings.Join(matchDescriptions, "\n\n"))
 	}
 
-	// Determine which match to replace
 	var targetMatchIndex int
 	if len(matches) == 1 {
 		targetMatchIndex = matches[0]
 	} else {
-		// Find the match with the specified ID
 		found := false
 		for i, matchIndex := range matches {
-			id := generateMatchID(targetFile, search, replace, i)
-			if id == matchID {
+			id := generateMatchID(req.TargetFile, req.Search, req.Replace, i)
+			if id == req.MatchID {
 				targetMatchIndex = matchIndex
 				found = true
 				break
 			}
 		}
 		if !found {
-			return fmt.Errorf("match ID %s not found", matchID)
+			return fmt.Errorf("match ID %s not found", req.MatchID)
 		}
 	}
 
-	// Replace the specific match
-	newContents := contents[:targetMatchIndex] + replace + contents[targetMatchIndex+len(search):]
+	newContents := contents[:targetMatchIndex] + req.Replace + contents[targetMatchIndex+len(req.Search):]
 
-	// Apply the changes using `Directory.withPatch` so we don't have to spit out
-	// the entire contents
-	patch := godiffpatch.GeneratePatch(targetFile, contents, newContents)
+	patch := godiffpatch.GeneratePatch(req.TargetFile, contents, newContents)
 	ctr := env.container()
 	err = env.apply(ctx, ctr.WithDirectory(".", ctr.Directory(".").WithPatch(patch)))
 	if err != nil {
 		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
 	}
-	env.Notes.Add("Edit %s", targetFile)
+	env.Notes.Add("Edit %s", req.TargetFile)
 	return nil
 }
 
