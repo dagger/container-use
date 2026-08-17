@@ -12,12 +12,12 @@ require (
 	github.com/dustinkirkland/golang-petname v0.0.0-20260215035315-f0c533e9ce9b
 	github.com/gofrs/flock v0.13.0
 	github.com/karrick/tparse v2.4.2+incompatible
-	github.com/mark3labs/mcp-go v0.57.0
+	github.com/mark3labs/mcp-go v0.58.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/sourcegraph/go-diff-patch v0.0.0-20240223163233-798fd1e94a8e
 	github.com/spf13/cobra v1.10.2
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/tiborvass/go-watch v0.0.0-20250608155524-0d315e1fd5ab
 	golang.org/x/sync v0.22.0
 	golang.org/x/term v0.45.0
@@ -46,7 +46,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dagger/querybuilder v0.0.0-20260402040506-574a5e81cb59 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/etdub/goparsetime v0.0.0-20160315173935-ea17b0ac3318 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
@@ -67,7 +66,6 @@ require (
 	github.com/muesli/roff v0.1.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/pkg/term v1.1.0 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/sosodev/duration v1.4.0 // indirect
