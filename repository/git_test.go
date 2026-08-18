@@ -172,6 +172,71 @@ func TestCommitWorktreeChanges(t *testing.T) {
 	})
 }
 
+func TestReadSubmoduleGitdirPath(t *testing.T) {
+	t.Run("root_level_submodule_relative_path", func(t *testing.T) {
+		dir := t.TempDir()
+		// Simulate a root-level submodule at "sub" with a relative gitdir pointer
+		subPath := filepath.Join(dir, "sub")
+		require.NoError(t, os.MkdirAll(subPath, 0755))
+		// Relative path from sub/.git: ../.git/modules/sub -> resolves to dir/.git/modules/sub
+		require.NoError(t, os.WriteFile(filepath.Join(subPath, ".git"), []byte("gitdir: ../.git/modules/sub"), 0644))
+
+		result, err := readSubmoduleGitdirPath(dir, "sub")
+		require.NoError(t, err)
+
+		expected := filepath.Clean(filepath.Join(dir, ".git/modules/sub"))
+		assert.Equal(t, "gitdir: "+expected, result)
+	})
+
+	t.Run("nested_submodule_relative_path", func(t *testing.T) {
+		dir := t.TempDir()
+		// Simulate a nested submodule at "libs/nested-sub" with a relative gitdir pointer
+		subPath := filepath.Join(dir, "libs", "nested-sub")
+		require.NoError(t, os.MkdirAll(subPath, 0755))
+		// Relative path from libs/nested-sub/.git: ../../.git/modules/libs/nested-sub
+		require.NoError(t, os.WriteFile(filepath.Join(subPath, ".git"), []byte("gitdir: ../../.git/modules/libs/nested-sub"), 0644))
+
+		result, err := readSubmoduleGitdirPath(dir, "libs/nested-sub")
+		require.NoError(t, err)
+
+		expected := filepath.Clean(filepath.Join(dir, ".git/modules/libs/nested-sub"))
+		assert.Equal(t, "gitdir: "+expected, result)
+	})
+
+	t.Run("already_absolute_path", func(t *testing.T) {
+		dir := t.TempDir()
+		subPath := filepath.Join(dir, "sub")
+		require.NoError(t, os.MkdirAll(subPath, 0755))
+		absGitdir := "/abs/path/modules/sub"
+		require.NoError(t, os.WriteFile(filepath.Join(subPath, ".git"), []byte("gitdir: "+absGitdir), 0644))
+
+		result, err := readSubmoduleGitdirPath(dir, "sub")
+		require.NoError(t, err)
+		assert.Equal(t, "gitdir: "+absGitdir, result)
+	})
+
+	t.Run("malformed_git_file", func(t *testing.T) {
+		dir := t.TempDir()
+		subPath := filepath.Join(dir, "sub")
+		require.NoError(t, os.MkdirAll(subPath, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(subPath, ".git"), []byte("not-a-gitdir-file"), 0644))
+
+		_, err := readSubmoduleGitdirPath(dir, "sub")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid .git file format")
+	})
+
+	t.Run("missing_git_file", func(t *testing.T) {
+		dir := t.TempDir()
+		subPath := filepath.Join(dir, "sub")
+		require.NoError(t, os.MkdirAll(subPath, 0755))
+
+		_, err := readSubmoduleGitdirPath(dir, "sub")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read submodule .git file")
+	})
+}
+
 // Test helper functions
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
