@@ -3,7 +3,7 @@ module github.com/dagger/container-use
 go 1.26.1
 
 require (
-	dagger.io/dagger v0.21.8
+	dagger.io/dagger v0.21.9
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/fang v1.0.0
 	github.com/charmbracelet/huh v1.0.0
