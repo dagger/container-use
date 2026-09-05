@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Container Use! This document outl
 
 Follow these steps to set up your development environment:
 
-1. **Install Go**: Ensure you have Go version 1.21 or higher installed.
+1. **Install Go**: Ensure you have Go version 1.26.1 or higher installed.
 2. **Clone the Repository**:
 
    ```bash
