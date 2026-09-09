@@ -1,0 +1,55 @@
+---
+title: Browser Use
+description: "Give a coding agent a real browser inside its Container Use environment."
+icon: browser
+---
+
+Container Use isolates the coding work. Browser Use gives the same agent Chrome, DOM inspection,
+screenshots, clicks, and typing inside that environment.
+
+## Add Browser Use to new environments
+
+Run these commands once from your repository:
+
+```sh
+container-use config base-image set python:3.12-bookworm
+container-use config setup-command add "python -m pip install uv browser-use && browser-use install"
+```
+
+The `uv` package is required because `browser-use install` calls `uvx` to install Chromium.
+
+## Start the browser
+
+Ask the coding agent to run this inside its Container Use environment before its first browser task:
+
+```sh
+chrome=$(find /root/.cache/ms-playwright -type f -name chrome | head -1)
+"$chrome" \
+  --headless \
+  --no-sandbox \
+  --disable-dev-shm-usage \
+  --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/browser-use \
+  about:blank >/tmp/browser-use-chrome.log 2>&1 &
+
+export BU_CDP_URL=http://127.0.0.1:9222
+```
+
+`BU_CDP_URL` makes the Browser Use CLI attach to that Chrome process instead of looking for a host
+desktop browser.
+
+## Verify it
+
+```sh
+browser-use <<'PY'
+new_tab("https://example.com")
+info = page_info()
+assert info["title"] == "Example Domain", info
+assert info["url"].startswith("https://example.com"), info
+print(info)
+PY
+```
+
+The browser and its profile stay inside the Container Use environment. Use `cu log <env-id>` to see
+the commands and `cu checkout <env-id>` to inspect the agent's work.
+

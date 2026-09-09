@@ -33,6 +33,7 @@
         "pages": [
           "environment-workflow",
           "environment-configuration",
+          "browser-use",
           "secrets"
         ]
       },
