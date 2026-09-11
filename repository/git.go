@@ -684,7 +684,7 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string,
 			} else if !r.isBinaryFile(worktreePath, fileName) {
 				// Untracked file - add if not binary
 
-				_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
+				_, err = RunGitCommand(ctx, worktreePath, "add", "--", fileName)
 				if err != nil {
 					return err
 				}
@@ -694,14 +694,14 @@ func (r *Repository) addNonBinaryFiles(ctx context.Context, worktreePath string,
 			continue
 		case indexStatus == 'D' || workTreeStatus == 'D':
 			// D = deleted files (always stage deletion)
-			_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
+			_, err = RunGitCommand(ctx, worktreePath, "add", "--", fileName)
 			if err != nil {
 				return err
 			}
 		default:
 			// M, R, C and other statuses - add if not binary
 			if !r.isBinaryFile(worktreePath, fileName) {
-				_, err = RunGitCommand(ctx, worktreePath, "add", fileName)
+				_, err = RunGitCommand(ctx, worktreePath, "add", "--", fileName)
 				if err != nil {
 					return err
 				}
@@ -798,7 +798,7 @@ func (r *Repository) addFilesFromUntrackedDirectory(ctx context.Context, worktre
 		}
 
 		if !r.isBinaryFile(worktreePath, relPath) {
-			_, err = RunGitCommand(ctx, worktreePath, "add", relPath)
+			_, err = RunGitCommand(ctx, worktreePath, "add", "--", relPath)
 			if err != nil {
 				return err
 			}
