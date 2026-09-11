@@ -77,6 +77,26 @@ func TestSelectiveFileStaging(t *testing.T) {
 			shouldSkip:  []string{"node_modules", "build"},
 			reason:      "Dependencies and build outputs should be excluded",
 		},
+		{
+			name: "file_named_like_a_git_option",
+			setup: func(t *testing.T, dir string) {
+				writeFile(t, dir, "--all", "poc")
+				writeFile(t, dir, "bundle.zip", "archive")
+			},
+			shouldStage: []string{"--all"},
+			shouldSkip:  []string{"bundle.zip"},
+			reason:      "A file named --all must be staged as a path, not as git add --all",
+		},
+		{
+			name: "directory_named_like_a_git_option",
+			setup: func(t *testing.T, dir string) {
+				createDir(t, dir, "--dry-run")
+				writeFile(t, dir, "--dry-run/notes.txt", "notes")
+			},
+			shouldStage: []string{"--dry-run/notes.txt"},
+			shouldSkip:  []string{},
+			reason:      "Paths under a directory named like an option must reach git as paths",
+		},
 	}
 
 	for _, scenario := range scenarios {
