@@ -13,6 +13,9 @@
     <a href="https://github.com/clinebot/awesome-claude-code">
       <img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Claude Code">
     </a>
+    <a href="https://github.com/varun1505/awesome-software-factories">
+      <img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Software Factories">
+    </a>
   </p>
 </div>
 
