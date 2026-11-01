@@ -154,6 +154,41 @@ func TestEnvironmentConfig_PreservesShellOperators(t *testing.T) {
 	}
 }
 
+func TestResolveSecretValue(t *testing.T) {
+	t.Run("env_scheme_resolves_host_variable", func(t *testing.T) {
+		t.Setenv("TEST_SECRET_VALUE", "my-secret-token")
+
+		resolved, isPlaintext, err := resolveSecretValue("MY_SECRET", "env://TEST_SECRET_VALUE")
+		require.NoError(t, err)
+		assert.True(t, isPlaintext)
+		assert.Equal(t, "my-secret-token", resolved)
+	})
+
+	t.Run("env_scheme_errors_when_variable_not_set", func(t *testing.T) {
+		t.Setenv("TEST_UNSET_VAR", "")
+		os.Unsetenv("TEST_UNSET_VAR")
+
+		_, _, err := resolveSecretValue("MY_SECRET", "env://TEST_UNSET_VAR")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "TEST_UNSET_VAR")
+		assert.Contains(t, err.Error(), "not set")
+	})
+
+	t.Run("non_env_scheme_passes_through", func(t *testing.T) {
+		resolved, isPlaintext, err := resolveSecretValue("MY_SECRET", "op://vault/item/field")
+		require.NoError(t, err)
+		assert.False(t, isPlaintext)
+		assert.Equal(t, "op://vault/item/field", resolved)
+	})
+
+	t.Run("plain_value_passes_through", func(t *testing.T) {
+		resolved, isPlaintext, err := resolveSecretValue("MY_SECRET", "plain-secret-value")
+		require.NoError(t, err)
+		assert.False(t, isPlaintext)
+		assert.Equal(t, "plain-secret-value", resolved)
+	})
+}
+
 // Test helper functions
 func createInstructionsFile(t *testing.T, dir, content string) {
 	t.Helper()
