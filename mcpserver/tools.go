@@ -788,21 +788,22 @@ func createEnvironmentFileEditTool(singleTenant bool) *Tool {
 				return nil, err
 			}
 
-			if err := env.FileEdit(ctx, environment.FileEditRequest{
+			result, err := env.FileEdit(ctx, environment.FileEditRequest{
 				Explanation: request.GetString("explanation", ""),
 				TargetFile:  targetFile,
 				Search:      search,
 				Replace:     replace,
 				MatchID:     request.GetString("which_match", ""),
-			}); err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to write file", err), nil
+			})
+			if err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to edit file", err), nil
 			}
 
 			if err := repo.UpdateFile(ctx, env, targetFile, request.GetString("explanation", "")); err != nil {
 				return mcp.NewToolResultErrorFromErr("unable to update the environment", err), nil
 			}
 
-			return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/%s remote ref", targetFile, env.ID)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("file %s edited successfully and committed to container-use/%s remote ref\n\nVerified edit - snippet around replacement:\n%s", targetFile, env.ID, result.Snippet)), nil
 		},
 	}
 }

@@ -63,14 +63,20 @@ type FileEditRequest struct {
 	MatchID     string
 }
 
-func (env *Environment) FileEdit(ctx context.Context, req FileEditRequest) error {
+// FileEditResult contains information about a successful file edit
+type FileEditResult struct {
+	// Snippet is a short context snippet around the replaced text
+	Snippet string
+}
+
+func (env *Environment) FileEdit(ctx context.Context, req FileEditRequest) (*FileEditResult, error) {
 	if err := env.validateNotSubmoduleFile(req.TargetFile); err != nil {
-		return err
+		return nil, err
 	}
 
 	contents, err := env.container().File(req.TargetFile).Contents(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	matches := []int{}
@@ -86,7 +92,7 @@ func (env *Environment) FileEdit(ctx context.Context, req FileEditRequest) error
 	}
 
 	if len(matches) == 0 {
-		return fmt.Errorf("search text not found in file %s", req.TargetFile)
+		return nil, fmt.Errorf("search text not found in file %s", req.TargetFile)
 	}
 
 	if len(matches) > 1 && req.MatchID == "" {
@@ -97,7 +103,7 @@ func (env *Environment) FileEdit(ctx context.Context, req FileEditRequest) error
 			matchDescriptions = append(matchDescriptions, fmt.Sprintf("Match %d (ID: %s):\n%s", i+1, id, context))
 		}
 
-		return fmt.Errorf("multiple matches found for search text in %s. Please specify which_match parameter with one of the following IDs:\n\n%s",
+		return nil, fmt.Errorf("multiple matches found for search text in %s. Please specify which_match parameter with one of the following IDs:\n\n%s",
 			req.TargetFile, strings.Join(matchDescriptions, "\n\n"))
 	}
 
@@ -115,7 +121,7 @@ func (env *Environment) FileEdit(ctx context.Context, req FileEditRequest) error
 			}
 		}
 		if !found {
-			return fmt.Errorf("match ID %s not found", req.MatchID)
+			return nil, fmt.Errorf("match ID %s not found", req.MatchID)
 		}
 	}
 
@@ -125,10 +131,28 @@ func (env *Environment) FileEdit(ctx context.Context, req FileEditRequest) error
 	ctr := env.container()
 	err = env.apply(ctx, ctr.WithDirectory(".", ctr.Directory(".").WithPatch(patch)))
 	if err != nil {
-		return fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
+		return nil, fmt.Errorf("failed applying file edit, skipping git propagation: %w", err)
 	}
+
+	// Verify the edit was actually applied by reading the file back
+	verifiedContents, err := env.container().File(req.TargetFile).Contents(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify edit was applied: %w", err)
+	}
+
+	if verifiedContents != newContents {
+		return nil, fmt.Errorf("edit verification failed: file contents of %s after applying the patch do not match expected result", req.TargetFile)
+	}
+
+	// Generate a context snippet around the replacement for confirmation
+	replaceIndex := targetMatchIndex
+	if replaceIndex >= len(verifiedContents) {
+		replaceIndex = max(0, len(verifiedContents)-1)
+	}
+	snippet := getMatchContext(verifiedContents, replaceIndex)
+
 	env.Notes.Add("Edit %s", req.TargetFile)
-	return nil
+	return &FileEditResult{Snippet: snippet}, nil
 }
 
 func (env *Environment) FileDelete(ctx context.Context, explanation, targetFile string) error {
